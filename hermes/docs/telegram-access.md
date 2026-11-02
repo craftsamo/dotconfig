@@ -3,7 +3,8 @@
 The Assistant's access to the user's own Telegram account: reading chats,
 groups and channels, keeping a chosen set of supergroups and channels synced,
 saving received files, and sending text and workspace files that the user
-approves first. It is not the Assistant's Telegram bot (the gateway's Telegram
+approves first (a plain text send inside a [send mandate](#send-mandates) is
+the one exception). It is not the Assistant's Telegram bot (the gateway's Telegram
 platform, through which the user talks to Hermes); nothing here changes that
 bot, and the bot's own chats are hidden from the tool. Read it when changing
 the plugin or its agent. Common rules: [access-common.md](access-common.md).
@@ -17,7 +18,7 @@ ban — which would also cut the user off from the Assistant's bot. The user
 accepted that risk ([risk acceptance](access-common.md#risk-acceptance)), so
 the design behaves like an ordinary, quiet client: one connection, no polling,
 paced background reads, no read receipts, no status changes, and sends only
-after approval.
+after approval, unless a plain text send fits a send mandate.
 
 One choice goes against the terms' letter on purpose: disappearing messages
 are kept as signal-access keeps them (see "The mirror"), although §1.4 names
@@ -28,17 +29,18 @@ user only.
 
 ## Shape
 
-| Piece                                                                            | Home                                                                                               | Reader               |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------- |
-| Mirror schema, sync list, retention (stdlib)                                     | `plugins/messaging/telegram-access/store.py`                                                       | agent and plugin     |
-| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests   | `plugins/messaging/telegram-access/sync.py`                                                        | launchd, on its venv |
-| Socket client (stdlib)                                                           | `plugins/messaging/telegram-access/rpc.py`                                                         | plugin               |
-| Engine: reads, card, file checks, media, send, bypass guard                      | `plugins/messaging/telegram-access/tg.py`                                                          | Assistant            |
-| `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/messaging/telegram-access/__init__.py`                                                    | Assistant            |
-| Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → machine-local `~/.hermes/local/telegram-access/venv` | people               |
-| Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl`     | people               |
-| How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-access:account` plugin skill (`plugins/messaging/telegram-access/skills/account/`)   | Assistant            |
-| When the Assistant uses it in Chat                                               | the Assistant's private Chat reference `telegram.md`                                               | Assistant            |
+| Piece                                                                                                    | Home                                                                                               | Reader               |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------- |
+| Mirror schema, sync list, retention (stdlib)                                                             | `plugins/messaging/telegram-access/store.py`                                                       | agent and plugin     |
+| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests                           | `plugins/messaging/telegram-access/sync.py`                                                        | launchd, on its venv |
+| Socket client (stdlib)                                                                                   | `plugins/messaging/telegram-access/rpc.py`                                                         | plugin               |
+| Engine: reads, card, file checks, media, send, send mandates, bypass guard                               | `plugins/messaging/telegram-access/tg.py`                                                          | Assistant            |
+| `telegram_account` and `telegram_mandate` tools and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/messaging/telegram-access/__init__.py`                                                    | Assistant            |
+| Send mandates shared with Signal: terms, card, fit checks, hourly ledger                                 | `plugins/messaging/_shared/send_mandate.py` (store: `plugins/_shared/mandate_store.py`)            | plugins              |
+| Engine venv (Telethon, hash-locked)                                                                      | `engines/telegram-access/requirements.lock` → machine-local `~/.hermes/local/telegram-access/venv` | people               |
+| Login and the agent                                                                                      | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl`     | people               |
+| How the Assistant works with it: reads, files, sync list, sends, outcomes                                | the `telegram-access:account` plugin skill (`plugins/messaging/telegram-access/skills/account/`)   | Assistant            |
+| When the Assistant uses it in Chat                                                                       | the Assistant's private Chat reference `telegram.md`                                               | Assistant            |
 
 [Telethon](https://codeberg.org/Lonami/Telethon) 1.x logs in as a new device
 of the account ("Hermes telegram-access" under _Settings → Devices_). There is
@@ -155,8 +157,9 @@ message of that chat. Text goes out exactly as written (no Markdown parsing).
 Chats the user has left, and channels they cannot post in, are refused before
 the card.
 
-- **Sends ask first** ([approval gate](access-common.md#approval-gate)),
-  on a card of the [shared shape](access-common.md#card-shape) titled
+- **Sends ask first** ([approval gate](access-common.md#approval-gate)) unless
+  a plain text send fits a [send mandate](#send-mandates), on a card of the
+  [shared shape](access-common.md#card-shape) titled
   `Telegram · Send message`, then who sees it (⚠️ the person or everyone in
   the group, ✅ only the user for Saved Messages). The card names the account,
   the chat with its stable identity, the reply target and every file with its
@@ -198,7 +201,84 @@ the card.
 
 A send is refused wherever no person can answer its card
 ([approval gate](access-common.md#approval-gate)), in the hook and again in the
-handler, before any card is built or anything is sent. Reads are unaffected.
+handler, before any card is built or anything is sent — unless it fits a [send
+mandate](#send-mandates), which needs no card and so runs there too. Reads are
+unaffected.
+
+## Send mandates
+
+A send mandate is the user's standing approval for plain text sends to a few
+chats, made on a card of its own. A report that goes to the same chat every
+morning then needs no one to tap a card, also in a cron job, while the chats,
+the count, the length and the end stay the user's, read from the card. Why and
+what is never allowed: [decision](decisions/send-mandates.md). A mandate names:
+
+- **one signed-in account** (its id; the card names it as a send card does) and
+  **one to five chats**, each by id with the name, kind and identity the card
+  showed: a person, a group, a supergroup or the account's own Saved Messages.
+  The identity is the handle a send card shows (@username, phone or `id N`; a
+  group's @username and id), because the name is the other person's choice and
+  never tells two chats apart. Never a bot or a channel, and never the Saved
+  Messages row of another account;
+- **how many sends an hour** (1 to 30) and **the longest text** (at most 1000
+  characters);
+- **a purpose** in one line and **an end** at most 30 days out.
+
+`telegram_mandate` (toolset `telegram_access`, the Assistant only) has three
+actions:
+
+- **`create`** (`chats` = chat ids as `telegram_account` takes them, `per_hour`,
+  `max_chars`, `days`, `purpose`) always asks, on a card of the [shared
+  shape](access-common.md#card-shape) titled `Telegram · Send mandate`, marked
+  🚨, with every bound on it and what is never covered. The hook refuses it for an
+  inbound A2A request and wherever no person can answer a card (cron, a
+  single query, yolo mode, approvals off, an unattended platform), reads the
+  chats now through the lookup a send uses (an id, not excluded, in the chat
+  list, one the user can post in), and records the terms it showed under a
+  fresh rule key, so no earlier answer ever approves another mandate and a
+  mandate never covers the making of another. The handler runs only a call the
+  hook decided, reads the chats and the account again and refuses when they
+  are no longer the ones on the card, then makes the mandate with the end the
+  card showed.
+- **`list`** shows the mandates in force and **`revoke`** (`mandate` = its id)
+  ends one at once; neither needs a card, because they only narrow what runs
+  without one.
+
+A send **fits** a mandate only when it is plain text to one of its chats from
+its account, within the length, with no file, no quoted message and no reply,
+and the hour's count is not used up. For a send that fits:
+
+1. **The hook** (`approval_request`) asks the mandate store which mandate in
+   force the send fits, stores the usual per-call record (the digest of what
+   was planned, no files) together with the mandate's id, returns no `approve`
+   directive and skips the cron and no-person refusals. The handler peeks at
+   that record to skip them as well; a covered call the hook never decided is
+   refused as any send is.
+2. **The write** takes the record, checks the digest as it does for a card,
+   then — before anything reaches the sync agent — asks the store again, under
+   its lock, whether the mandate is still in force and the send still fits,
+   and counts it. The count stands whatever becomes of the request, even when
+   it fails or is uncertain, so the hourly bound holds. A send that no longer
+   fits (revoked, ended, the count used up, another chat or account) is
+   `not sent: it no longer fits the send mandate (…)` with nothing sent.
+
+A send that fits no mandate behaves as before: a card, and a refusal where no
+card can be answered; the next send after the hourly bound is such a send.
+Files, quotes and replies, other chats and other accounts are never covered.
+
+**State.** In the profile home, `telegram-access/` holds `mandates/<id>.json`,
+`head.json` (the ids in force; only the head decides), `uses.jsonl` (one opening
+row per mandate, then one row per counted send) and `mandates.jsonl` (history,
+for the record only). Each is MAC'd, except the history, with a key in the
+Keychain item `TELEGRAM_MANDATE_KEY_<PROFILE>` (project `hermes`, scope
+`telegram-access`, a scope no profile receives), read afresh on every check:
+without a readable key nothing is in force and nothing is counted. The MACs stop
+an edited or forged mandate, head or row, and a mandate whose opening row is
+missing, or a ledger that is deleted, emptied, replaced or not a plain file of
+this user (it is opened without following links), counts as used up. Neither an
+older head copied back nor use rows removed from an intact ledger is detected;
+the [guard](#ways-around-the-tool) that keeps file and terminal calls off the
+state and the 30-day ceiling bound that.
 
 ## Ways around the tool
 
@@ -207,8 +287,12 @@ plugin's name — which is also the launcher's, the LaunchAgent's and the
 Keychain scope's (`telegram-access`) — the Keychain names, the Telegram apps'
 data, Telegram client libraries and my.telegram.org; file-tool calls on the
 state directory, the Keychain names, the apps' data, the LaunchAgent and its
-log, and the engine venv. Patterns: `_PATHS`, `_ENGINE` and `_CLIENTS` in
-`plugins/messaging/telegram-access/tg.py`. Shared rules:
+log, and the engine venv. Terminal and file calls naming the send mandates'
+state in the profile home (`telegram-access/` with `mandates`, `head.json`,
+`uses.jsonl` or `mandates.jsonl`, also reached through a link or `..`) or their
+key (`TELEGRAM_MANDATE_KEY`) are blocked too; file tools can still read the
+plugin's source and these docs. Patterns: `_PATHS`, `_MANDATE_STATE`, `_ENGINE` and
+`_CLIENTS` in `plugins/messaging/telegram-access/tg.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).
 
 ## Setup

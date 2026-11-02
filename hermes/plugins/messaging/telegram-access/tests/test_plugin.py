@@ -19,15 +19,19 @@ store = plugin.tg.store
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
     base = fakes.short_dir()
+    keychain = fakes.short_dir()
     monkeypatch.setenv(store.STATE_ENV, str(base))  # never the real state directory
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_home", lambda: base)
     monkeypatch.setattr(plugin.tg, "_agent_running", lambda: True)
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)  # a person is present
+    monkeypatch.setattr(plugin.send_mandate.mandate_store, "SECRET", fakes.fake_secret(keychain))  # never the Keychain
     fakes.seed(base)
     plugin.tg._approved.clear()
+    plugin._DECISIONS.clear()
     yield base
     shutil.rmtree(base, ignore_errors=True)
+    shutil.rmtree(keychain, ignore_errors=True)
 
 
 class Ctx:
@@ -64,12 +68,18 @@ def test_only_the_assistant_gets_the_tool():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == {"telegram_account"}
+    assert set(ctx.tools) == {"telegram_account", "telegram_mandate"}
     tool = ctx.tools["telegram_account"]
     assert tool["toolset"] == "telegram_access" and tool["schema"]["name"] == "telegram_account"
     params = tool["schema"]["parameters"]
     assert params["additionalProperties"] is False and params["required"] == ["action"]
     assert params["properties"]["action"]["enum"] == list(plugin.tg.ACTIONS)
+    mandate = ctx.tools["telegram_mandate"]
+    assert mandate["toolset"] == "telegram_access" and mandate["handler"] is plugin.telegram_mandate and mandate["emoji"]
+    params = mandate["schema"]["parameters"]
+    assert params["additionalProperties"] is False and params["required"] == ["action"]
+    assert params["properties"]["action"]["enum"] == ["create", "list", "revoke"]
+    assert set(params["properties"]) == {"action", "chats", "per_hour", "max_chars", "days", "purpose", "mandate"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
 
 
