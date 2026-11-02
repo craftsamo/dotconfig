@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -210,7 +211,7 @@ def test_no_mandate_covers_a_publish_a_run_or_a_workflow(gh, tmp_path, monkeypat
     mandate = _load("hermes_github_access_mandate", ROOT / "mandate.py")
     monkeypatch.setattr(mandate, "key", lambda home, create=False: bytes(range(32)))
     mandate.create(tmp_path, {"boards": [], "repos": [{"id": "R_app", "name": "me/app", "tier": "own"}], "parent": None,
-                              "classes": ["create", "routine"], "days": 3, "expires": 4102444800, "purpose": "Ship"})
+                              "classes": ["create", "routine"], "days": 3, "expires": int(time.time()) + 3 * 86400, "purpose": "Ship"})
     draft = changes.plan({"repo": "me/app", "changes": [{"op": "release_create", "tag": "v1.2.0"}]})
     assert mandate.covering(tmp_path, draft)[0] is not None
     for change in ({"op": "release_publish", "tag": "v1.1.0"}, {"op": "run_rerun", "run": "42"},

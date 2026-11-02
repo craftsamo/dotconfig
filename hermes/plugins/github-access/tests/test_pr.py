@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -592,7 +593,7 @@ def test_no_mandate_covers_an_upload_and_a_parent_mandate_never_covers_a_pull_re
     mandate = _load("hermes_github_access_mandate", ROOT / "mandate.py")
     monkeypatch.setattr(mandate, "key", lambda home, create=False: bytes(range(32)))
     repo = {"id": "R_app", "name": "me/app", "tier": "own"}
-    terms = {"boards": [], "repos": [repo], "classes": ["create", "routine"], "days": 3, "expires": 4102444800,
+    terms = {"boards": [], "repos": [repo], "classes": ["create", "routine"], "days": 3, "expires": int(time.time()) + 3 * 86400,
              "purpose": "Ship"}
     plain = mandate.create(tmp_path, {**terms, "parent": None})
     edit = changes.plan({"repo": "me/app", "changes": [{"op": "pr_edit", "pr": "12", "title": "Better"}]})
