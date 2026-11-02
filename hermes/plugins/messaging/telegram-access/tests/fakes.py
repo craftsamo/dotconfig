@@ -40,6 +40,22 @@ def short_dir() -> Path:
     return Path(tempfile.mkdtemp(prefix="tg-", dir="/tmp"))
 
 
+def fake_secret(folder: Path) -> Path:
+    """A fake Keychain CLI over one key file in ``folder`` (``get`` prints it, ``show`` says it exists,
+    ``set --stdin`` stores it): a send mandate's MAC key, never the real Keychain. Returns the CLI;
+    the key file is ``folder / "keyfile"`` and does not exist until a mandate is made."""
+    keyfile = folder / "keyfile"
+    cli = folder / "secret"
+    cli.write_text(
+        "#!/bin/sh\n"
+        f"[ \"$1\" = get ] && [ -f {keyfile} ] && cat {keyfile} && exit 0\n"
+        f"[ \"$1\" = show ] && [ -f {keyfile} ] && exit 0\n"
+        f"[ \"$1\" = set ] && [ ! -f {keyfile} ] && cat > {keyfile} && exit 0\n"
+        "exit 1\n")
+    cli.chmod(0o755)
+    return cli
+
+
 def seed(state: Path, *, logged_in=True):
     """A mirror with the account, five chats and a few messages."""
     store = load("store")
