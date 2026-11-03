@@ -230,21 +230,25 @@ macOS login password
        └─ <project>.keychain-db ... (auto-created on first write, no prompt)
 ```
 
-| Command                              | Purpose                                                     |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `secret keychain master set`         | define it and rotate every registered custom keychain to it |
-| `secret keychain master rotate`      | change it everywhere at once                                |
-| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state   |
-| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                   |
-| `secret keychain master forget`      | remove the login copy (access starts prompting)             |
-| `secret keychain create NAME`        | new keychain — no password prompt once a master is set      |
-| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list              |
-| `secret keychain remember NAME`      | per-keychain password override (takes precedence)           |
-| `secret keychain ls`                 | inventory and lifecycle                                     |
-| `secret keychain info`               | inventory and lifecycle                                     |
-| `secret keychain lock`               | inventory and lifecycle                                     |
-| `secret keychain unlock`             | inventory and lifecycle                                     |
-| `secret keychain rm`                 | inventory and lifecycle                                     |
+When an auto-unlock attempt fails because a stored password does not match the
+keychain, `secret` prints a warning naming the keychain and pointing to
+`secret keychain master status`.
+
+| Command                              | Purpose                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `secret keychain master set`         | define it and rotate custom keychains; refuses unless every keychain takes it (`--force`) |
+| `secret keychain master rotate`      | change it everywhere at once                                                              |
+| `secret keychain master status`      | unlock source, password verification (`ok`/`MISMATCH`, exit 1) + dialog-free lock state   |
+| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                                                 |
+| `secret keychain master forget`      | remove the login copy (access starts prompting)                                           |
+| `secret keychain create NAME`        | new keychain — no password prompt once a master is set                                    |
+| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list                                            |
+| `secret keychain remember NAME`      | per-keychain password override (takes precedence)                                         |
+| `secret keychain ls`                 | inventory and lifecycle                                                                   |
+| `secret keychain info`               | inventory and lifecycle                                                                   |
+| `secret keychain lock`               | inventory and lifecycle                                                                   |
+| `secret keychain unlock`             | inventory and lifecycle                                                                   |
+| `secret keychain rm`                 | inventory and lifecycle                                                                   |
 
 ## Launcher shims — env injection without .env files
 
@@ -447,7 +451,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 317
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 374
 assertions: round-trips (special characters, json/env/age), the export
 file's mode from the first byte, its absence after a failed write, the
 refused directory and the restored umask, partial updates and the write
