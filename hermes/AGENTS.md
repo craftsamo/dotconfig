@@ -331,7 +331,9 @@ skills.
   that alone decides what is in force, the Keychain key read on every check,
   the 30-day ceiling); a consumer passes its own `Store` and never writes those
   files itself, and the on-disk format stays as it is, or every mandate in force
-  stops verifying. web3's evm-access and
+  stops verifying; `mandate_ledger.py` is likewise the one place a mandate's
+  uses are counted (the `uses.jsonl` rows, their MAC and the fail-closed reads),
+  and its format must not change either. web3's evm-access and
   solana-access are thin entry points over `access.py` and share its one
   in-memory record of approval decisions; hyperliquid-access reaches it
   through `hl_access.py`, which must load it under the same module name
