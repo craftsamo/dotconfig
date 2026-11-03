@@ -2018,10 +2018,11 @@ _secret_kc_register() {        # add an existing .keychain-db to the search list
 }
 
 _secret_master_set() {
-  local from_stdin=0
+  local from_stdin=0 force=0
   while (( $# )); do
     case $1 in
       --stdin) from_stdin=1; shift ;;
+      --force) force=1; shift ;;
       *) _secret_err "keychain master set: unknown option '$1'"; return 2 ;;
     esac
   done
@@ -2034,18 +2035,17 @@ _secret_master_set() {
   [[ -n $pw ]] || { _secret_err "empty master password, aborted"; return 1 }
 
   local kc short cur
-  local -a adopted skipped failed
+  local -a already_on_it pending skipped failed
+  typeset -A cur_pw_map
+
+  # Phase 1: check each registered custom keychain without making changes
   for kc in ${(f)"$(_secret_kc_customs)"}; do
     [[ -n $kc ]] || continue
     short=${${kc:t}%.keychain-db}
-    # already on the master password?
     if _secret_kc_try_pw "$kc" "$pw"; then
-      adopted+=("$short")
-      security delete-generic-password -s 'keychain-password' -a "$short" \
-        "$_kc_default" >/dev/null 2>&1
+      already_on_it+=("$short")
       continue
     fi
-    # find its current password: stored item, else ask
     cur=$(security find-generic-password -s 'keychain-password' -a "$short" \
           -w "$_kc_default" 2>/dev/null)
     if [[ -z $cur ]] && (( ! from_stdin )) && [[ -t 0 ]]; then
@@ -2053,15 +2053,42 @@ _secret_master_set() {
       print '' >&2
     fi
     if [[ -z $cur ]]; then
-      _secret_kc_ensure "$kc"   # restore unlock if an item exists
       skipped+=("$short")
       continue
     fi
     if ! _secret_kc_try_pw "$kc" "$cur"; then
-      _secret_err "wrong current password for '$short' (left locked)"
+      _secret_err "wrong current password for '$short'"
       failed+=("$short")
       continue
     fi
+    cur_pw_map[$kc]=$cur
+    pending+=("$kc")
+  done
+
+  # Refuse if any keychain would be skipped or failed, unless --force
+  if (( ( ${#skipped} || ${#failed} ) && ! force )); then
+    (( ${#skipped} )) && print -r -- "skipped (current password unknown): ${(j:, :)skipped}"
+    (( ${#failed} ))  && print -r -- "FAILED: ${(j:, :)failed}"
+    _secret_err "master password was NOT stored: some keychains do not take it"
+    _secret_err "a stored master that unlocks nothing makes every read prompt"
+    _secret_err "to proceed: provide their current password interactively,"
+    _secret_err "store it with 'secret keychain remember NAME',"
+    _secret_err "use 'secret keychain master rotate' to change an existing master,"
+    _secret_err "or pass --force to store anyway"
+    return 1
+  fi
+
+  # Phase 2: apply rotations and deletions
+  local -a adopted
+  for short in "${already_on_it[@]}"; do
+    adopted+=("$short")
+    security delete-generic-password -s 'keychain-password' -a "$short" \
+      "$_kc_default" >/dev/null 2>&1
+  done
+
+  for kc in "${pending[@]}"; do
+    short=${${kc:t}%.keychain-db}
+    cur=${cur_pw_map[$kc]}
     if print -r -- "set-keychain-password -o $(_secret_quote_si "$cur") -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
         | security -i >/dev/null 2>&1 && _secret_kc_try_pw "$kc" "$pw"; then
       adopted+=("$short")
@@ -2431,12 +2458,14 @@ COMMANDS
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
-  keychain master set|rotate [--stdin]|status|reveal [-c]|forget
+  keychain master set [--stdin] [--force]|rotate [--stdin]|status|reveal [-c]|forget
         ONE password for every custom keychain: `set` rotates all
         registered custom keychains to the master password and stores it
         in login for auto-unlock; keep that password in your password
         manager — it is the recovery key for every .keychain-db file.
-        With a master set, `keychain create` needs no password prompt.
+        `set` stores nothing unless every registered custom keychain
+        takes the password (`--force` overrides). With a master set,
+        `keychain create` needs no password prompt.
   keychain remember NAME [--stdin]
         store NAME's own unlock password in the login keychain (per-
         keychain override; takes precedence over the master)
