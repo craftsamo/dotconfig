@@ -589,6 +589,26 @@ secret keychain lock $KCN >/dev/null 2>&1
 [[ "$(secret keychain master status)" == *'master: stored'* ]] \
   && ok "master status shows stored" || bad "master status shows stored"
 
+# Wrong password without --force: refused, nothing stored or rotated
+print -r -- 'not-the-master' | secret keychain master set --stdin >/dev/null 2>&1 \
+  && bad "wrong master set refused" || ok "wrong master set refused"
+[[ "$(secret keychain master reveal)" == "$MP" ]] \
+  && ok "reveal still equals master password" || bad "reveal still equals master password"
+[[ "$(secret get KC_ONE -p $KCN)" == 'kc-value-1' ]] \
+  && ok "get still works after wrong master attempt" || bad "get still works after wrong master attempt"
+
+# --force with wrong password stores it anyway
+print -r -- 'not-the-master' | secret keychain master set --force --stdin >/dev/null 2>&1 \
+  && ok "master set --force succeeds" || bad "master set --force succeeds"
+[[ "$(secret keychain master reveal)" == 'not-the-master' ]] \
+  && ok "reveal shows forced master password" || bad "reveal shows forced master password"
+
+# Restore true master
+print -r -- "$MP" | secret keychain master set --stdin >/dev/null 2>&1 \
+  && ok "master set restores true master" || bad "master set restores true master"
+[[ "$(secret keychain master reveal)" == "$MP" ]] \
+  && ok "restored master reveal equals MP" || bad "restored master reveal equals MP"
+
 # --- keychain create (headless thanks to master) ---
 secret keychain create $KCN3 --no-autolock >/dev/null 2>&1 \
   && ok "headless create via master" || bad "headless create via master"

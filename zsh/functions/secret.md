@@ -230,21 +230,21 @@ macOS login password
        └─ <project>.keychain-db ... (auto-created on first write, no prompt)
 ```
 
-| Command                              | Purpose                                                     |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `secret keychain master set`         | define it and rotate every registered custom keychain to it |
-| `secret keychain master rotate`      | change it everywhere at once                                |
-| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state   |
-| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                   |
-| `secret keychain master forget`      | remove the login copy (access starts prompting)             |
-| `secret keychain create NAME`        | new keychain — no password prompt once a master is set      |
-| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list              |
-| `secret keychain remember NAME`      | per-keychain password override (takes precedence)           |
-| `secret keychain ls`                 | inventory and lifecycle                                     |
-| `secret keychain info`               | inventory and lifecycle                                     |
-| `secret keychain lock`               | inventory and lifecycle                                     |
-| `secret keychain unlock`             | inventory and lifecycle                                     |
-| `secret keychain rm`                 | inventory and lifecycle                                     |
+| Command                              | Purpose                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `secret keychain master set`         | define it and rotate custom keychains; refuses unless every keychain takes it (`--force`) |
+| `secret keychain master rotate`      | change it everywhere at once                                                              |
+| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state                                 |
+| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                                                 |
+| `secret keychain master forget`      | remove the login copy (access starts prompting)                                           |
+| `secret keychain create NAME`        | new keychain — no password prompt once a master is set                                    |
+| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list                                            |
+| `secret keychain remember NAME`      | per-keychain password override (takes precedence)                                         |
+| `secret keychain ls`                 | inventory and lifecycle                                                                   |
+| `secret keychain info`               | inventory and lifecycle                                                                   |
+| `secret keychain lock`               | inventory and lifecycle                                                                   |
+| `secret keychain unlock`             | inventory and lifecycle                                                                   |
+| `secret keychain rm`                 | inventory and lifecycle                                                                   |
 
 ## Launcher shims — env injection without .env files
 
