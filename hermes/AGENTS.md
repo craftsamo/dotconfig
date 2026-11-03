@@ -329,9 +329,11 @@ skills.
   make Hermes load it as a plugin — never add one. `mandate_store.py` is the
   one place mandates are stored and authenticated (the MAC'd files, the head
   that alone decides what is in force, the Keychain key read on every check,
-  the 30-day ceiling); a consumer passes its own `Store` and never writes those
+  the day ceiling each store sets: 30, and 7 for Cloudflare and gcloud); a consumer passes its own `Store` and never writes those
   files itself, and the on-disk format stays as it is, or every mandate in force
-  stops verifying. web3's evm-access and
+  stops verifying; `mandate_ledger.py` is likewise the one place a mandate's
+  uses are counted (the `uses.jsonl` rows, their MAC and the fail-closed reads),
+  and its format must not change either. web3's evm-access and
   solana-access are thin entry points over `access.py` and share its one
   in-memory record of approval decisions; hyperliquid-access reaches it
   through `hl_access.py`, which must load it under the same module name
@@ -587,11 +589,14 @@ Commands: [README "Commands"](README.md#commands).
   one and is cut by the chat rather than fitted
   ([card shape](docs/access-common.md#card-shape)). The one exception is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
-  orders, GitHub change lists, Telegram and Signal text sends): it runs with
-  no card, so the mandate's own bounds, re-checked and counted at the write,
+  orders, GitHub change lists, Telegram, Signal and WhatsApp text sends,
+  Cloudflare zone changes, gcloud commands): it
+  runs with no card, so the mandate's own bounds, re-checked and counted at the write,
   are the control — never let anything but such a card widen them
   ([decision](docs/decisions/github-mandates.md),
-  [sends](docs/decisions/send-mandates.md)).
+  [sends](docs/decisions/send-mandates.md),
+  [Cloudflare](docs/decisions/cloudflare-mandates.md),
+  [gcloud](docs/decisions/gcloud-mandates.md)).
 
 ## Commits
 

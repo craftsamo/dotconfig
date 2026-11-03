@@ -30,11 +30,13 @@ def fake_run(args, *, account=None, write=False, timeout=None):
 
 
 @pytest.fixture(autouse=True)
-def isolated(monkeypatch):
+def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(plugin.wa, "run", fake_run)  # never the real wacli or ~/.wacli
+    monkeypatch.setattr(plugin, "_home", lambda: tmp_path)  # never the real profile home or its send mandates
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
     plugin.wa._approved.clear()
+    plugin._DECISIONS.clear()
 
 
 class Ctx:
@@ -63,6 +65,10 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
     assert line(action="search", query="someone's name", text="the private message") == "search"
     assert line(action="chats") == "chats"
     assert line(action="anything else", text="the private message") is None
+    mandate_line = lambda **args: display.build_tool_preview("whatsapp_mandate", args, max_len=0)
+    assert mandate_line(action="create", purpose="the private reason", chats=["x"]) == "create"
+    assert mandate_line(action="list") == "list"
+    assert mandate_line(action="anything else", purpose="the private reason") is None
 
 
 def test_only_the_assistant_gets_the_tool():
@@ -71,12 +77,19 @@ def test_only_the_assistant_gets_the_tool():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == {"whatsapp"}
+    assert set(ctx.tools) == {"whatsapp", "whatsapp_mandate"}
     tool = ctx.tools["whatsapp"]
     assert tool["toolset"] == "whatsapp_access" and tool["schema"]["name"] == "whatsapp"
     params = tool["schema"]["parameters"]
     assert params["additionalProperties"] is False and params["required"] == ["action"]
     assert params["properties"]["action"]["enum"] == list(plugin.wa.ACTIONS)
+    mandate = ctx.tools["whatsapp_mandate"]
+    assert mandate["toolset"] == "whatsapp_access" and mandate["schema"]["name"] == "whatsapp_mandate"
+    params = mandate["schema"]["parameters"]
+    assert params["additionalProperties"] is False and params["required"] == ["action"]
+    assert params["properties"]["action"]["enum"] == ["create", "list", "revoke"]
+    assert set(params["properties"]) == {"action", "account", "chats", "per_hour", "max_chars", "days", "purpose",
+                                         "mandate"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate), ("pre_tool_call", plugin.bind)]
 
 

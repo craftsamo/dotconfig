@@ -157,6 +157,14 @@ def test_a_delete_is_marked_final_and_never_covered_by_always(fake):
     assert fake.sends()[0]["body"]["deletes"] == [{"id": MAIL}]
 
 
+def test_a_dns_change_keeps_its_exact_approval_key(fake):
+    # byte identity of the key, pinned: anything that reaches a plan's digest changes every stored "always"
+    args = change({"op": "update", "id": WWW, "content": "192.0.2.10", "ttl": 300},
+                  {"op": "add", "type": "A", "name": "blog", "content": "192.0.2.20", "proxied": True})
+    _, key = cfa.approval_request(args, call_id="k", can_write=True)
+    assert key == "cloudflare-access:dns_change:fdf7f7deea8c009a"
+
+
 def test_a_txt_record_on_the_card_is_quoted_cut_and_spelled_out(fake):
     args = change({"op": "update", "id": SPF, "content": "v=spf1 include:new.example.net\u202e ~all " + "x" * 80})
     with pytest.raises(cfa.CloudflareError, match="one line"):
@@ -298,8 +306,8 @@ def test_an_approval_expires(fake):
     args = change({"op": "update", "id": WWW, "ttl": 300})
     cfa.approval_request(args, call_id="call-1", can_write=True)
     [key] = cfa._approved
-    at, value = cfa._approved[key]
-    cfa._approved[key] = (at - cfa.APPROVAL_TTL - 1, value)
+    at, *record = cfa._approved[key]
+    cfa._approved[key] = (at - cfa.APPROVAL_TTL - 1, *record)
     assert "did not pass its approval card" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
     assert fake.sends() == []
 

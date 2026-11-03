@@ -3,8 +3,10 @@
 Four tools in the ``google_access`` toolset, run by ``access.py`` beside this file (also the
 ``gaccess`` setup CLI). A ``pre_tool_call`` hook makes every call that changes something go
 through Hermes' human approval gate (``/approve`` on Telegram; blocked in cron and on timeout),
-and blocks terminal and file calls that would go around the tools. Contract:
-docs/google-access.md.
+unless it is a gcloud command that fits a gcloud project mandate in force (``gcloud_mandate.py``):
+that runs with no card, also where nobody can answer one. ``gcloud_mandate`` (a fifth tool) makes
+such a mandate, always on its own card, lists and revokes them. The hook also blocks terminal and
+file calls that would go around the tools. Contract: docs/google-access.md.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import importlib.util
 import json
 import logging
 from pathlib import Path
+import secrets
 import sys
 
 PROFILES = {"assistant"}
@@ -20,6 +23,7 @@ PROFILES = {"assistant"}
 # skill_manage); a profile that cannot do what a skill describes is not given it.
 SKILLS = {"sheets": set(PROFILES), "run-apps-script": set(PROFILES)}
 TOOLSET = "google_access"
+MANDATE_TOOL = "gcloud_mandate"
 LIMIT = 60000
 PLUGIN = "google-access"
 logger = logging.getLogger(__name__)
@@ -37,6 +41,7 @@ def _load(name, path):
 access = _load("hermes_google_access_engine", Path(__file__).resolve().parent / "access.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parent.parent / "_shared" / "human_gate.py")
 tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[1] / "_shared" / "tool_preview.py")
+mandate = access.mandate
 
 APPROVAL = ("Calls that change something ({}) wait for the user's approval in chat before they run; "
             "a denial or timeout means it did not happen. Ask in plain words first when the request "
@@ -354,9 +359,55 @@ GCLOUD_DESCRIPTION = (
     "'--region=asia-northeast1', '--format=json']); project = the project id, always given for "
     "project-scoped commands (there is no default project). Read-only commands (list, describe, "
     "get-iam-policy, read, ls, cat, …) run directly; " + APPROVAL.format("everything else") + " "
+    "A command that fits a gcloud mandate in force (gcloud_mandate; agree the project, commands, flags, "
+    "count, days and purpose in chat first) runs with no card: its project and path are the mandate's, its "
+    "flags are long flags the mandate lists, and its positionals and flag values are plain tokens "
+    "(lowercase resource ids; no path, URL, other project, organization or folder; an image only from the "
+    "project's own gcr.io / <region>.gcr.io / <region>-docker.pkg.dev path), and it runs in an empty "
+    "temporary directory, so a deploy from local source does not work there. "
     "Login, account and configuration changes (auth, config set, init, components, --account, "
     "--configuration, --impersonate-service-account) are not available; prompts are answered with "
     "defaults (--quiet). Prefer --format=json.")
+
+MANDATE_DESCRIPTION = (
+    "The user's standing approval for a few gcloud commands in one project, so those skip their card. "
+    f"create (project = the one project id, commands = 1 to {mandate.MAX_COMMANDS} command paths, each an "
+    "array of words as the gcloud tool's command, e.g. [[\"run\",\"deploy\"],[\"run\",\"services\","
+    "\"update\"]]; the exact path of a command, a release track (alpha, beta, preview) being a path of its "
+    f"own, flags = up to {mandate.MAX_FLAGS} long flags a covered call may use, e.g. [\"--image\","
+    "\"--region\"] (a --no- form only if listed; each must be a flag one of the commands declares), per_hour = "
+    f"covered commands an hour, 1 to {mandate.MAX_PER_HOUR} (each call counts one), days 1 to "
+    f"{mandate.MAX_DAYS}, purpose = one line): always asks on its own card. A covered call carries only the "
+    "listed flags, as --flag=value or --flag value, and plain positionals and values: lowercase resource ids "
+    "and tokens that are no path, URL, other project, organization or folder; an image only from the "
+    "project's own registry path; any other flag, -- or a short flag asks on its card. Never covered, "
+    "whatever it says: a path that ends, undoes, replaces or moves something (delete, remove, rm, restore, "
+    "replace, stop, suspend, undeploy, abandon, revoke, destroy, purge, reset, cancel, disable), or reaches "
+    "IAM, service accounts, keys, secrets, KMS, billing, projects, organizations, folders, storage, builds, "
+    "identity, ssh, scp, tunnels or proxies, firewall rules, metadata or passwords; a command that hands out "
+    "a credential or writes a local file; a flag about identity, access, network, secrets, keys, volumes, "
+    "buckets, scopes, metadata, projects, namespaces, passwords or local paths (--service-account, "
+    "--ingress, --network, --vpc-connector, --set-secrets, --member, --role, --allow-unauthenticated, "
+    "--source, --image-project, --password, --*-file, …), which cannot be listed; a read (it needs none), another project and a call with no "
+    "project. list: the mandates in force. revoke (mandate = its id): ends it at once. Propose one only "
+    "after agreeing the project, commands, flags, count, days and purpose in chat; never to get past a card "
+    "the user denied.")
+
+MANDATE_PROPERTIES = {
+    "action": {"type": "string", "enum": ["create", "list", "revoke"]},
+    "project": {"type": "string", "description": "create: the one project id the mandate covers"},
+    "commands": {"type": "array", "minItems": 1, "maxItems": mandate.MAX_COMMANDS,
+                 "items": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                 "description": "create: the command paths, e.g. [['run','deploy']]"},
+    "flags": {"type": "array", "maxItems": mandate.MAX_FLAGS, "items": {"type": "string"},
+              "description": "create: the long flags a covered call may use, e.g. ['--image','--region']; "
+                             "none when it needs none"},
+    "per_hour": {"type": "integer", "description": f"create: covered commands an hour, 1 to {mandate.MAX_PER_HOUR}"},
+    "days": {"type": "integer", "description": f"create: 1 to {mandate.MAX_DAYS}"},
+    "purpose": {"type": "string", "description": "create: what it is for, one line"},
+    "mandate": {"type": "string", "description": "revoke: the mandate id"},
+}
+MANDATE_CREATE_ARGS = {"action", "project", "commands", "flags", "per_hour", "days", "purpose"}
 
 SCHEMAS = {
     "google_sheets": (SHEETS_DESCRIPTION, {
@@ -438,8 +489,23 @@ SCHEMAS = {
 }
 REQUIRED = {"google_sheets": ["action"], "google_gmail": ["action"], "google_drive": ["action"],
             "gcloud": ["command"]}
+
+
+def _call_id() -> str:
+    """The id of the tool call being executed, as Hermes binds it for the handler's run."""
+    try:
+        from tools.approval_context import _approval_tool_call_id
+        return _approval_tool_call_id.get() or ""
+    except Exception:
+        return ""
+
+
+def _gcloud_engine(home, args):
+    return access.gcloud(home, args, call_id=_call_id())
+
+
 ENGINES = {"google_sheets": access.sheets, "google_gmail": access.gmail, "google_drive": access.drive,
-           "gcloud": access.gcloud}
+           "gcloud": _gcloud_engine}
 
 
 def _inbound_peer():
@@ -480,7 +546,9 @@ def _run(tool, args):
         if _inbound_peer():
             raise access.AccessError(f"{tool} is not available to inbound A2A requests")
         refused = _no_human_message(tool, args)
-        if refused:
+        # Where nobody can answer a card only a gcloud command the hook recorded as covered by a gcloud
+        # mandate goes on; the engine counts it against the mandate before it runs.
+        if refused and not (tool == "gcloud" and access.covered_by_mandate(args, _call_id())):
             return json.dumps({"ok": False, "error": refused}, ensure_ascii=False)
         text = json.dumps(ENGINES[tool](_home(), args if isinstance(args, dict) else {}),
                           ensure_ascii=False)
@@ -513,10 +581,94 @@ HANDLERS = {"google_sheets": google_sheets, "google_gmail": google_gmail, "googl
 EMOJI = {"google_sheets": "📊", "google_gmail": "📧", "google_drive": "📁", "gcloud": "☁️"}
 
 
+def _mandate_terms(args: dict) -> dict:
+    """The terms of a ``gcloud_mandate`` create call, each command path checked against the installed SDK."""
+    extra = sorted(k for k, v in args.items() if v is not None and k not in MANDATE_CREATE_ARGS)
+    if extra:
+        raise access.AccessError("create does not take " + ", ".join(extra))
+    return mandate.terms(args.get("project"), args.get("commands"), args.get("flags"), args.get("per_hour"),
+                         args.get("days"), args.get("purpose"), access.gcloud_call)
+
+
+def gcloud_mandate(args, **kwargs):
+    try:
+        args = args if isinstance(args, dict) else {}
+        if _inbound_peer():
+            raise access.AccessError(f"{MANDATE_TOOL} is not available to inbound A2A requests")
+        home = _home()
+        action = args.get("action")
+        if action == "list":
+            return json.dumps({"ok": True, "mandates": [mandate.summary(m) for m in mandate.active(home)]},
+                              ensure_ascii=False)
+        if action == "revoke":
+            return json.dumps({"ok": True, **mandate.revoke(home, args.get("mandate"))}, ensure_ascii=False)
+        if action != "create":
+            raise access.AccessError("action is create, list or revoke")
+        shown = mandate.take_card(args, _call_id())
+        if shown is None:
+            raise access.AccessError(f"{MANDATE_TOOL}: not done. A mandate is made only on its own card; "
+                                     "nothing was made.")
+        reason = human_gate.no_human()
+        if reason:
+            return json.dumps({"ok": False, "error": human_gate.refusal(MANDATE_TOOL, reason)})
+        if not mandate.same_terms(_mandate_terms(args), shown):
+            raise access.AccessError(f"{MANDATE_TOOL}: not done. Its commands changed since the card; nothing "
+                                     "was made.")
+        return json.dumps({"ok": True, "mandate": mandate.create(home, shown)}, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+
+
+def _mandate_gate(args, call_id: str):
+    """pre_tool_call for ``gcloud_mandate``: every create asks on a card of its own, with a fresh key and
+    never where nobody can answer it or for an inbound A2A request; list and revoke only read or narrow."""
+    if _inbound_peer():
+        return {"action": "block", "message": f"{MANDATE_TOOL} is not available to inbound A2A requests"}
+    if not isinstance(args, dict) or args.get("action") != "create":
+        return None
+    reason = human_gate.no_human()
+    if reason:
+        return {"action": "block", "message": human_gate.refusal(MANDATE_TOOL, reason)}
+    try:
+        terms = _mandate_terms(args)
+        message = mandate.card(terms)
+    except Exception as exc:
+        return {"action": "block", "message": f"{MANDATE_TOOL}: not done: {exc}"}
+    mandate.note_card(args, call_id, terms)
+    # A mandate is never covered by a mandate, and its key is fresh: every one asks.
+    return {"action": "approve", "message": message, "rule_key": f"google-access:mandate:{secrets.token_hex(8)}"}
+
+
+def _gcloud_gate(args, call_id: str):
+    """pre_tool_call for ``gcloud``: a read runs, a command that fits a gcloud mandate in force runs with no
+    card (also where nobody can answer one), anything else asks on its card or, where none can be answered,
+    is refused. The hook records what it decided; the engine runs a write only as recorded."""
+    if _inbound_peer():
+        return {"action": "block", "message": "gcloud is not available to inbound A2A requests"}
+    try:
+        request = access.approval_request("gcloud", args if isinstance(args, dict) else {}, home=_card_home(),
+                                          call_id=call_id, unattended=human_gate.no_human())
+    except access.Unattended as exc:
+        return {"action": "block", "message": human_gate.refusal("gcloud", str(exc))}
+    except Exception as exc:
+        return {"action": "block", "message": f"gcloud: {exc}"}
+    if isinstance(request, access.Covered):
+        return None   # inside a mandate the user approved on its own card: no card, also unattended
+    if request:
+        reason, rule_key = request
+        return {"action": "approve", "message": reason, "rule_key": rule_key}
+    return None
+
+
 def gate(**kwargs):
     """pre_tool_call: approval for writes, a block for invalid calls and for ways around the tools."""
     tool = kwargs.get("tool_name")
     args = kwargs.get("args")
+    call_id = str(kwargs.get("tool_call_id") or "")
+    if tool == MANDATE_TOOL:
+        return _mandate_gate(args, call_id)
+    if tool == "gcloud":
+        return _gcloud_gate(args, call_id)
     if tool in ENGINES:
         if _inbound_peer():
             return {"action": "block", "message": f"{tool} is not available to inbound A2A requests"}
@@ -563,5 +715,10 @@ def register(ctx):
                           schema=schema, emoji=EMOJI[name])
         if name != "gcloud":
             tool_preview.enums(name, schema, "action")
+    mandate_schema = {"name": MANDATE_TOOL, "description": MANDATE_DESCRIPTION, "parameters": {
+        "type": "object", "properties": MANDATE_PROPERTIES, "required": ["action"], "additionalProperties": False}}
+    ctx.register_tool(name=MANDATE_TOOL, toolset=TOOLSET, handler=gcloud_mandate, description=MANDATE_DESCRIPTION,
+                      schema=mandate_schema, emoji="📜")
+    tool_preview.enums(MANDATE_TOOL, mandate_schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)

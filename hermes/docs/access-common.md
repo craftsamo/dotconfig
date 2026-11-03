@@ -4,11 +4,14 @@ What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
 Google, GitHub, X, note, Substack, YouTube, Stripe and Cloudflare. Each `*-access` doc inherits this one
 and records only its own differences; read it first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Three kinds of write skip their card only inside a
+doc ([web3.md](web3.md)). Five kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
 ([hyperliquid.md](hyperliquid.md)), a GitHub change list
-([github-access.md](github-access.md)) and a text send on Telegram or Signal
-([telegram-access.md](telegram-access.md), [signal-access.md](signal-access.md)).
+([github-access.md](github-access.md)), a text send on Telegram, Signal or
+WhatsApp ([telegram-access.md](telegram-access.md),
+[signal-access.md](signal-access.md), [whatsapp-access.md](whatsapp-access.md)),
+a Cloudflare zone change ([cloudflare-access.md](cloudflare-access.md)) and a
+gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
@@ -84,8 +87,8 @@ was changed.
   (`no_human`), which fails closed when
   Hermes' approval context cannot be read; Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, GitHub, a Telegram or Signal text send) has no
-  card to answer and runs also unattended; the mandate's bounds, checked at the
+  inside a mandate (Hyperliquid, GitHub, a Telegram, Signal or WhatsApp text
+  send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
   scope of the plugin's own, which no profile receives.
