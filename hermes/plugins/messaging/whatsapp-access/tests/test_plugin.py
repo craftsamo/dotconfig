@@ -34,6 +34,7 @@ def isolated(monkeypatch):
     monkeypatch.setattr(plugin.wa, "run", fake_run)  # never the real wacli or ~/.wacli
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
+    plugin.wa._approved.clear()
 
 
 class Ctx:
@@ -144,12 +145,77 @@ def test_handler_returns_json():
 
 
 def test_oversized_results_are_refused(monkeypatch):
-    monkeypatch.setattr(plugin.wa, "execute", lambda args, home=None: {"x": "y" * plugin.LIMIT})
+    monkeypatch.setattr(plugin.wa, "execute", lambda args, home=None, call_id="": {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.whatsapp({"action": "chats"}))
     assert result["ok"] is False and "narrow" in result["error"]
 
 
 SEND = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+
+
+def test_the_handler_sends_only_what_its_own_hook_recorded(monkeypatch):
+    sent = []
+
+    def run(args, **kwargs):
+        if args[:2] == ["send", "text"]:
+            sent.append(args)
+            return {"sent": True, "to": DM, "id": "3EB0XYZ"}
+        return fake_run(args, **kwargs)
+    monkeypatch.setattr(plugin.wa, "run", run)
+    call = {"id": "call-1"}
+    monkeypatch.setattr(plugin, "_call_id", lambda: call["id"])
+
+    result = json.loads(plugin.whatsapp(SEND))                                    # the hook never ran
+    assert result["ok"] is False and "approval card" in result["error"]
+    assert plugin.gate(tool_name="whatsapp", args=SEND, tool_call_id="call-1")["action"] == "approve"
+    call["id"] = "call-2"                                                        # another call, same arguments
+    assert "approval card" in json.loads(plugin.whatsapp(SEND))["error"]
+    call["id"] = "call-1"
+    assert json.loads(plugin.whatsapp(SEND))["ok"] is True and len(sent) == 1
+    assert "approval card" in json.loads(plugin.whatsapp(SEND))["error"] and len(sent) == 1
+
+
+def test_call_id_comes_from_hermes_context():
+    try:
+        from tools.approval_context import set_current_observability_context, reset_current_observability_context
+    except ImportError:
+        pytest.skip("hermes-agent not importable")
+    tokens = set_current_observability_context(tool_call_id="call-9")
+    try:
+        assert plugin._call_id() == "call-9"
+    finally:
+        reset_current_observability_context(tokens)
+
+
+def test_a_send_survives_hermes_coercing_its_arguments(monkeypatch, staging):
+    """The hook sees the arguments as the model wrote them, the handler after coerce_tool_args."""
+    sent = []
+
+    def run(args, **kwargs):
+        if args[:2] == ["send", "file"]:
+            sent.append(args)
+            return {"sent": True, "id": "3EBF1", "file": {"media": "document"}}
+        return fake_run(args, **kwargs)
+    monkeypatch.setattr(plugin.wa, "run", run)
+    call = {"id": "c1"}
+    monkeypatch.setattr(plugin, "_call_id", lambda: call["id"])
+
+    def handler_args(raw, call_id, **changes):
+        ids = {"tool_call_id": call_id, "session_id": "s"}
+        assert plugin.gate(tool_name="whatsapp", args=raw, **ids)["action"] == "approve"
+        bound = plugin.bind(tool_name="whatsapp", args=raw, **ids)["args"]
+        call["id"] = call_id
+        return {**raw, "files": ["a.txt"], **changes, **bound}      # files: "a.txt" became ["a.txt"]
+
+    raw = {**SEND, "files": "a.txt"}
+    result = json.loads(plugin.whatsapp(handler_args(raw, "c1")))
+    assert result["ok"] is True and len(sent) == 1
+
+    result = json.loads(plugin.whatsapp(handler_args(raw, "c2", text="something else")))
+    assert result["ok"] is False and "changed after the approval card was made" in result["error"]
+    assert len(sent) == 1
+
+
 READS = ({"action": "chats"}, {"action": "status"}, {"action": "messages", "chat": DM},
          {"action": "search", "query": "hi"})
 

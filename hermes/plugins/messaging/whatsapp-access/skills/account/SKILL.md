@@ -157,7 +157,8 @@ chat, and do not look for another route.
    one is refused, tell the user which entry caused it; never rename or repack it to get past the check. `.rar`,
    `.7z` and other formats are refused.
 4. **The user approves on the card** (Account / Chat / Reply to / Files /
-   text). Denied or timed out → nothing was sent; say so and never retry the
+   text). A send changed after its card, or one that never had a card, reads
+   `not sent`: send it again. Denied or timed out → nothing was sent; say so and never retry the
    same send unchanged. What goes out is the copy made for the card: a file
    changed afterwards needs a new send.
 
