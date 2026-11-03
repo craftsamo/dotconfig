@@ -20,6 +20,17 @@ how a change is prepared, approved and checked.
   (the account, the zone and what changes, read fresh from Cloudflare) and
   runs only if the user approves it. A change that deletes something asks
   every time, even after "always".
+- **One instruction, one call, one card.** Put every change the user asked
+  for in one zone into one call: all the DNS records in one `dns_change`
+  `changes`, all the settings in one `zone_setting` `settings`, all the
+  e-mail rules in one `email_rule` `rules` (up to 20 each), so the user answers
+  one card. Several calls mean several cards.
+- **What an answer covers.** "Session" or "always" repeats only that identical
+  change, except on three ✅ cards where it covers every later call of the
+  same kind: an empty R2 bucket, KV namespace or D1 database (per account),
+  a purge of named `urls` (per zone) and `development_mode` turned on as the
+  only setting of the call (per zone). A list with a 🚨 item, or any other
+  setting beside development mode, is not one of them.
 - **Read, agree, then card.** Read what is there first (`dns_records`), settle
   every name, value and setting with the user in chat, then make the call.
   `preview=true` returns the exact card without asking or changing anything;
@@ -38,7 +49,7 @@ how a change is prepared, approved and checked.
 |---|---|---|
 | `ok` with `done` and `result` | applied | report `result` |
 | `not done: …` | nothing changed | fix the cause or tell the user |
-| `stopped part way: …` | the steps listed in `done` applied, the rest did not | read it, tell the user what is there now |
+| `stopped part way: …` | the steps listed in `done` applied, the rest did not | read it, tell the user what is there now; to go on, send only the items not in `done`, as a new call and card |
 | `UNCERTAIN: …` | sent, outcome unknown | read it first; never repeat the call blindly |
 | "what the card showed changed" | Cloudflare or the stored token changed after the card | read again, then ask anew |
 
@@ -90,15 +101,20 @@ everyone within the old TTL.
 without the scheme, `www.example.com/blog/`, every file under it) or
 `everything: true`. Each must lie inside the zone. Purge what changed rather
 than everything: a full purge sends every visitor's next request to the
-origin at once, so it asks every time. A purge cannot be taken back, but it
+origin at once, so it asks every time. A purge of `urls` is a ✅ card;
+`hosts` and `prefixes` reach more and stay ⚠️. A purge cannot be taken back, but it
 only drops copies; the next request fetches them again. Cloudflare limits how
 many purges an account sends a minute on smaller plans: a rate limit is a
 reason to wait, not to retry.
 
 ## Zone settings
 
-`zone_setting` takes the `zone`, a `setting` and its new `value`; read it
-first (`zone_settings`). Only these change here, each with its own values:
+`zone_setting` takes the `zone`, a `setting` and its new `value`, or for
+several at once `settings`: a list of `{setting, value}`, each setting once;
+read them first (`zone_settings`). The card lists every change with the
+highest level among them, and they are applied in order: one that Cloudflare
+refuses stops the rest (`stopped part way`, with `done` naming what applied),
+and nothing is retried. Only these change here, each with its own values:
 `ssl` (`off`, `flexible`, `full`, `strict`), `min_tls_version` (`1.0` to
 `1.3`), `tls_1_3` (`on`, `off`, `zrt`), `security_level` (`off`,
 `essentially_off`, `low`, `medium`, `high`, `under_attack`), `cache_level`
@@ -113,7 +129,7 @@ Everything else stays with the dashboard.
   origin cannot serve takes the site down (error 525/526): check before
   raising it, and say what lowering it exposes.
 - `development_mode: on` bypasses the cache for three hours, then turns off
-  by itself.
+  by itself; alone in its call it is a ✅ card.
 - `security_level: under_attack` challenges every visitor; use it during an
   attack only.
 
@@ -123,7 +139,12 @@ and asks every time.
 
 ## E-mail rules
 
-`email_rule` takes the `zone` and an `op`; read first (`email_routing`):
+`email_rule` takes the `zone` and an `op`, or for several rules at once
+`rules`: a list of those, each rule or the catch-all once and no address
+twice (deleting a rule and adding one for its address is fine); the card lists
+them all, they are applied in order and one that Cloudflare refuses stops the
+rest (`stopped part way`; resend only what is not in `done`). Read first
+(`email_routing`):
 
 - `add` with `to` (an address at the zone, `sales` or `sales@example.com`) and
   one of `forward` (a destination address the account has verified), `drop:
@@ -136,7 +157,8 @@ and asks every time.
 
 A destination that is not verified receives nothing: Cloudflare e-mails its
 owner first, and adding destinations is the user's to do in the dashboard.
-Deleting a rule and changing the catch-all ask every time.
+Deleting a rule and changing the catch-all ask every time, and so does a
+`rules` list that contains either.
 
 ## Tunnel hostnames
 
