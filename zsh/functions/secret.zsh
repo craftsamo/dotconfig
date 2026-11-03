@@ -1878,6 +1878,17 @@ _secret_kc_info() {
   fi
 }
 
+_secret_kc_state() {         # $1 keychain path -> prints locked, unlocked or unknown
+  local kc=$1
+  [[ -e $kc ]] || { print -r -- "unknown"; return 0; }
+  local res
+  res=$(osascript -l JavaScript -e 'ObjC.import("Security"); function run(a){ var r=Ref(); if($.SecKeychainOpen(a[0], r)!=0) return "unknown"; var st=Ref(); if($.SecKeychainGetStatus(r[0], st)!=0) return "unknown"; return (st[0] & 1) ? "unlocked" : "locked"; }' "$kc" 2>/dev/null)
+  case $res in
+    locked|unlocked) print -r -- "$res" ;;
+    *) print -r -- "unknown" ;;
+  esac
+}
+
 _secret_kc_lock() {
   if [[ $1 == --all || $1 == -a ]]; then
     _kc_unlocked=()
@@ -2159,23 +2170,59 @@ _secret_master_status() {
   else
     print -r -- "master: not set"
   fi
-  local kc short src state
-  printf '%-26s %-12s %s\n' 'KEYCHAIN' 'UNLOCK VIA' 'STATE'
+  local kc short src pw_test state
+  local -a master_mismatches indiv_mismatches
+  printf '%-26s %-12s %-10s %s\n' 'KEYCHAIN' 'UNLOCK VIA' 'PASSWORD' 'STATE'
   for kc in ${(f)"$(_secret_kc_customs)"}; do
     [[ -n $kc ]] || continue
     short=${${kc:t}%.keychain-db}
-    if security find-generic-password -s 'keychain-password' -a "$short" \
-        "$_kc_default" >/dev/null 2>&1; then
+    state=$(_secret_kc_state "$kc")   # before the check, which unlocks on a match
+    local pw=""
+    pw=$(security find-generic-password -s 'keychain-password' -a "$short" \
+          -w "$_kc_default" 2>/dev/null)
+    if [[ -n $pw ]]; then
       src=individual
-    elif security find-generic-password -s 'keychain-password' -a "$macct" \
-        "$_kc_default" >/dev/null 2>&1; then
-      src=master
+      unset "_kc_unlocked[$kc]"
+      if print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+          | security -i >/dev/null 2>&1; then
+        pw_test=ok
+      else
+        pw_test=MISMATCH
+        indiv_mismatches+=("$short")
+      fi
     else
-      src='none (prompts)'
+      pw=$(security find-generic-password -s 'keychain-password' -a "$macct" \
+            -w "$_kc_default" 2>/dev/null)
+      if [[ -n $pw ]]; then
+        src=master
+        unset "_kc_unlocked[$kc]"
+        if print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+            | security -i >/dev/null 2>&1; then
+          pw_test=ok
+        else
+          pw_test=MISMATCH
+          master_mismatches+=("$short")
+        fi
+      else
+        src='none (prompts)'
+        pw_test='-'
+      fi
     fi
-    security show-keychain-info "$kc" >/dev/null 2>&1 && state=unlocked || state=locked
-    printf '%-26s %-12s %s\n' "$short" "$src" "$state"
+    pw=""
+    printf '%-26s %-12s %-10s %s\n' "$short" "$src" "$pw_test" "$state"
   done
+
+  if (( ${#master_mismatches} || ${#indiv_mismatches} )); then
+    if (( ${#master_mismatches} )); then
+      _secret_err "master mismatch for ${(j:, :)master_mismatches}: stored master does not unlock them"
+      _secret_err "run 'secret keychain master set' with the password those keychains currently open with"
+    fi
+    if (( ${#indiv_mismatches} )); then
+      _secret_err "password mismatch for ${(j:, :)indiv_mismatches}: run 'secret keychain remember NAME'"
+    fi
+    return 1
+  fi
+  return 0
 }
 
 _secret_master_reveal() {
@@ -2464,8 +2511,10 @@ COMMANDS
         in login for auto-unlock; keep that password in your password
         manager — it is the recovery key for every .keychain-db file.
         `set` stores nothing unless every registered custom keychain
-        takes the password (`--force` overrides). With a master set,
-        `keychain create` needs no password prompt.
+        takes the password (`--force` overrides). `status` checks each
+        stored password actually unlocks its keychain and exits 1 on a
+        MISMATCH. With a master set, `keychain create` needs no password
+        prompt.
   keychain remember NAME [--stdin]
         store NAME's own unlock password in the login keychain (per-
         keychain override; takes precedence over the master)
