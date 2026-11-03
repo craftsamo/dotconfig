@@ -230,6 +230,10 @@ macOS login password
        └─ <project>.keychain-db ... (auto-created on first write, no prompt)
 ```
 
+When an auto-unlock attempt fails because a stored password does not match the
+keychain, `secret` prints a warning naming the keychain and pointing to
+`secret keychain master status`.
+
 | Command                              | Purpose                                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `secret keychain master set`         | define it and rotate custom keychains; refuses unless every keychain takes it (`--force`) |
@@ -447,7 +451,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 317
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 374
 assertions: round-trips (special characters, json/env/age), the export
 file's mode from the first byte, its absence after a failed write, the
 refused directory and the restored umask, partial updates and the write
