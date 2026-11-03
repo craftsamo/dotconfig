@@ -215,7 +215,10 @@ injection), so use another name for such an override.
 2. Is `~/.config/bin` first on `PATH`? Use `print -l -- $path | head` in an
    interactive zsh.
 3. Project mode: are you inside a git repo, and is the command allowlisted?
-4. Is the Keychain unlocked? `secret keychain master status`.
+4. Is the Keychain unlocked and does the password match? `secret keychain master status`
+   shows whether each stored password still unlocks its keychain (`MISMATCH` means
+   the master in login is wrong: re-run `master set` with the keychains' current
+   password) and reads lock state without a dialog.
 5. Does the value exist? `secret env -p <project>` lists it and prompts.
 6. Is the name already in env, causing a collision skip, or present as a `.env`
    name, causing dotenv skip? Under `SECRET_STAGE=S` only `.env`, `.env.local`

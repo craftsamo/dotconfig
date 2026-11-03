@@ -234,7 +234,7 @@ macOS login password
 | ------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `secret keychain master set`         | define it and rotate custom keychains; refuses unless every keychain takes it (`--force`) |
 | `secret keychain master rotate`      | change it everywhere at once                                                              |
-| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state                                 |
+| `secret keychain master status`      | unlock source, password verification (`ok`/`MISMATCH`, exit 1) + dialog-free lock state   |
 | `secret keychain master reveal [-c]` | show / copy it (for the password manager)                                                 |
 | `secret keychain master forget`      | remove the login copy (access starts prompting)                                           |
 | `secret keychain create NAME`        | new keychain — no password prompt once a master is set                                    |

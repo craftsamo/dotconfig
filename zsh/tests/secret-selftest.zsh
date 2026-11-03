@@ -588,26 +588,42 @@ secret keychain lock $KCN >/dev/null 2>&1
   && ok "auto-unlock via master fallback" || bad "auto-unlock via master fallback"
 [[ "$(secret keychain master status)" == *'master: stored'* ]] \
   && ok "master status shows stored" || bad "master status shows stored"
+mstatout=$(secret keychain master status 2>&1)
+[[ $? -eq 0 && $mstatout == *"$KCN"* && $mstatout == *ok* ]] \
+  && ok "master status shows ok and exits 0" || bad "master status shows ok and exits 0"
 
-# Wrong password without --force: refused, nothing stored or rotated
+# Wrong password without --force: refused, nothing stored or rotated, keychain remains unlocked
 print -r -- 'not-the-master' | secret keychain master set --stdin >/dev/null 2>&1 \
   && bad "wrong master set refused" || ok "wrong master set refused"
 [[ "$(secret keychain master reveal)" == "$MP" ]] \
   && ok "reveal still equals master password" || bad "reveal still equals master password"
+[[ "$(_secret_kc_state "$KCP")" == 'unlocked' ]] \
+  && ok "wrong master attempt left keychain unlocked" || bad "wrong master attempt left keychain unlocked"
 [[ "$(secret get KC_ONE -p $KCN)" == 'kc-value-1' ]] \
   && ok "get still works after wrong master attempt" || bad "get still works after wrong master attempt"
 
-# --force with wrong password stores it anyway
+# --force with wrong password succeeds, status reports MISMATCH and exits 1
 print -r -- 'not-the-master' | secret keychain master set --force --stdin >/dev/null 2>&1 \
   && ok "master set --force succeeds" || bad "master set --force succeeds"
 [[ "$(secret keychain master reveal)" == 'not-the-master' ]] \
   && ok "reveal shows forced master password" || bad "reveal shows forced master password"
+mstatbad=$(secret keychain master status 2>&1)
+[[ $? -ne 0 && $mstatbad == *"$KCN"* && $mstatbad == *MISMATCH* ]] \
+  && ok "master status reports MISMATCH and exits 1" || bad "master status reports MISMATCH and exits 1"
 
 # Restore true master
 print -r -- "$MP" | secret keychain master set --stdin >/dev/null 2>&1 \
   && ok "master set restores true master" || bad "master set restores true master"
+secret keychain master status >/dev/null 2>&1 \
+  && ok "restored master status exits 0" || bad "restored master status exits 0"
 [[ "$(secret keychain master reveal)" == "$MP" ]] \
   && ok "restored master reveal equals MP" || bad "restored master reveal equals MP"
+# the STATE column is read before the check, which unlocks a keychain the password opens
+secret keychain lock $KCN >/dev/null 2>&1
+[[ ${(M)${(f)"$(secret keychain master status 2>/dev/null)"}:#${KCN} *} =~ "^${KCN}[[:space:]]+master[[:space:]]+ok[[:space:]]+locked\$" ]] \
+  && ok "master status reports a locked keychain as locked" || bad "master status reports a locked keychain as locked"
+[[ "$(_secret_kc_state "$KCP")" == 'unlocked' ]] \
+  && ok "master status unlocks a keychain its password opens" || bad "master status unlocks a keychain its password opens"
 
 # --- keychain create (headless thanks to master) ---
 secret keychain create $KCN3 --no-autolock >/dev/null 2>&1 \
