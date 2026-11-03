@@ -74,6 +74,14 @@ EXPECTED = {
         "payment_link_create": ("standing", "test-write", SAFE_ONLY),
         "payment_link_update": ("standing", "test-write", SAFE_ONLY),
     },
+    "cloudflare-access": {
+        # An empty storage container (account), a purge of listed URLs and turning development mode on
+        # (it ends on its own in 3 hours), per zone. A purge of everything, a host or a prefix, every
+        # other setting and every card that reaches visitors keeps asking per request.
+        "storage_create": ("standing", "empty-storage", SAFE_ONLY),
+        "cache_purge": ("standing", "purge-urls", SAFE_ONLY),
+        "zone_setting": ("standing", "dev-mode-on", SAFE_ONLY),
+    },
 }
 
 GRANDFATHERED_AT_CAUTION = {

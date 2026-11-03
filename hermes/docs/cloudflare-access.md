@@ -14,12 +14,12 @@ plugin, its tokens or what it may call. Common rules:
 
 ## Shape
 
-| Piece                                                                                                                                             | Home                                                                                                                        | Reader                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, write plans, approval card, bypass guard        | `plugins/cloudflare-access/cfa.py`                                                                                          | all                             |
-| The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                                       | all                             |
-| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                                                     | Assistant, Researcher, Marketer |
-| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:read` plugin skill (`plugins/cloudflare-access/skills/read/`)                            | Assistant, Researcher, Marketer |
+| Piece                                                                                                                                             | Home                                                                                                  | Reader                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, write plans, approval card, bypass guard        | `plugins/cloudflare-access/cfa.py`                                                                    | all                             |
+| The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                 | all                             |
+| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                               | Assistant, Researcher, Marketer |
+| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:read` plugin skill (`plugins/cloudflare-access/skills/read/`)                  | Assistant, Researcher, Marketer |
 | Changing Cloudflare: the card, DNS records, cache purges, settings, e-mail rules, tunnels, storage, rollbacks, outcomes                           | the `cloudflare-access:manage` plugin skill (`.../skills/manage/`); registered for the Assistant only | Assistant                       |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
@@ -204,7 +204,21 @@ mode, the TLS floor, TLS 1.3, HTTP/3, the security and caching levels, the
 browser cache TTL and a few switches) to one of the values listed for it; the
 bridge routes a `PATCH` to those settings only (`PATCHABLE`, kept equal by a
 test). It reads the setting first and refuses one the plan cannot edit or a
-value it already has.
+value it already has. It takes either `setting` and `value`, or `settings`: up
+to 20 `{setting, value}` of one zone, each setting once, on one card.
+
+`dns_change`, `zone_setting` and `email_rule` each put every change of one
+instruction for one zone on one card, so the user answers once. A `dns_change`
+list is one batch request that lands whole or not at all. A `settings` or
+`rules` list is one request per item, sent in order and never retried: the
+first one Cloudflare refuses stops the rest (`stopped part way`, with the
+items already applied in `done`), and the card says so in a line of its own,
+with each setting's own warning and each rule's name on its line (the card
+never trims them). A list may not name an address twice (deleting a rule and
+adding one for its address is allowed). Every item is read and
+checked before the card, so one that would fail refuses the whole list; a list
+whose card cannot show every line is refused with "send fewer changes at once".
+A list of one is the single form (same card, same digest).
 
 `worker_rollback` and `pages_rollback` put back what ran before and never
 deploy new code: a Worker returns to its previous deployment exactly
@@ -218,7 +232,8 @@ preview, a failed build or the live one. The route that uploads a Worker's code 
 `email_rule` adds, changes or deletes a rule for an address at the zone, or
 changes the catch-all. A rule forwards only to a destination the account has
 verified, drops the mail or hands it to a Worker; adding destinations stays
-with the dashboard.
+with the dashboard. It takes either one rule (`op` and its fields) or `rules`:
+up to 20 of them on one card, a rule or the catch-all at most once.
 
 `tunnel_route` adds, repoints or removes a public hostname of a tunnel
 managed in the dashboard (one managed in a local file is refused). The
@@ -259,7 +274,7 @@ outcome is reported this way:
 - **`not done`:** nothing changed. Cloudflare answered with a 4xx, or nothing
   was sent.
 - **`stopped part way`:** the steps listed in `done` applied, then Cloudflare
-  refused one.
+  refused one (the items of a `settings` or `rules` list, a tunnel's DNS step).
 - **`UNCERTAIN`:** a request was sent and its answer does not show whether it
   applied (a timeout, a broken connection, a 5xx, a 2xx without a success).
   Read it first.
@@ -271,8 +286,11 @@ the change (`Cloudflare · Change DNS records`), its effect line the stakes —
 🚨 when a record, an e-mail rule or a storage container is deleted, the
 catch-all changes, a tunnel publishes or repoints a hostname, or a setting
 weakens what protects visitors (a lower SSL mode, TLS floor or security
-level, Always Use HTTPS off); ✅ for a new empty storage container; ⚠️ for
-every other change, since each reaches visitors — then the account `<label> (<account name>)` and the zone,
+level, Always Use HTTPS off); ✅ for a new empty storage container, a purge of
+named URLs only and development mode turned on (it ends by itself after three
+hours); ⚠️ for every other change, since each reaches visitors. One card for
+several settings or rules carries the highest level among them — then the
+account `<label> (<account name>)` and the zone,
 Worker or project, and what changes in a `Change` block: one line per record
 (`+` added, `~` changed from what it is to what it becomes, `-` deleted, names
 relative to the zone), the purge with its URLs, the setting or rule from what
@@ -286,8 +304,28 @@ purge's URLs) are counted when they do not.
 
 The approval record is per tool call and allows one change. Its rule key
 hashes the exact plan, so "session" or "always" repeats only that identical
-change on that same account. Every 🚨 change and a purge of everything get a
-fresh key every time, so no stored answer ever covers one.
+change on that same account. Every 🚨 change (a list with one 🚨 item among them
+included) and a purge of everything get a fresh key every time, so no stored
+answer ever covers one.
+
+Three ✅ cards instead get a standing key from
+[`approval_tier.py`](../plugins/_shared/approval_tier.py), so "session" or
+"always" covers the later calls of the same kind, whatever their payload
+([decision](decisions/approval-tiers.md)):
+
+| Card                                                                          | One answer covers             | Per     |
+| ----------------------------------------------------------------------------- | ----------------------------- | ------- |
+| `storage_create` (an empty R2 bucket, KV namespace or D1 database)            | any later empty container     | account |
+| `cache_purge` of `urls` only                                                  | any later purge of named URLs | zone    |
+| `zone_setting` turning `development_mode` on, as the only setting of the call | any later development mode on | zone    |
+
+The key follows the card's own level, so a purge of hosts, prefixes or
+everything, development mode off, any other setting, and a `settings` list
+that has development mode beside another setting keep their exact (or fresh)
+key. The key never decides what runs: the hook plans every call and records a
+digest of its own card, and the write plans it again and refuses on any
+difference, so a payload other than the one planned, a change in Cloudflare or
+another stored token since stops it, whatever answer is stored.
 
 ## Where a write may run
 

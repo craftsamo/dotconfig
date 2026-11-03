@@ -120,15 +120,18 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "prefixes, up to 30 inside the zone, or everything: true), worker_rollback (script; back to the previous "
     "deployment, or to one version an earlier deployment served; message), pages_rollback (project; the "
     "previous successful production deployment, or deployment). Rollbacks never deploy new code. zone_setting "
-    "(zone, setting, value: ssl off | flexible | full | strict, always_use_https, automatic_https_rewrites, "
+    "(zone, and setting, value: ssl off | flexible | full | strict, always_use_https, automatic_https_rewrites, "
     "min_tls_version, tls_1_3, http3, development_mode, security_level, cache_level, browser_cache_ttl, "
-    "always_online, email_obfuscation, ipv6, websockets; on | off for the switches), email_rule (zone, op: add "
+    "always_online, email_obfuscation, ipv6, websockets; on | off for the switches; or settings: up to 20 of "
+    "{setting, value} on one card, applied one after another), email_rule (zone, and op: add "
     "with to and one of forward (a verified destination), drop: true or worker | update with id and what "
-    "changes | delete with id | catch_all with its action or enabled; name, enabled), tunnel_route (tunnel, op: "
+    "changes | delete with id | catch_all with its action or enabled; name, enabled; or rules: up to 20 of "
+    "{op, …} on one card, applied one after another), tunnel_route (tunnel, op: "
     "add | update | remove, hostname in a zone of the account, service such as http://localhost:8080, path; "
     "only for a tunnel managed in the dashboard; add also makes the hostname's DNS record), storage_create "
     "(kind r2 | kv | d1, name: an empty bucket, namespace or database), storage_delete (kind, and bucket, "
-    "namespace or database: only one found empty). "
+    "namespace or database: only one found empty). All the changes of one kind for one zone go in one call "
+    "(dns_change changes, zone_setting settings, email_rule rules): one card, one answer. "
     "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
     "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
@@ -163,6 +166,24 @@ WRITE_PROPERTIES = {
                                                     "or short id); default the previous successful one"},
     "value": {"type": "string", "description": "zone_setting: the setting's new value, e.g. strict, on, 1.2, "
                                                "14400"},
+    "settings": {"type": "array", "description": "zone_setting: several settings of one zone on one card, applied "
+                                                 "in order, instead of setting and value; each setting once",
+                 "items": {"type": "object", "additionalProperties": False, "required": ["setting", "value"],
+                           "properties": {
+                               "setting": {"type": "string", "enum": list(cfa.SETTING_VALUES)},
+                               "value": {"type": "string", "description": "the new value, e.g. strict, on, 1.2"}}}},
+    "rules": {"type": "array", "description": "email_rule: several rules of one zone on one card, applied in "
+                                              "order, instead of op and the fields beside it",
+              "items": {"type": "object", "additionalProperties": False, "required": ["op"], "properties": {
+                  "op": {"type": "string", "enum": list(cfa.RULE_OPS)},
+                  "id": {"type": "string", "description": "update / delete: the rule's id (email_routing lists "
+                                                          "them)"},
+                  "to": {"type": "string", "description": "the address at the zone, sales or sales@example.com"},
+                  "forward": {"type": "string", "description": "a verified destination address to forward to"},
+                  "drop": {"type": "boolean", "description": "true drops the mail"},
+                  "worker": {"type": "string", "description": "a Worker that handles the mail"},
+                  "name": {"type": "string", "description": "the rule's name"},
+                  "enabled": {"type": "boolean", "description": "whether the rule is on"}}}},
     "op": {"type": "string", "enum": list(dict.fromkeys(cfa.RULE_OPS + cfa.ROUTE_OPS)),
            "description": "email_rule: add | update | delete | catch_all; tunnel_route: add | update | remove"},
     "hostname": {"type": "string", "description": "tunnel_route: the public host name, app.example.com"},

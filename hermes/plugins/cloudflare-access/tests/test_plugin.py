@@ -109,6 +109,19 @@ def test_assistant_researcher_and_marketer_get_the_tool_others_nothing():
         assert "dns_change" not in tool["description"] and "manage" not in tool["description"]
 
 
+def test_the_batch_arguments_are_strict_and_name_what_the_engine_takes():
+    properties = registered("assistant").tools["cloudflare"]["schema"]["parameters"]["properties"]
+    settings, rules = properties["settings"]["items"], properties["rules"]["items"]
+    assert settings["additionalProperties"] is False and set(settings["properties"]) == {"setting", "value"}
+    assert settings["properties"]["setting"]["enum"] == list(cfa.SETTING_VALUES)
+    assert rules["additionalProperties"] is False and set(rules["properties"]) == set(cfa.RULE_KEYS)
+    assert rules["properties"]["op"]["enum"] == list(cfa.RULE_OPS)
+    assert {"settings", "rules"} <= cfa.WRITE_ARGS["zone_setting"] | cfa.WRITE_ARGS["email_rule"]
+    for profile in ("researcher", "marketer"):
+        read = registered(profile).tools["cloudflare"]["schema"]["parameters"]["properties"]
+        assert not {"settings", "rules"} & set(read)
+
+
 def test_the_read_profiles_hold_reads_only():
     for profile in ("researcher", "marketer"):
         assert set(plugin.PROFILES[profile]) == set(cfa.READS)
