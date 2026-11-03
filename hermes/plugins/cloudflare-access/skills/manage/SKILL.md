@@ -16,10 +16,11 @@ how a change is prepared, approved and checked.
 
 ## Contract
 
-- **Every change is one card.** Each write action shows Hermes' approval card
-  (the account, the zone and what changes, read fresh from Cloudflare) and
-  runs only if the user approves it. A change that deletes something asks
-  every time, even after "always".
+- **Every change is one card, unless a zone mandate covers it.** Each write
+  action shows Hermes' approval card (the account, the zone and what changes,
+  read fresh from Cloudflare) and runs only if the user approves it. A change
+  that deletes something asks every time, even after "always". A change that
+  fits a zone mandate (below) runs with no card.
 - **One instruction, one call, one card.** Put every change the user asked
   for in one zone into one call: all the DNS records in one `dns_change`
   `changes`, all the settings in one `zone_setting` `settings`, all the
@@ -37,8 +38,9 @@ how a change is prepared, approved and checked.
   use it when the user wants to see it first or when you are unsure.
 - **Denied means stop.** Never retry a denied or expired card unchanged.
 - **No person, no change.** Where nobody can answer a card (cron, another
-  agent's session, a single query) every change is refused. Prepare it with
-  `preview=true` and hand the exact call back to whoever can ask the user.
+  agent's session, a single query) every change that fits no zone mandate is
+  refused. Prepare it with `preview=true` and hand the exact call back to
+  whoever can ask the user.
 - **Deploying is not this tool's.** Code reaches Workers and Pages through the
   project's own tooling, run in the project's repository (`pnpm run deploy`,
   `pnpm exec wrangler deploy`); never route around that with this tool.
@@ -209,6 +211,42 @@ goes live.
 
 A deploy that lands between the card and the run stops the rollback: read
 again and ask anew.
+
+## Zone mandates
+
+A zone mandate is the user's standing approval for repeated, low-risk changes
+to a few zones, so a run of them (several records pointed at a new host, caches
+warmed after a deploy) needs one card instead of one per call. `cloudflare_mandate`
+`create` asks on a card of its own and nothing else makes one: never to get
+past a card the user denied, and never without agreeing the terms in chat
+first.
+
+- Propose one only when the work is repeated. Settle with the user, in chat:
+  the account (`account` label), one to three `zones`, the `classes` (`dns`:
+  proxied A, AAAA and CNAME records added or updated; `settings`: settings that
+  neither weaken protection nor turn it off; `purge`: URLs, hosts or
+  prefixes), `per_hour` (covered changes an hour, 1 to 20; every record,
+  setting, URL, host or prefix of a call counts one, so size it by items, not
+  calls), `days` (1 to 7) and a `purpose` in one line. Ask for the fewest zones
+  and classes and the shortest time that do the job.
+- A covered change runs with no card, also where nobody can answer one (cron).
+  Each one is re-checked and counted when it runs; one that no longer fits
+  (`not done: it no longer fits the zone mandate`) changed nothing, and sending
+  it again asks on a card.
+- **Never covered, whatever the mandate says:** any delete; MX, TXT, NS and
+  every record type but A, AAAA and CNAME; a record that is not proxied (an add
+  without `proxied: true`, an update that turns the proxy off); a name starting
+  with `_` (`_acme-challenge`, `_dmarc`); a record that points at a tunnel
+  (`*.cfargotunnel.com`); a setting that weakens protection or turns off
+  `ssl`, `always_use_https`, `automatic_https_rewrites`, `tls_1_3`,
+  `security_level` or `email_obfuscation`; a purge of everything; tunnel
+  hostnames, e-mail rules, rollbacks, storage; another zone or account; any 🚨
+  card; and a call with more items than `per_hour`. One such item in a batch
+  makes the whole call ask on its card, as before.
+- `action: list` shows the mandates in force; `action: revoke` with `mandate`
+  (its id) ends one at once and needs no card. Revoke when the job is done.
+- A mandate does not widen what the token may do, and the terms are fixed on
+  the card: a different zone, class or count is a new mandate on a new card.
 
 ## Errors
 

@@ -7,7 +7,8 @@ Cloudflare accounts, through API tokens the user creates. Every profile with
 the tool reads; the Assistant alone also changes DNS records, zone settings,
 e-mail rules and a tunnel's public hostnames, purges caches, rolls Workers
 and Pages sites back, and creates or deletes empty storage containers, each
-change behind an approval card. Read it when changing the
+change behind an approval card unless it fits a [zone mandate](#zone-mandates)
+the user approved on a card of its own. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -18,7 +19,8 @@ plugin, its tokens or what it may call. Common rules:
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
 | Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, write plans, approval card, bypass guard        | `plugins/cloudflare-access/cfa.py`                                                                    | all                             |
 | The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                 | all                             |
-| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                               | Assistant, Researcher, Marketer |
+| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets; `cloudflare_mandate` (Assistant)     | `plugins/cloudflare-access/__init__.py`                                                               | Assistant, Researcher, Marketer |
+| Zone mandates: terms, card, fit checks, the hourly count and making or ending one                                                                 | `plugins/cloudflare-access/mandate.py`                                                                | Assistant                       |
 | How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:read` plugin skill (`plugins/cloudflare-access/skills/read/`)                  | Assistant, Researcher, Marketer |
 | Changing Cloudflare: the card, DNS records, cache purges, settings, e-mail rules, tunnels, storage, rollbacks, outcomes                           | the `cloudflare-access:manage` plugin skill (`.../skills/manage/`); registered for the Assistant only | Assistant                       |
 
@@ -302,7 +304,8 @@ reaches) always fit what the chat shows, or the change is refused (sooner on
 Discord's shorter card); detail lines (the all-or-nothing note, comments, a
 purge's URLs) are counted when they do not.
 
-The approval record is per tool call and allows one change. Its rule key
+A change that fits a [zone mandate](#zone-mandates) gets no card at all. The
+approval record is per tool call and allows one change. Its rule key
 hashes the exact plan, so "session" or "always" repeats only that identical
 change on that same account. Every 🚨 change (a list with one 🚨 item among them
 included) and a purge of everything get a fresh key every time, so no stored
@@ -327,12 +330,92 @@ digest of its own card, and the write plans it again and refuses on any
 difference, so a payload other than the one planned, a change in Cloudflare or
 another stored token since stops it, whatever answer is stored.
 
+## Zone mandates
+
+A mandate is the user's standing approval for covered changes to a few zones,
+made on a card of its own ([decision](decisions/cloudflare-mandates.md)). The
+`cloudflare_mandate` tool (the Assistant's) makes, lists and revokes them:
+
+- `create` takes `account` (a token's label; optional when one is stored),
+  `zones` (one to three domains or zone ids of that account), `classes` (`dns`:
+  proxied A, AAAA and CNAME records added or updated; `settings`: settings that
+  neither weaken protection nor turn it off; `purge`: URLs, hosts or
+  prefixes), `per_hour` (covered changes an hour, 1 to 20; each DNS item, each
+  setting, each URL, host or prefix of a call counts one), `days` (1 to 7) and
+  `purpose` (one line, at most 200 characters). The hook reads the zones from Cloudflare (each must belong to
+  the label's account), refuses for an inbound A2A request and where nobody can
+  answer a card, and shows a card at 🚨: the account with its id, each zone
+  with its id, what is covered, the hourly bound, the end and the purpose,
+  then what is never covered (dropped first when the chat's card is short). Its
+  rule key is fresh, so no stored answer and no mandate approves another. The
+  handler makes one only from the hook's record of that very call, after
+  reading the zones again and finding the same terms as the card.
+- `list` shows the mandates in force; `revoke` (`mandate` = its id) ends one at
+  once. Neither asks.
+
+A write fits a mandate when its class is covered, its account (label and id)
+and its zone are the mandate's, its card is below 🚨 and is not one that
+asks every time (so no delete, no weaker setting, no purge of everything), the
+requests it would send are the class's own (`dns_change` as one batch of posts
+and patches, `zone_setting` as `PATCH`es of single settings, `cache_purge` as
+files, hosts or prefixes) and each item passes the class's rules, and the hour
+has room for all its changes. A DNS item must add or update a record that is of
+type A, AAAA or CNAME, is proxied after the change (an add without
+`proxied: true`, an update that sets `proxied: false` or leaves an unproxied
+record unproxied does not pass), has no first label starting with `_` (before
+or after the change) and is not, and does not become, a CNAME to
+`*.cfargotunnel.com`; one item that fails makes the whole call ask. A setting
+item must not turn off `ssl`, `always_use_https`, `automatic_https_rewrites`,
+`tls_1_3`, `security_level` or `email_obfuscation` (`PROTECTIVE_OFF`; beyond
+what the card already marks 🚨, the card levels themselves are unchanged).
+Development mode on and purges of hosts or prefixes are covered. A call
+with more changes than the mandate's `per_hour` is never covered. Nothing else
+is covered: tunnel routes, e-mail rules, rollbacks and storage always ask, and
+a write that fits no mandate in force asks on its card as before and, where no
+card can be answered, is refused as before.
+
+For a write that fits, the hook builds no card: it records the mandate's id
+beside the digest of the plan it made, returns no approval directive and skips
+the refusal for a run with nobody to answer. The handler peeks at that record
+for the same reason; a call without a record is refused like any write that
+skipped its gate. At the write, after the plan is rebuilt and its digest
+matches the record, `mandate.use` reads the mandate again, checks the plan
+fits it and counts the write's changes (one ledger row each, written together)
+before the bridge is called, under the store's lock: a mandate revoked or ended
+since the hook, a plan that no longer fits or an hour without room for all its
+changes reads `not done: it no longer fits the zone mandate (…)` with nothing
+sent. The count stands whatever becomes of the request, a failed or uncertain
+one included. A `preview=true` is never counted and needs no
+mandate.
+
+State lives in the profile home under `cloudflare-access/`: one MAC'd JSON per
+mandate (`mandates/`), a MAC'd head naming those in force (only the head
+decides), a MAC'd opening row per mandate and then a MAC'd row per
+counted change (`uses.jsonl`, MAC'd as `cloudflare-use`), and a history file
+kept for the record. The Keychain is skipped only while no `head.json` exists,
+that is until the first mandate has been made; revoking every mandate leaves
+the head file, so from then on each write reads the key. The MAC key is a random key in the Keychain
+(`CLOUDFLARE_MANDATE_KEY_<PROFILE>`, project `hermes`, scope
+`cloudflare-access`, a scope no profile receives), made with the first
+mandate and read from the Keychain at every check, never cached: without a
+readable key, or with a replaced one, nothing is in force and every write
+asks. The MACs stop an edited or forged mandate, head or row, and a mandate
+whose opening row is missing, or a ledger that is deleted, emptied, replaced
+or not a plain file of this user (it is opened without following links),
+counts as used up. Neither an older head copied back nor use rows removed from
+an intact ledger is detected; the guard on the state and the key (below) and
+the 7-day ceiling the store enforces bound that. The store
+(`plugins/_shared/mandate_store.py`) and the ledger
+(`plugins/_shared/mandate_ledger.py`) are shared with the other mandates; the
+terms, card and fit checks are `mandate.py`'s.
+
 ## Where a write may run
 
 A change is refused wherever no person can answer its card, through the shared
-check ([approval gate](access-common.md#approval-gate)); the hook and the
-handler each refuse before a card is built, and the answer names the reason.
-Reads and `preview=true` are unaffected.
+check ([approval gate](access-common.md#approval-gate)), unless it fits a
+[zone mandate](#zone-mandates); the hook and the handler each refuse before a
+card is built, and the answer names the reason. Reads and `preview=true` are
+unaffected.
 
 ## Ways around the tool
 
@@ -344,7 +427,11 @@ through a package runner such as `npx` or `pnpm exec`) or with a command that
 uses the account, the CLIs' logins (`.wrangler/config`, `~/.cloudflared`) or an
 inline Cloudflare SDK import, and file-tool calls on the state directory or the
 CLIs' logins. Mentions that run nothing (`grep wrangler package.json`) stay
-open. Because the tokens' names are free, and a `secret` read that leaves the
+open. Terminal and file-tool calls are also blocked when they name the zone
+mandates' state in the profile home (`cloudflare-access/` with `mandates`,
+`head.json` or `uses.jsonl`, matched on the text and on the real path it
+resolves to) or the Keychain item of their MAC key (`CLOUDFLARE_MANDATE_KEY`).
+Because the tokens' names are free, and a `secret` read that leaves the
 scope out searches the scope named after the working directory's repository,
 it also blocks any value read or change of an item in the `hermes` project
 (`secret get|set|update|rm|import|env … -p hermes`) and the Keychain's own
@@ -353,8 +440,8 @@ tools may still read the plugin source, and the browser may still open the
 Cloudflare dashboard. In a project, its own wrangler may run through its
 package manager (`PROJECT_CLIS`; [project tooling](access-common.md#bypass-guard-ways-around-the-tool)).
 Patterns: `CLIS` (read by command position, with
-`_CLI_TEXT` for a line that cannot be read that way), `_TERMINAL` and `_STORE` in
-`plugins/cloudflare-access/cfa.py`. Shared rules:
+`_CLI_TEXT` for a line that cannot be read that way), `_TERMINAL`, `_STORE`,
+`_MANDATE_STATE` and `_MANDATE_KEY` in `plugins/cloudflare-access/cfa.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool). The toolset
 is in an `a2a` platform toolset only where `A2A` lists actions (Researcher,
 Marketer), never the Assistant's.

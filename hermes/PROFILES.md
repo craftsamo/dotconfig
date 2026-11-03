@@ -80,4 +80,5 @@ look arbitrary:
 [Antigravity provider](./docs/decisions/antigravity-provider.md) ·
 [Drive upload encryption](./docs/decisions/drive-upload-encryption.md) ·
 [Approval tiers](./docs/decisions/approval-tiers.md) ·
-[Send mandates](./docs/decisions/send-mandates.md).
+[Send mandates](./docs/decisions/send-mandates.md) ·
+[Cloudflare mandates](./docs/decisions/cloudflare-mandates.md).
