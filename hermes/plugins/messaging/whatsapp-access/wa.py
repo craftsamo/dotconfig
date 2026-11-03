@@ -4,9 +4,10 @@
 ``sync --follow`` LaunchAgent per account (``launchd/whatsapp-access-launchctl.sh``) keeps
 its local SQLite mirror current and serves sends over the store's socket. Reads run
 ``--read-only`` against that mirror; ``send`` is the only write and is held for the
-user's approval by the plugin's ``pre_tool_call`` hook (``approval_request``). Files to send
-are frozen into a private outbox when the approval card is made, and only those copies go
-out (``outbox_binding``). Contract: docs/whatsapp-access.md.
+user's approval by the plugin's ``pre_tool_call`` hook (``approval_request``), which also records
+a digest of what the card showed: ``send`` refuses a call without that record or whose request
+has changed since. Files to send are frozen into a private outbox when the approval card is
+made, and only those copies go out (``outbox_binding``). Contract: docs/whatsapp-access.md.
 """
 
 from __future__ import annotations
@@ -70,6 +71,7 @@ READ_TIMEOUT = 30
 SEND_TIMEOUT = 60
 SEND_MARGIN = 30
 CARD_TIMEOUT = 3
+APPROVAL_TTL = 900          # a gate record older than this does not cover a send
 CHECK_TIMEOUT = 45
 CHECK_MAX = 20
 BACKFILL_REQUESTS = (2, 5)   # default, at most
@@ -1240,15 +1242,60 @@ def file_not_dispatched(exc: BaseException) -> bool:
     return not_dispatched(text) or any(marker in text for marker in FILE_NOT_DISPATCHED)
 
 
-def send(args: dict) -> dict:
-    """The approved send. With files, the request is matched against the snapshot by its paths
-    alone (the originals may since have changed or gone), and the snapshot is consumed once."""
+# The gate's view of each send, per tool call, so the write sends exactly what the card showed:
+# the same account, chat, text, reply and requested files (the request digest covers them all).
+_approved: dict[str, tuple[float, str]] = {}
+_approved_lock = threading.Lock()
+
+
+def call_key(args: dict, call_id: str) -> str:
+    """One tool call's identity: its id when it has one, else its arguments (apart from the
+    ``_outbox`` the bind hook adds). The id alone, because the hook sees the arguments as the model
+    wrote them and the handler sees them after Hermes coerces their types; the request digest is
+    what binds the content."""
+    if call_id:
+        return hashlib.sha256(json.dumps(["call", call_id], ensure_ascii=False).encode("utf-8")).hexdigest()
+    shown = {k: v for k, v in args.items() if k != "_outbox"}
+    return hashlib.sha256(json.dumps(["args", shown], sort_keys=True, ensure_ascii=False,
+                                     default=str).encode("utf-8")).hexdigest()
+
+
+def _remember(args: dict, call_id: str, digest: str) -> None:
+    with _approved_lock:
+        now = time.monotonic()
+        for old in [k for k, (at, _) in _approved.items() if now - at > APPROVAL_TTL]:
+            _approved.pop(old, None)
+        _approved[call_key(args, call_id)] = (now, digest)
+
+
+def _approved_digest(args: dict, call_id: str) -> str | None:
+    """The request digest the gate recorded for this call, taken once; None when there is none (or
+    it is too old)."""
+    with _approved_lock:
+        entry = _approved.pop(call_key(args, call_id), None)
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[1]
+
+
+def send(args: dict, call_id: str = "") -> dict:
+    """The approved send. The gate's record of this very call is taken first, and the request is
+    rebuilt and must match it before anything reaches wacli. With files, the request is matched
+    against the snapshot by its paths alone (the originals may since have changed or gone), and the
+    snapshot is consumed once."""
+    approved = _approved_digest(args, call_id)
+    if approved is None:
+        return {"ok": False, "error": "not sent: this send did not pass its approval card; call send again"}
     requested = _requested(args)
     plan = send_plan(args, files=[{"path": str(p)} for p in requested])
+    request = request_digest(plan, requested)
+    if request != approved:
+        return {"ok": False, "error": "not sent: the account, chat, text, reply or files changed after the "
+                                      "approval card was made; ask again"}
     if not requested:
         return _send_text(plan)
     try:
-        folder, files = consume(request_digest(plan, requested), args.get("_outbox"))
+        folder, files = consume(request, args.get("_outbox"))
     except (WhatsAppError, OSError) as exc:
         return {"ok": False, "error": f"not sent: {exc}; send it again to get a new approval card"}
     try:
@@ -1365,11 +1412,11 @@ def _quoted_sender(plan: dict) -> str | None:
     return m.get("SenderJID") or None
 
 
-def execute(args: dict, home: Path | None = None) -> dict:
+def execute(args: dict, home: Path | None = None, call_id: str = "") -> dict:
     args = args if isinstance(args, dict) else {}
     recover_abandoned_pauses()
     if action_of(args) in WRITES:
-        return send(args)
+        return send(args, call_id)
     return read(args, home)
 
 
@@ -1460,10 +1507,11 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
     return f"whatsapp-access:send:{digest}"
 
 
-def approval_request(args: dict, ids: dict | None = None) -> tuple[str, str] | None:
+def approval_request(args: dict, ids: dict | None = None, call_id: str = "") -> tuple[str, str] | None:
     """(card, allowlist rule key) for a send, None for a read; raises for a call that would fail
-    anyway, so it is blocked without asking. Files are frozen into this call's snapshot here. The
-    key covers the exact account, chat, text, reply and file contents, so "session" or "always"
+    anyway, so it is blocked without asking. Files are frozen into this call's snapshot here, and
+    the request digest of what the card shows is recorded under ``call_id`` for the write to match.
+    The key covers the exact account, chat, text, reply and file contents, so "session" or "always"
     only ever repeats that identical message."""
     args = args if isinstance(args, dict) else {}
     if "_outbox" in args:
@@ -1471,10 +1519,13 @@ def approval_request(args: dict, ids: dict | None = None) -> tuple[str, str] | N
     if action_of(args) not in WRITES:
         return None
     plan = send_plan(args)
+    request = request_digest(plan, _requested(args))
     staged = None
     if plan["files"]:
-        _, staged = snapshot_for_call(plan, request_digest(plan, _requested(args)), ids or {}, "gate")
-    return card(plan, staged), rule_key(plan, staged)
+        _, staged = snapshot_for_call(plan, request, ids or {}, "gate")
+    approval = (card(plan, staged), rule_key(plan, staged))
+    _remember(args, call_id, request)
+    return approval
 
 
 def outbox_binding(args, ids: dict | None = None) -> dict | None:

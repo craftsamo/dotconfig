@@ -94,6 +94,7 @@ class Fake:
 def fake(monkeypatch):
     f = Fake()
     monkeypatch.setattr(wa, "run", f)
+    wa._approved.clear()
     return f
 
 
@@ -101,6 +102,12 @@ def plan(**over):
     p = {"account": "work", "chat": DM, "text": "こんにちは\n了解です。", "reply_to": ""}
     p.update(over)
     return p
+
+
+def gated(args, call_id=""):
+    """The approval hook, then the handler, as Hermes runs one send."""
+    wa.approval_request(args, call_id=call_id)
+    return wa.execute(args, call_id=call_id)
 
 
 # --- wa.run --------------------------------------------------------------------------------------
@@ -364,15 +371,66 @@ def test_a_missing_mirror_reads_as_not_paired(fake):
 # --- send ----------------------------------------------------------------------------------------
 
 def test_send_success(fake):
-    result = wa.execute({"action": "send", "account": "Work", "chat": DM, "text": "hi"})
+    result = gated({"action": "send", "account": "Work", "chat": DM, "text": "hi"}, "call-1")
     assert result["ok"] is True and result["id"] == "3EB0XYZ" and result["account"] == "work"
     call = fake.args_of(["send", "text"])[-1]
     assert call["args"] == ["send", "text", "--to", DM, "--message", "hi"]
     assert call["write"] is True and call["account"] == "work"
 
 
+def test_a_send_that_skipped_the_gate_reaches_nothing(fake):
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    result = wa.execute(args, call_id="call-1")
+    assert result["ok"] is False and result["error"].startswith("not sent: this send did not pass its approval card")
+    assert not fake.args_of(["send", "text"])
+    wa.approval_request(args, call_id="call-1")
+    assert "approval card" in wa.execute(args, call_id="call-2")["error"]
+    assert not fake.args_of(["send", "text"])
+    assert wa.execute(args, call_id="call-1")["ok"] is True                    # its own record still stands
+    assert "approval card" in wa.execute(args, call_id="call-1")["error"]      # taken once
+    assert len(fake.args_of(["send", "text"])) == 1
+
+
+def test_a_record_belongs_to_its_call_id_and_the_digest_binds_the_content(fake):
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    wa.approval_request(args, call_id="call-1")
+    result = wa.execute({**args, "text": "other"}, call_id="call-1")           # the id matches, the content does not
+    assert "changed after the approval card was made" in result["error"]
+    assert "approval card" in wa.execute(args, call_id="call-1")["error"]      # and the record is spent
+    assert not fake.args_of(["send", "text"])
+
+
+def test_without_a_call_id_the_record_is_keyed_by_the_arguments(fake):
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    wa.approval_request(args)
+    assert "approval card" in wa.execute({**args, "text": "other"})["error"]
+    assert wa.execute(args)["ok"] is True
+
+
+def test_a_record_that_is_too_old_covers_nothing(fake, monkeypatch):
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    wa.approval_request(args)
+    clock = wa.time.monotonic() + wa.APPROVAL_TTL + 1
+    monkeypatch.setattr(wa.time, "monotonic", lambda: clock)
+    assert "approval card" in wa.execute(args)["error"]
+    assert not fake.args_of(["send", "text"])
+
+
+@pytest.mark.parametrize("change", [{"text": "other"}, {"chat": GROUP}, {"account": "personal"},
+                                    {"reply_to": "3EB0ABCDEF"}])
+def test_a_send_changed_after_its_card_is_refused_before_wacli(fake, monkeypatch, change):
+    fake.accounts = ["work", "personal"]
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    wa.approval_request(args, call_id="call-1")
+    real = wa.send_plan
+    monkeypatch.setattr(wa, "send_plan", lambda a, **kw: {**real(a, **kw), **change})
+    result = wa.execute(args, call_id="call-1")
+    assert result["ok"] is False and "changed after the approval card was made; ask again" in result["error"]
+    assert not fake.args_of(["send", "text"])
+
+
 def test_group_reply_names_the_quoted_sender(fake):
-    wa.execute({"action": "send", "account": "work", "chat": GROUP, "text": "hi", "reply_to": "3EB0ABCDEF"})
+    gated({"action": "send", "account": "work", "chat": GROUP, "text": "hi", "reply_to": "3EB0ABCDEF"})
     argv = fake.args_of(["send", "text"])[-1]["args"]
     assert argv[argv.index("--reply-to") + 1] == "3EB0ABCDEF"
     assert argv[argv.index("--reply-to-sender") + 1] == DM
@@ -381,25 +439,25 @@ def test_group_reply_names_the_quoted_sender(fake):
 def test_send_failures_say_whether_anything_went_out(fake):
     args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
     fake.overrides["send text"] = wa.WhatsAppError("store is locked")
-    result = wa.execute(args)
+    result = gated(args)
     assert result["ok"] is False and result["error"].startswith("not sent:")
     fake.overrides["send text"] = wa.WhatsAppError(
         "no reply from the running sync process before the timeout; the text may still have gone through")
-    assert wa.execute(args)["error"].startswith("UNCERTAIN")
+    assert gated(args)["error"].startswith("UNCERTAIN")
     fake.overrides["send text"] = TimeoutError("wacli did not answer within 60s")
-    assert wa.execute(args)["error"].startswith("UNCERTAIN")
+    assert gated(args)["error"].startswith("UNCERTAIN")
     # Anything not known to fail before dispatch is uncertain, including wacli's own timeout.
     for error in ("send timed out after 45s", "EOF", "wacli returned no JSON: ", "something new"):
         fake.overrides["send text"] = wa.WhatsAppError(error)
-        assert wa.execute(args)["error"].startswith("UNCERTAIN"), error
+        assert gated(args)["error"].startswith("UNCERTAIN"), error
     for error in ("store is locked (another wacli is running?): store locked",
                   "queued past its deadline; it was not sent",
                   "send text to the linked account itself is not supported: …",
                   "not authenticated; run `wacli auth`"):
         fake.overrides["send text"] = wa.WhatsAppError(error)
-        assert wa.execute(args)["error"].startswith("not sent:"), error
+        assert gated(args)["error"].startswith("not sent:"), error
     fake.overrides["send text"] = {"sent": False}
-    assert wa.execute(args)["error"].startswith("UNCERTAIN")
+    assert gated(args)["error"].startswith("UNCERTAIN")
 
 
 def test_account_names_differing_only_in_case_must_be_exact(fake):
@@ -779,10 +837,10 @@ def test_a_send_waits_for_no_pause_and_never_cuts_one(fake, monkeypatch, tmp_pat
     args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
     with open(wa._guard("work"), "a") as held:
         wa.fcntl.flock(held, wa.fcntl.LOCK_EX)  # a pause in progress
-        result = wa.execute(args)
+        result = gated(args)
     assert result["ok"] is False and result["error"].startswith("not sent: a check or backfill")
     assert not fake.args_of(["send", "text"])
-    assert wa.execute(args)["ok"] is True
+    assert gated(args)["ok"] is True
 
 
 def test_an_abandoned_pause_is_recovered(fake, monkeypatch, tmp_path):

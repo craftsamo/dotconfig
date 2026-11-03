@@ -3,7 +3,8 @@
 One tool, ``whatsapp`` (toolset ``whatsapp_access``), run by ``wa.py`` beside this file over the
 ``wacli`` CLI. A ``pre_tool_call`` hook holds every send for Hermes' human approval gate (the
 card names the account, the chat, every file and the text; blocked in cron, without a human and
-on timeout) and blocks terminal and file calls that would go around the tool; a second hook
+on timeout) and records what the card showed, which the handler checks again before it sends;
+the hook also blocks terminal and file calls that would go around the tool; a second hook
 points an approved send with files at the copies its card froze. Contract:
 docs/whatsapp-access.md.
 """
@@ -112,6 +113,17 @@ def _inbound_peer():
     return "a2a" in (get_session_env("HERMES_SESSION_PLATFORM", ""), get_session_env("HERMES_SESSION_SOURCE", ""))
 
 
+def _call_id() -> str:
+    """The id of the tool call being executed. Hermes binds it for the handler's run and hands the
+    same id to pre_tool_call, so an approval record belongs to one call, never to a concurrent
+    identical one."""
+    try:
+        from tools.approval_context import _approval_tool_call_id
+        return _approval_tool_call_id.get() or ""
+    except Exception:
+        return ""
+
+
 def _home():
     """The profile home (media downloads read its config); None outside Hermes."""
     try:
@@ -138,7 +150,8 @@ def whatsapp(args, **kwargs):
         refused = no_human_message(args)
         if refused:
             return json.dumps({"ok": False, "error": refused}, ensure_ascii=False)
-        text = json.dumps(wa.execute(args if isinstance(args, dict) else {}, home=_home()), ensure_ascii=False)
+        text = json.dumps(wa.execute(args if isinstance(args, dict) else {}, home=_home(), call_id=_call_id()),
+                          ensure_ascii=False)
         if len(text) > LIMIT:
             return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with "
                                                      "limit, after / before or a query"})
@@ -162,8 +175,10 @@ def gate(**kwargs):
         refused = no_human_message(args)
         if refused:
             return {"action": "block", "message": refused}
+        ids = _ids(kwargs)
         try:
-            request = wa.approval_request(args if isinstance(args, dict) else {}, ids=_ids(kwargs))
+            request = wa.approval_request(args if isinstance(args, dict) else {}, ids=ids,
+                                          call_id=ids["tool_call_id"])
         except Exception as exc:
             return {"action": "block", "message": f"{TOOL}: {exc}"}
         if request:

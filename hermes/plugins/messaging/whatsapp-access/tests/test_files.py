@@ -45,6 +45,7 @@ def ws(tmp_path, monkeypatch):
 def fake(monkeypatch):
     f = Fake()
     monkeypatch.setattr(wa, "run", f)
+    wa._approved.clear()
     return f
 
 
@@ -57,9 +58,14 @@ def put(ws, relative, data=PNG):
 
 def approved(args, ids=IDS):
     """Both hooks, as Hermes runs them; returns (card, rule key, the args the handler gets)."""
-    card, key = wa.approval_request(args, ids=ids)
+    card, key = wa.approval_request(args, ids=ids, call_id=ids["tool_call_id"])
     binding = wa.outbox_binding(args, ids=ids)
     return card, key, {**args, **(binding or {})}
+
+
+def handle(args, ids=IDS):
+    """The handler of the call ``approved`` ran the hooks for."""
+    return wa.execute(args, call_id=ids["tool_call_id"])
 
 
 def send_args(**over):
@@ -85,7 +91,7 @@ def test_one_message_per_file_caption_and_reply_on_the_first(ws, fake):
     put(ws, "trip/a.png")
     put(ws, "b.png", PNG2)
     _, _, args = approved(send_args(text="見てください", files=["trip/a.png", "b.png"], reply_to="3EB0ABCDEF"))
-    result = wa.execute(args)
+    result = handle(args)
     assert result["ok"] is True and [f["status"] for f in result["files"]] == ["sent", "sent"]
     calls = fake.args_of(["send", "file"])
     first, second = calls[0]["args"], calls[1]["args"]
@@ -102,7 +108,7 @@ def test_only_the_approved_bytes_go_out(ws, fake):
     path = put(ws, "trip/a.png")
     _, _, args = approved(send_args())
     path.write_bytes(PNG2)                                                     # changed after the card
-    result = wa.execute(args)
+    result = handle(args)
     assert result["ok"] is True and fake.args_of(["send", "file"])[0]["bytes"] == PNG
 
 
@@ -110,8 +116,11 @@ def test_the_snapshot_is_used_once_and_only_through_the_hooks(ws, fake):
     put(ws, "trip/a.png")
     assert "not sent" in wa.execute(send_args())["error"]                     # no hooks, no snapshot
     _, _, args = approved(send_args())
-    assert wa.execute(args)["ok"] is True
-    again = wa.execute(args)
+    assert handle(args)["ok"] is True
+    assert "approval card" in handle(args)["error"]                           # the gate's record is taken once
+    plan = wa.send_plan(send_args(), files=[{"path": str(ws / "trip/a.png")}])
+    wa._remember(send_args(), IDS["tool_call_id"], wa.request_digest(plan, [ws / "trip/a.png"]))
+    again = handle(args)                                                       # and so is the snapshot
     assert again["ok"] is False and "already sent" in again["error"]
     with pytest.raises(wa.WhatsAppError, match="_outbox"):
         wa.approval_request({**send_args(), "_outbox": "0" * 32}, ids=IDS)
@@ -122,9 +131,12 @@ def test_the_snapshot_is_used_once_and_only_through_the_hooks(ws, fake):
 def test_a_changed_request_cannot_use_the_snapshot(ws, fake):
     put(ws, "trip/a.png")
     _, _, args = approved(send_args(text="one"))
-    result = wa.execute({**args, "text": "two"})
-    assert result["ok"] is False and "differ from what was approved" in result["error"]
+    result = handle({**args, "text": "two"})                                   # the call the card was for, changed
+    assert result["ok"] is False and "changed after the approval card was made" in result["error"]
     assert fake.args_of(["send", "file"]) == []
+    plan = wa.send_plan({**send_args(text="two")}, files=[{"path": str(ws / "trip/a.png")}])
+    with pytest.raises(wa.WhatsAppError, match="differ from what was approved"):
+        wa.consume(wa.request_digest(plan, [ws / "trip/a.png"]), args["_outbox"])   # the snapshot's own check
 
 
 def test_concurrent_identical_calls_keep_their_own_snapshot(ws, fake):
@@ -133,8 +145,10 @@ def test_concurrent_identical_calls_keep_their_own_snapshot(ws, fake):
     path.write_bytes(PNG2)
     _, key_b, args_b = approved(send_args(), ids={**IDS, "tool_call_id": "B"})
     assert key_a != key_b and args_a["_outbox"] != args_b["_outbox"]
-    wa.execute(args_a)
-    assert fake.args_of(["send", "file"])[0]["bytes"] == PNG
+    assert handle(args_b, {**IDS, "tool_call_id": "B"})["ok"] is True
+    assert handle(args_a, {**IDS, "tool_call_id": "A"})["ok"] is True
+    assert [c["bytes"] for c in fake.args_of(["send", "file"])] == [PNG2, PNG]
+    assert "approval card" in handle(args_a, {**IDS, "tool_call_id": "A"})["error"]
 
 
 def test_files_outside_the_workspace_are_refused(ws, fake, tmp_path):
@@ -178,7 +192,7 @@ def test_zip_is_inspected_shown_on_the_card_and_sent(ws, fake):
     make_zip(ws, "trip/photos.zip", {"a.png": PNG, "notes/b.txt": b"hello"})
     card, _, args = approved(send_args(files=["trip/photos.zip"]))
     assert "- photos.zip (application/zip, " in card and ", 2 files inside (" in card and "unpacked)" in card
-    result = wa.execute(args)
+    result = handle(args)
     assert result["ok"] is True and [f["file"] for f in result["files"]] == ["photos.zip"]
     call = fake.args_of(["send", "file"])[0]
     assert call["args"][call["args"].index("--filename") + 1] == "photos.zip"
@@ -193,7 +207,7 @@ def test_tar_gz_is_sent(ws, fake):
         t.addfile(info, io.BytesIO(PNG))
     card, _, args = approved(send_args(files=["backup.tar.gz"]))
     assert "backup.tar.gz (application/gzip" in card and ", 1 files inside (" in card
-    assert wa.execute(args)["ok"] is True
+    assert handle(args)["ok"] is True
 
 
 @pytest.mark.parametrize("entries, message", [
@@ -214,12 +228,13 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(ws, fake, ent
 def test_scripts_are_sent_alone_and_inside_an_archive(ws, fake):
     make_zip(ws, "proj.zip", {"a.png": PNG, "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
     card, _, args = approved(send_args(files=["proj.zip"]))
-    assert ", 3 files inside (" in card and wa.execute(args)["ok"] is True
+    assert ", 3 files inside (" in card and handle(args)["ok"] is True
     for i, (name, body) in enumerate((("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"),
                                       ("app.js", b"let a = 1;\n"), ("notes.txt", b"#!/bin/sh\necho hi\n"))):
         put(ws, name, body)
-        card, _, args = approved(send_args(files=[name]), ids={**IDS, "tool_call_id": f"call-s{i}"})
-        assert f"- {name} (" in card and wa.execute(args)["ok"] is True, name
+        ids = {**IDS, "tool_call_id": f"call-s{i}"}
+        card, _, args = approved(send_args(files=[name]), ids=ids)
+        assert f"- {name} (" in card and handle(args, ids)["ok"] is True, name
 
 
 @pytest.mark.parametrize("name, data", [
@@ -243,7 +258,7 @@ def test_zip_changed_after_the_card_goes_out_as_approved(ws, fake):
     original = path.read_bytes()
     _, _, args = approved(send_args(files=["a.zip"]))
     make_zip(ws, "a.zip", {"a.png": PNG, "b.png": PNG2})
-    assert wa.execute(args)["ok"] is True and fake.args_of(["send", "file"])[0]["bytes"] == original
+    assert handle(args)["ok"] is True and fake.args_of(["send", "file"])[0]["bytes"] == original
 
 
 def test_limits(ws, fake, monkeypatch):
@@ -280,7 +295,7 @@ def test_a_failure_stops_the_sequence_and_says_what_went_out(ws, fake):
         return {"sent": True, "id": "3EBF", "file": {"media": "image"}}
     real["send file"] = second_fails
     _, _, args = approved(send_args(files=["a.png", "b.png", "c.png"]))
-    result = wa.execute(args)
+    result = handle(args)
     assert result["ok"] is False and result["error"].startswith("partly sent: 1 of 3")
     assert [f["status"] for f in result["files"]] == ["sent", "not sent", "not sent"]
     assert len(fake.args_of(["send", "file"])) == 2                          # the third never tried
@@ -291,13 +306,14 @@ def test_an_unclear_failure_is_uncertain(ws, fake):
     put(ws, "b.png")
     fake.overrides["send file"] = TimeoutError("wacli did not answer within 180s")
     _, _, args = approved(send_args(files=["a.png", "b.png"]))
-    result = wa.execute(args)
+    result = handle(args)
     assert result["error"].startswith("UNCERTAIN") and "files sent before it: 0 of 2" in result["error"]
     assert [f["status"] for f in result["files"]] == ["uncertain", "not sent"]
     fake.overrides["send file"] = wa.WhatsAppError("store is locked", reported=True)
     wa._PENDING.clear()
-    _, _, args = approved(send_args(files=["a.png"]), ids={**IDS, "tool_call_id": "call-9"})
-    assert wa.execute(args)["error"].startswith("not sent: store is locked")
+    ids = {**IDS, "tool_call_id": "call-9"}
+    _, _, args = approved(send_args(files=["a.png"]), ids=ids)
+    assert handle(args, ids)["error"].startswith("not sent: store is locked")
 
 
 def test_raw_output_is_never_read_as_a_refusal(ws, fake):
@@ -305,7 +321,7 @@ def test_raw_output_is_never_read_as_a_refusal(ws, fake):
     # an abnormal exit whose output carries a marker-looking text (say, an attachment's name)
     fake.overrides["send file"] = wa.WhatsAppError('… sent no such file or directory.txt {"success":true}')
     _, _, args = approved(send_args())
-    assert wa.execute(args)["error"].startswith("UNCERTAIN")
+    assert handle(args)["error"].startswith("UNCERTAIN")
 
 
 def test_wacli_envelopes_are_trusted(monkeypatch, tmp_path):
@@ -350,7 +366,7 @@ def test_the_deadline_stops_before_a_file_it_cannot_finish(ws, fake, monkeypatch
     put(ws, "trip/a.png")
     monkeypatch.setattr(wa, "FILES_DEADLINE", 10)
     _, _, args = approved(send_args())
-    result = wa.execute(args)
+    result = handle(args)
     assert result["error"].startswith("not sent: the send ran out of time") and fake.args_of(["send", "file"]) == []
 
 
@@ -360,7 +376,17 @@ def test_text_sends_and_their_rule_key_are_unchanged(fake, ws):
                                        .encode("utf-8")).hexdigest()[:16]
     assert wa.rule_key(plan) == f"whatsapp-access:send:{old}"
     assert wa.outbox_binding({"action": "send", "account": "work", "chat": DM, "text": "hi"}, ids=IDS) is None
-    assert wa.execute({"action": "send", "account": "work", "chat": DM, "text": "hi"})["ok"] is True
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    wa.approval_request(args, call_id=IDS["tool_call_id"])
+    assert handle(args)["ok"] is True
+
+
+def test_a_file_send_needs_the_snapshot_as_well_as_the_record(ws, fake):
+    put(ws, "trip/a.png")
+    wa.approval_request(send_args(), ids=IDS, call_id=IDS["tool_call_id"])    # hook one, no bind hook
+    result = handle(send_args())
+    assert result["ok"] is False and "not prepared on an approval card" in result["error"]
+    assert fake.args_of(["send", "file"]) == []
 
 
 def test_run_restricts_media_roots(monkeypatch, tmp_path):
