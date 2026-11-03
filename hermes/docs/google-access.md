@@ -2,19 +2,21 @@
 
 The Assistant's access to the user's own Google account — Sheets, Gmail and
 Drive — and to the `gcloud` CLI, with every change held for the user's
-approval. Read it when changing the plugin's engine, its approval rules or its
-account setup. Common rules: [access-common.md](access-common.md). Part of the
+approval (a gcloud command inside a [project mandate](#gcloud-mandates) the user
+approved on a card of its own excepted). Read it when changing the plugin's
+engine, its approval rules or its account setup. Common rules: [access-common.md](access-common.md). Part of the
 Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                    | Home                                                                             | Reader    |
-| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
-| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                | all       |
-| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                              | Assistant |
-| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                       | people    |
-| How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design | the `google-access:sheets` plugin skill (`plugins/google-access/skills/sheets/`) | Assistant |
-| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                               | Assistant |
+| Piece                                                                                                                                    | Home                                                                             | Reader    |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
+| Engine, approval rule, bypass guard, setup CLI                                                                                           | `plugins/google-access/access.py`                                                | all       |
+| `google_sheets`, `google_gmail`, `google_drive`, `gcloud`, `gcloud_mandate` tools and the `pre_tool_call` hook (toolset `google_access`) | `plugins/google-access/__init__.py`                                              | Assistant |
+| gcloud mandates: terms, card, fit checks, the hourly count and making or ending one                                                      | `plugins/google-access/gcloud_mandate.py`                                        | Assistant |
+| Setup launcher                                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                       | people    |
+| How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design                 | the `google-access:sheets` plugin skill (`plugins/google-access/skills/sheets/`) | Assistant |
+| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                                   | the Assistant's private Chat reference `google.md`                               | Assistant |
 
 The engine uses the Google client libraries of Hermes' own runtime (the
 `google` extra `setup.sh` installs) and the `gcloud` binary on `PATH`. The
@@ -30,6 +32,7 @@ One Google account per profile, kept outside every repository:
 | OAuth token          | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
 | `gcloud/`            | `~/.hermes/profiles/<profile>/google-access/`                                    | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`)                                                                                |
 | `token.generation`   | the same directory                                                               | no secret: a random mark rewritten each time the token is stored                                                                    |
+| gcloud mandates      | the same directory: `mandates/`, `head.json`, `uses.jsonl`, `mandates.jsonl`     | MAC'd terms, head and ledger ([gcloud mandates](#gcloud-mandates)); the MAC key is Keychain item `GCLOUD_MANDATE_KEY_<PROFILE>`     |
 | age secret key       | Keychain item `GOOGLE_ACCESS_AGE_IDENTITY` (same project and scope)              | the key sensitive files are encrypted to on Drive; one for every profile, kind `AGE IDENTITY`, stored `--no-env`                    |
 | `age-recipients.txt` | `~/.hermes/plugin-data/google-access/`                                           | no secret: the public keys those files are encrypted to                                                                             |
 
@@ -125,8 +128,9 @@ not fit (too many recipients) is refused too.
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` / `clear` /
   `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect` /
   `comment`, Gmail `send`, Drive `upload`, and every gcloud command that is not
-  a read. The gate and the engine share one check, so no variant is read
-  differently by each.
+  a read (one that fits a [gcloud mandate](#gcloud-mandates) runs with no card).
+  The gate and the engine share one check, so no variant is read differently by
+  each.
 - **A gcloud read** is a command path that resolves, in the installed SDK's own
   command tree (`data/cli/gcloud_completions.py`), to a command — not a group —
   whose last word is on a reviewed list of verb names (`GCLOUD_READ_VERBS`:
@@ -220,12 +224,132 @@ not fit (too many recipients) is refused too.
   of a credential file, of a file outside the Workspaces root, or of a
   sensitive file with no key set up.
 
+## gcloud mandates
+
+A mandate is the user's standing approval for a few non-read gcloud commands in
+one project, made on a card of its own ([decision](decisions/gcloud-mandates.md)).
+The `gcloud_mandate` tool (the Assistant's) makes, lists and revokes them:
+
+- `create` takes `project` (the one project id), `commands` (one to five command
+  paths, each an array of words as the `gcloud` tool's `command`; the exact leaf
+  path of the SDK's tree, a release track being part of it), `flags` (up to 20
+  long flags a covered call may use, e.g. `--image`; none when omitted),
+  `per_hour` (covered commands an hour, 1 to 10; each call counts one), `days`
+  (1 to 7) and `purpose` (one line, at most 200 characters). Every path and
+  flag is checked against the installed SDK's tree when the card is drawn, so
+  an unknown path, a group, a read, a path named twice, a path that is never
+  covered, a flag no named command declares (a `--no-` form counts when the
+  tree declares the switch), a flag named twice, a flag of a never-covered
+  family and a missing tree all refuse before any card. The hook refuses for an
+  inbound A2A request and where nobody can answer a card, and shows a card at
+  🚨: the project, each command, the flags on one `Flags` line (`none` when
+  there are none), the hourly bound, the end and the purpose, then what is
+  never covered (dropped first when the chat's card is short; a card that
+  cannot show every command and flag is refused). Its rule key is fresh,
+  so no stored answer and no mandate approves another. The handler makes one
+  only from the hook's record of that very call, after planning the paths again
+  and finding the same terms as the card.
+- `list` shows the mandates in force; `revoke` (`mandate` = its id) ends one at
+  once. Neither asks.
+
+A command fits a mandate when the check below finds every part of it accounted
+for, and fails closed otherwise (the call then asks on its card as before). Its
+call names the mandate's project and its path (as the tree names it, release
+track included) is one of the mandate's. Its arguments are read against the
+tree: a flag the tree does not list for the command, `--` (the end of flags), a
+short flag such as `-q`, a flag missing its value and a switch written with a
+value (`--async=true`) are not covered. Every
+flag, written `--flag=value` or `--flag value`, must be one the mandate lists
+(a `--no-` form only if that exact form is listed). Every flag value must be a
+plain token (`FLAG_VALUE`: letters, digits and `. _ , : = @ / -`, starting with
+a letter or digit, up to 300 characters) that holds none of `gs://`, `://`,
+`projects/`, `organizations/`, `folders/` or `..`. The value of a flag whose
+last word is `image` (or last two `image-url`) must start exactly with
+`gcr.io/<project>/`, `<us|eu|asia>.gcr.io/<project>/` or
+`<region>-docker.pkg.dev/<project>/` for the mandate's project (case aside; no
+port, no trailing dot), so `docker.io`, `ghcr.io`, a bare `nginx` and another
+project's image ask; a `--pack` value must hold an `image=` and every `image=`
+and `builder=` in it must be such a path; any other value that starts like a
+Google registry must be one too (`IMAGE_REGISTRY`, `REGISTRY_HOST`). Every
+positional must be a plain lowercase resource id (`POSITIONAL`: up to 63 of
+letters, digits, `.`, `_`, `-`). And the call is none of what is never covered:
+
+- a path whose last word starts with `delete`, `remove`, `destroy`, `purge`,
+  `reset`, `cancel`, `disable`, `undelete`, `rm`, `restore`, `stop`, `suspend`,
+  `undeploy`, `abandon`, `revoke` or `replace` (`NEVER_ENDINGS`);
+- a path holding, as a word or a dash-delimited part of one (`iam` is also
+  `set-iam-policy`), `iam`, `service-account(s)`, `keys`, `secrets`, `kms`,
+  `billing`, `organizations`, `folders`, `projects`, `resource-manager`,
+  `auth`, `config`, `ssh`, `scp`, `iap`, `tunnel`, `proxy`, `port-forward`,
+  `connect`, `access-approval`, `org-policies`, `identity`, `pam`,
+  `access-context-manager`, `firewall-rules`, `access-config`, `metadata`,
+  `password`, `scc`, `builds` or `storage` (`NEVER_WORDS`), or a
+  `GCLOUD_SENSITIVE` word;
+- a flag of `NEVER_FLAG_WORDS` (judged once a leading `no-`, `clear-`, `set-`,
+  `update-`, `add-` or `remove-` is stripped): service-account(s), ingress,
+  egress, network(s), vpc, subnet, subnetwork, iap, invoker, iam, member,
+  role(s), acl, pap, public, authorized-networks, kms, key(s), secret(s),
+  breakglass, binary-authorization, security-level, scopes, metadata, ssl,
+  assign-ip, address, source-ranges, audiences, cloudsql, workload-pool,
+  legacy-authorization, identity, organization, folder, billing-project,
+  impersonate, account, configuration, delete, unauthenticated, bucket,
+  volume(s), project(s), namespace, password; a flag ending in `-file`, `-dir`, `-directory` or `-path`;
+  `--source`; or a `GCLOUD_WRITE_FLAGS` flag. These can never be listed, and
+  are checked again on the call whatever a stored mandate lists.
+
+A call without a project, or one whose path the tree cannot confirm, is never
+covered. The hour has room for one more command, counted per mandate.
+A command that runs on a mandate runs in a fresh, empty, private (0700)
+temporary directory that is removed afterwards, so a plain name or an implicit
+`.` resolves to nothing and a deploy from local source does not work under a
+mandate (deploy an image). A command that asked on its card keeps the
+process's working directory.
+
+For a command that fits, the hook builds no card: it records the mandate's id
+beside the digest of the command it would run, returns no approval directive
+and skips the refusal for a run with nobody to answer. The handler peeks at that
+record for the same reason; a call without a record is refused like any write
+that skipped its gate. The engine takes the record, plans the call again and
+requires the same digest, then `mandate.use` reads the mandate again, checks
+the call still fits and counts it (one ledger row) before the subprocess
+starts, under the store's lock: a mandate revoked or ended since the hook, a
+call that no longer fits or an hour without room reads `not done: it no longer
+fits the gcloud mandate (…)` with nothing run. The count stands whatever
+becomes of the command. A command that asked on its card is recorded the same
+way (without a mandate id), so a non-read command runs only as its card showed
+and only after one: a handler call with no record, or with different arguments,
+is refused.
+
+State lives in the profile home under `google-access/`, beside the files above:
+one MAC'd JSON per mandate (`mandates/`), a MAC'd head naming those in force
+(only the head decides), a MAC'd opening row per mandate and then a MAC'd row
+per counted command (`uses.jsonl`, MAC'd as `gcloud-use`), and a history file
+kept for the record. The Keychain is skipped only while no `head.json` exists,
+that is until the first mandate has been made. The MAC key is a random key in the
+Keychain (`GCLOUD_MANDATE_KEY_<PROFILE>`, project `hermes`, scope
+`google-access`, the scope of the OAuth token, which no profile receives), made
+with the first mandate and read at every check, never cached: without a
+readable key, or with a replaced one, nothing is in force and every command
+asks. The MACs stop an edited or forged mandate, head or row, and a mandate
+whose opening row is missing, or a ledger that is deleted, emptied, replaced or
+not a plain file of this user, counts as used up. Neither an older head copied
+back nor use rows removed from an intact ledger is detected; the guard on the
+state and the key ([below](#ways-around-the-tools)) and the 7-day ceiling the
+store enforces bound that. The store and the ledger
+(`plugins/_shared/mandate_store.py`, `plugins/_shared/mandate_ledger.py`) are
+shared with the other mandates; the terms, card and fit checks are
+`gcloud_mandate.py`'s, and `access.py` hands it the validated call
+(`GcloudCall`).
+
 ## Where a write may run
 
 Every call that would get a card is refused first wherever no person can
-answer it ([approval gate](access-common.md#approval-gate)). The check builds
-the card without any Google request, only to learn whether the call changes
-something, so reads and read-only gcloud commands are unaffected.
+answer it ([approval gate](access-common.md#approval-gate)), except a gcloud
+command that fits a [gcloud mandate](#gcloud-mandates). For Sheets, Gmail and
+Drive the check builds the card without any Google request, only to learn
+whether the call changes something; a gcloud command is planned (no request
+either) and looked up against the mandates in force. Reads and read-only gcloud
+commands are unaffected.
 
 ## Ways around the tools
 
@@ -235,9 +359,13 @@ path names the upstream Workspace scripts, `CLOUDSDK_*`, `~/.config/gcloud`,
 this plugin's state directory (only the plugin source under `plugins/`
 excepted), its Keychain items or scope, the text of an age secret key
 (`AGE-SECRET-KEY-`), or a whole-Keychain read (`dump-keychain`,
-`secret export`). Patterns: `CLIS` (read by command
-position, with `_CLI` for a line that cannot be read that way) and `_PATHS` in
-`plugins/google-access/access.py`. A project's own tooling (`nps setup.google`,
+`secret export`). The gcloud mandates' state (`google-access/` with `mandates`,
+`head.json` or `uses.jsonl`) and the Keychain item of their MAC key
+(`GCLOUD_MANDATE_KEY`) are also matched on the real path an argument resolves to
+and without regard to case, so a link, a `..` or another letter case does not
+hide them. Patterns: `CLIS` (read by command
+position, with `_CLI` for a line that cannot be read that way), `_PATHS`,
+`_MANDATE_STATE` and `_MANDATE_KEY` in `plugins/google-access/access.py`. A project's own tooling (`nps setup.google`,
 a deploy script) may still run, and the gcloud it calls uses the user's own
 `~/.config/gcloud` login, not this tool's
 ([project tooling](access-common.md#bypass-guard-ways-around-the-tool)). Shared rules:

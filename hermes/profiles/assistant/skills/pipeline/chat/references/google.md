@@ -41,12 +41,15 @@ making it.
   delete or move data, ask every time. Plan calls so few cards are needed.
 - Drive `upload` into My Drive shares one approval per profile. Uploads into a
   folder, uploads from a sensitive area, Gmail `send` and every gcloud command
-  that is not a read ask each time.
+  that is not a read ask each time, unless the command fits a gcloud mandate
+  (below).
 
 Writes need the user present: in cron (approvals are denied there), a single
-query or an inbound A2A request nothing is written. Do not schedule a job
-that is meant to write to Google; schedule a reminder for the user instead.
-Reads are fine in cron.
+query or an inbound A2A request nothing is written, except a gcloud command
+inside a gcloud mandate. Do not schedule a job that is meant to write to
+Google; schedule a reminder for the user instead. A job that only runs commands
+a gcloud mandate covers may be scheduled while the mandate is in force. Reads
+are fine in cron.
 
 ## Gmail
 
@@ -100,6 +103,33 @@ Reads are fine in cron.
   file (`container clusters get-credentials`); anything else asks, with the full
   command on the card, `secrets versions access` and a `get-*` name not yet
   reviewed included. A read can still print what the resource holds.
+- A command the user repeats in one project (redeploying one service while it
+  is built) can run under a gcloud mandate (`gcloud_mandate`): offer it only
+  after agreeing in chat the one project, the exact command paths (one to five,
+  as `command` words; `beta run deploy` is not `run deploy`), the flags the
+  calls will use (up to 20 long flags, such as `--image` and `--region`; the
+  card lists them), how many commands an hour (at most 10), how many days (at
+  most 7) and the purpose. It is made on a card the user answers, and a covered
+  command then runs with no card, also from cron, counted against the hour.
+  A covered call carries only those flags (`--flag=value` or `--flag value`; a
+  `--no-` form only if listed; a switch takes no `=value`), lowercase resource
+  ids as positionals and plain values: a path, a URL, `gs://…`, `projects/…`,
+  `--` or a short flag like `-q` asks on its card instead, as does any other
+  flag, a call with no `project` and another project. An image must be in the
+  project's own registry (`gcr.io/<project>/…`, `<region>.gcr.io/<project>/…`
+  or `<region>-docker.pkg.dev/<project>/…`): `docker.io`, `ghcr.io`, a bare
+  name or another project's image asks. A covered command runs in an empty
+  temporary directory, so a deploy from local source does not work under a
+  mandate (deploy an image); offer one only for commands that name cloud
+  resources. Never covered, so never offered and never listed: a delete, stop,
+  restore, replace, `rm` or anything that ends or undoes something, IAM and
+  service accounts, secrets and keys, billing, projects and organizations, the
+  whole `storage` and `builds` groups, ssh, tunnels and proxies, a command that
+  hands out a credential or writes a local file, and flags about identity,
+  access, network, secrets, keys, volumes, buckets, scopes, metadata, projects,
+  namespaces, passwords or local paths (`--service-account`, `--ingress`,
+  `--no-iap`, `--set-secrets`, `--vpc-connector`, `--source`, `--env-vars-file`,
+  `--allow-unauthenticated`, `--role`, `--image-project`, `--password` …).
 - Login, account and configuration changes, and anything that hands out a
   token (`auth print-access-token`), are refused. A missing login of this tool
   is the user's to fix with `gaccess` in a terminal — relay it, do not work

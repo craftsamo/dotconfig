@@ -81,4 +81,5 @@ look arbitrary:
 [Drive upload encryption](./docs/decisions/drive-upload-encryption.md) ·
 [Approval tiers](./docs/decisions/approval-tiers.md) ·
 [Send mandates](./docs/decisions/send-mandates.md) ·
-[Cloudflare mandates](./docs/decisions/cloudflare-mandates.md).
+[Cloudflare mandates](./docs/decisions/cloudflare-mandates.md) ·
+[gcloud mandates](./docs/decisions/gcloud-mandates.md).
