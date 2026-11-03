@@ -117,6 +117,8 @@ _secret_kc_suffix() {          # $1 project -> " [kc:NAME]" for UI headers, or "
 #   account "master"           shared master (secret keychain master set)
 # Lookup order: per-keychain item > master item > give up (GUI prompt).
 # No-op for the default keychain or when nothing is stored.
+# When a stored password fails to unlock its keychain, a warning is printed
+# naming the keychain and pointing to `secret keychain master status`.
 # The lookups and the unlock cost ~60 ms, so one `secret` invocation does
 # them once per keychain ($_kc_unlocked, set by the dispatcher, holds the
 # time) and trusts the result for a minute — long enough for `env` and
@@ -131,16 +133,22 @@ _secret_kc_ensure() {          # $1 keychain path/name
   [[ -z $kc || $kc == "$_kc_default" ]] && return 0
   (( ${_kc_unlocked[$kc]:-0} + 60 > EPOCHSECONDS )) && return 0
   _kc_unlocked[$kc]=$EPOCHSECONDS
-  local pw
+  local pw src_desc
+  local short=${${kc:t}%.keychain-db}
   pw=$(security find-generic-password -s 'keychain-password' \
-        -a "${${kc:t}%.keychain-db}" -w "$_kc_default" 2>/dev/null)
-  if [[ -z $pw ]]; then
+        -a "$short" -w "$_kc_default" 2>/dev/null)
+  if [[ -n $pw ]]; then
+    src_desc="keychain-password/$short"
+  else
     pw=$(security find-generic-password -s 'keychain-password' \
           -a "$(_secret_master_account)" -w "$_kc_default" 2>/dev/null)
+    [[ -n $pw ]] && src_desc="stored master"
   fi
   [[ -n $pw ]] || return 0
-  print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
-    | security -i >/dev/null 2>&1
+  if ! print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+      | security -i >/dev/null 2>&1; then
+    _secret_err "$src_desc does not unlock keychain '$short' — check: secret keychain master status"
+  fi
   return 0
 }
 
@@ -1759,12 +1767,11 @@ _secret_kc_customs() {         # registered custom keychain paths, one per line
   done
 }
 
-# Validate a keychain password. The keychain must be locked for macOS to
-# actually check it, so this locks first; a WRONG password leaves the
-# keychain locked (callers report that). Exit 0 = password is correct.
+# Validate a keychain password. macOS checks the password even on an
+# unlocked keychain, so validating no longer locks, and a wrong password
+# leaves the keychain as it was. Exit 0 = password is correct.
 _secret_kc_try_pw() {          # $1 keychain  $2 password
-  unset "_kc_unlocked[$1]"     # the lock below invalidates _secret_kc_ensure's memo
-  security lock-keychain "$1" 2>/dev/null
+  unset "_kc_unlocked[$1]"     # invalidates _secret_kc_ensure's memo
   print -r -- "unlock-keychain -p $(_secret_quote_si "$2") $(_secret_quote_si "$1")" \
     | security -i >/dev/null 2>&1
 }
@@ -1879,6 +1886,17 @@ _secret_kc_info() {
   fi
 }
 
+_secret_kc_state() {         # $1 keychain path -> prints locked, unlocked or unknown
+  local kc=$1
+  [[ -e $kc ]] || { print -r -- "unknown"; return 0; }
+  local res
+  res=$(osascript -l JavaScript -e 'ObjC.import("Security"); function run(a){ var r=Ref(); if($.SecKeychainOpen(a[0], r)!=0) return "unknown"; var st=Ref(); if($.SecKeychainGetStatus(r[0], st)!=0) return "unknown"; return (st[0] & 1) ? "unlocked" : "locked"; }' "$kc" 2>/dev/null)
+  case $res in
+    locked|unlocked) print -r -- "$res" ;;
+    *) print -r -- "unknown" ;;
+  esac
+}
+
 _secret_kc_lock() {
   if [[ $1 == --all || $1 == -a ]]; then
     _kc_unlocked=()
@@ -1929,12 +1947,11 @@ _secret_kc_remember() {        # NAME [--stdin]: store keychain password in logi
     IFS= read -rs "pw?password of keychain '$short' (hidden): " || { print '' >&2; return 1 }
     print '' >&2
   fi
-  # verify the password: lock, then unlock with it (argv-free via security -i)
+  # verify the password (argv-free via security -i)
   unset "_kc_unlocked[$kcpath]"
-  security lock-keychain "$kcpath" 2>/dev/null
   if ! print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kcpath")" \
       | security -i >/dev/null 2>&1; then
-    _secret_err "wrong password for '$short' (keychain left locked)"
+    _secret_err "wrong password for '$short'"
     return 1
   fi
   # store in the login keychain (service "keychain-password", account NAME)
@@ -2020,10 +2037,11 @@ _secret_kc_register() {        # add an existing .keychain-db to the search list
 }
 
 _secret_master_set() {
-  local from_stdin=0
+  local from_stdin=0 force=0
   while (( $# )); do
     case $1 in
       --stdin) from_stdin=1; shift ;;
+      --force) force=1; shift ;;
       *) _secret_err "keychain master set: unknown option '$1'"; return 2 ;;
     esac
   done
@@ -2036,18 +2054,17 @@ _secret_master_set() {
   [[ -n $pw ]] || { _secret_err "empty master password, aborted"; return 1 }
 
   local kc short cur
-  local -a adopted skipped failed
+  local -a already_on_it pending skipped failed
+  typeset -A cur_pw_map
+
+  # Phase 1: check each registered custom keychain without making changes
   for kc in ${(f)"$(_secret_kc_customs)"}; do
     [[ -n $kc ]] || continue
     short=${${kc:t}%.keychain-db}
-    # already on the master password?
     if _secret_kc_try_pw "$kc" "$pw"; then
-      adopted+=("$short")
-      security delete-generic-password -s 'keychain-password' -a "$short" \
-        "$_kc_default" >/dev/null 2>&1
+      already_on_it+=("$short")
       continue
     fi
-    # find its current password: stored item, else ask
     cur=$(security find-generic-password -s 'keychain-password' -a "$short" \
           -w "$_kc_default" 2>/dev/null)
     if [[ -z $cur ]] && (( ! from_stdin )) && [[ -t 0 ]]; then
@@ -2055,15 +2072,42 @@ _secret_master_set() {
       print '' >&2
     fi
     if [[ -z $cur ]]; then
-      _secret_kc_ensure "$kc"   # restore unlock if an item exists
       skipped+=("$short")
       continue
     fi
     if ! _secret_kc_try_pw "$kc" "$cur"; then
-      _secret_err "wrong current password for '$short' (left locked)"
+      _secret_err "wrong current password for '$short'"
       failed+=("$short")
       continue
     fi
+    cur_pw_map[$kc]=$cur
+    pending+=("$kc")
+  done
+
+  # Refuse if any keychain would be skipped or failed, unless --force
+  if (( ( ${#skipped} || ${#failed} ) && ! force )); then
+    (( ${#skipped} )) && print -r -- "skipped (current password unknown): ${(j:, :)skipped}"
+    (( ${#failed} ))  && print -r -- "FAILED: ${(j:, :)failed}"
+    _secret_err "master password was NOT stored: some keychains do not take it"
+    _secret_err "a stored master that unlocks nothing makes every read prompt"
+    _secret_err "to proceed: provide their current password interactively,"
+    _secret_err "store it with 'secret keychain remember NAME',"
+    _secret_err "use 'secret keychain master rotate' to change an existing master,"
+    _secret_err "or pass --force to store anyway"
+    return 1
+  fi
+
+  # Phase 2: apply rotations and deletions
+  local -a adopted
+  for short in "${already_on_it[@]}"; do
+    adopted+=("$short")
+    security delete-generic-password -s 'keychain-password' -a "$short" \
+      "$_kc_default" >/dev/null 2>&1
+  done
+
+  for kc in "${pending[@]}"; do
+    short=${${kc:t}%.keychain-db}
+    cur=${cur_pw_map[$kc]}
     if print -r -- "set-keychain-password -o $(_secret_quote_si "$cur") -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
         | security -i >/dev/null 2>&1 && _secret_kc_try_pw "$kc" "$pw"; then
       adopted+=("$short")
@@ -2134,23 +2178,59 @@ _secret_master_status() {
   else
     print -r -- "master: not set"
   fi
-  local kc short src state
-  printf '%-26s %-12s %s\n' 'KEYCHAIN' 'UNLOCK VIA' 'STATE'
+  local kc short src pw_test state
+  local -a master_mismatches indiv_mismatches
+  printf '%-26s %-12s %-10s %s\n' 'KEYCHAIN' 'UNLOCK VIA' 'PASSWORD' 'STATE'
   for kc in ${(f)"$(_secret_kc_customs)"}; do
     [[ -n $kc ]] || continue
     short=${${kc:t}%.keychain-db}
-    if security find-generic-password -s 'keychain-password' -a "$short" \
-        "$_kc_default" >/dev/null 2>&1; then
+    state=$(_secret_kc_state "$kc")   # before the check, which unlocks on a match
+    local pw=""
+    pw=$(security find-generic-password -s 'keychain-password' -a "$short" \
+          -w "$_kc_default" 2>/dev/null)
+    if [[ -n $pw ]]; then
       src=individual
-    elif security find-generic-password -s 'keychain-password' -a "$macct" \
-        "$_kc_default" >/dev/null 2>&1; then
-      src=master
+      unset "_kc_unlocked[$kc]"
+      if print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+          | security -i >/dev/null 2>&1; then
+        pw_test=ok
+      else
+        pw_test=MISMATCH
+        indiv_mismatches+=("$short")
+      fi
     else
-      src='none (prompts)'
+      pw=$(security find-generic-password -s 'keychain-password' -a "$macct" \
+            -w "$_kc_default" 2>/dev/null)
+      if [[ -n $pw ]]; then
+        src=master
+        unset "_kc_unlocked[$kc]"
+        if print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+            | security -i >/dev/null 2>&1; then
+          pw_test=ok
+        else
+          pw_test=MISMATCH
+          master_mismatches+=("$short")
+        fi
+      else
+        src='none (prompts)'
+        pw_test='-'
+      fi
     fi
-    security show-keychain-info "$kc" >/dev/null 2>&1 && state=unlocked || state=locked
-    printf '%-26s %-12s %s\n' "$short" "$src" "$state"
+    pw=""
+    printf '%-26s %-12s %-10s %s\n' "$short" "$src" "$pw_test" "$state"
   done
+
+  if (( ${#master_mismatches} || ${#indiv_mismatches} )); then
+    if (( ${#master_mismatches} )); then
+      _secret_err "master mismatch for ${(j:, :)master_mismatches}: stored master does not unlock them"
+      _secret_err "run 'secret keychain master set' with the password those keychains currently open with"
+    fi
+    if (( ${#indiv_mismatches} )); then
+      _secret_err "password mismatch for ${(j:, :)indiv_mismatches}: run 'secret keychain remember NAME'"
+    fi
+    return 1
+  fi
+  return 0
 }
 
 _secret_master_reveal() {
@@ -2433,12 +2513,16 @@ COMMANDS
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
-  keychain master set|rotate [--stdin]|status|reveal [-c]|forget
+  keychain master set [--stdin] [--force]|rotate [--stdin]|status|reveal [-c]|forget
         ONE password for every custom keychain: `set` rotates all
         registered custom keychains to the master password and stores it
         in login for auto-unlock; keep that password in your password
         manager — it is the recovery key for every .keychain-db file.
-        With a master set, `keychain create` needs no password prompt.
+        `set` stores nothing unless every registered custom keychain
+        takes the password (`--force` overrides). `status` checks each
+        stored password actually unlocks its keychain and exits 1 on a
+        MISMATCH. With a master set, `keychain create` needs no password
+        prompt.
   keychain remember NAME [--stdin]
         store NAME's own unlock password in the login keychain (per-
         keychain override; takes precedence over the master)
