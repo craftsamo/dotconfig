@@ -296,52 +296,61 @@ describe("subagents that reset shell to ask", () => {
     })
   }
 
-  test("refactorer runs checks unasked, but asks before a check writes files", async () => {
-    const own = (await front("refactorer")).permissions
-    const decide = (command: string) => {
-      let effect = "ask"
-      for (const r of [...rules, ...own]) if (matches(r.action, "shell", false) && matches(r.resource, command, true)) effect = r.effect
-      return effect
-    }
-    for (const command of [
-      "npm test",
-      "tsc --noEmit",
-      "tsc --noEmit -p .",
-      "tsc -p tsconfig.app.json --noEmit",
-      "node_modules/.bin/tsc --noEmit -p .",
-      "node --test test/orders.test.ts",
-      "python3 -m unittest discover -s py/tests -t py",
-      "python3 -m pytest tests -q",
-      "uv run pytest -q",
-      "eslint src",
-      "ruff check .",
-      "stylelint 'web/**/*.css'",
-      "git diff main...HEAD",
-    ])
-      expect([command, decide(command)]).toEqual([command, "allow"])
-    for (const command of [
-      "tsc",
-      "tsc -b",
-      "tsc --noEmitOnError",
-      "eslint --fix src",
-      "ruff check --fix .",
-      "stylelint --fix x.css",
-      "cargo clippy --fix",
-      "prettier --check --write .",
-      "vitest run -u",
-      "jest --updateSnapshot",
-      "node --test --test-update-snapshots",
-      "python3 -m pytest --snapshot-update",
-      "git diff --output=x.patch",
-      "tsc --noEmit --incremental",
-      "eslint --cache src",
-      "python3 -m pytest --junitxml=report.xml",
-      "cat a > b",
-      "rg token src > hits.txt",
-    ])
-      expect([command, decide(command)]).toEqual([command, "ask"])
-    expect(decide("git commit -m x")).toBe("deny")
-  })
+  // Formatting belongs to the verifier; these agents run checks, and a check
+  // that would write files or snapshots asks first.
+  for (const name of ["refactorer", "worker", "worker-deep"]) {
+    test(`${name} runs checks unasked, but asks before a check writes files`, async () => {
+      const own = (await front(name)).permissions
+      const decide = (command: string) => {
+        let effect = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, "shell", false) && matches(r.resource, command, true)) effect = r.effect
+        return effect
+      }
+      for (const command of [
+        "npm test",
+        "tsc --noEmit",
+        "tsc --noEmit -p .",
+        "tsc -p tsconfig.app.json --noEmit",
+        "node_modules/.bin/tsc --noEmit -p .",
+        "eslint src",
+        "ruff check .",
+        "git diff main...HEAD",
+      ])
+        expect([command, decide(command)]).toEqual([command, "allow"])
+      if (name === "refactorer")
+        for (const command of [
+          "node --test test/orders.test.ts",
+          "python3 -m unittest discover -s py/tests -t py",
+          "python3 -m pytest tests -q",
+          "uv run pytest -q",
+          "stylelint 'web/**/*.css'",
+        ])
+          expect([command, decide(command)]).toEqual([command, "allow"])
+      for (const command of [
+        "nps format",
+        "tsc",
+        "tsc -b",
+        "tsc --noEmitOnError",
+        "eslint --fix src",
+        "ruff check --fix .",
+        "stylelint --fix x.css",
+        "cargo clippy --fix",
+        "prettier --check --write .",
+        "vitest run -u",
+        "jest --updateSnapshot",
+        "node --test --test-update-snapshots",
+        "python3 -m pytest --snapshot-update",
+        "git diff --output=x.patch",
+        "tsc --noEmit --incremental",
+        "eslint --cache src",
+        "python3 -m pytest --junitxml=report.xml",
+        "cat a > b",
+        "rg token src > hits.txt",
+      ])
+        expect([command, decide(command)]).toEqual([command, "ask"])
+      expect(decide("git commit -m x")).toBe("deny")
+    })
+  }
 
   test("design reads the repository and writes only drafts", async () => {
     const own = (await front("design")).permissions
