@@ -5,11 +5,12 @@ request to Cloudflare goes through ``bridge.py``, the only process that reads an
 Keychain (one token per account label). Each profile is offered the actions ``PROFILES`` lists for it,
 checked again by the gate, the handler and the engine; inbound A2A gets only what ``A2A`` lists for the
 profile, never a change. A ``pre_tool_call`` hook holds every change for Hermes' human approval gate
-(the card names the account, the zone and what changes); a run with no person to answer it (cron,
-YOLO, a single query, a webhook) cannot change anything. The hook also blocks terminal and file calls
-that would go around the tool. The plugin ships read-only skills (``skills/``), registered as
-``cloudflare-access:<skill>`` for the profiles whose actions need them. Contract:
-docs/cloudflare-access.md.
+(the card names the account, the zone and what changes) unless it fits a zone mandate in force
+(``mandate.py``); a run with no person to answer a card (cron, YOLO, a single query, a webhook)
+changes nothing but what fits one. ``cloudflare_mandate`` (the Assistant's) makes a zone mandate, always
+on its own card, lists and revokes them. The hook also blocks terminal and file calls that would go
+around the tool. The plugin ships skills (``skills/``), registered as ``cloudflare-access:<skill>`` for
+the profiles whose actions need them. Contract: docs/cloudflare-access.md.
 """
 
 from __future__ import annotations
@@ -18,10 +19,12 @@ import importlib.util
 import json
 import logging
 from pathlib import Path
+import secrets
 import sys
 
 TOOLSET = "cloudflare_access"
 TOOL = "cloudflare"
+MANDATE_TOOL = "cloudflare_mandate"
 LIMIT = 60000
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,7 @@ HERE = Path(__file__).resolve().parent
 cfa = _load("hermes_cloudflare_access_engine", HERE / "cfa.py")
 human_gate = _load("hermes_human_gate", HERE.parent / "_shared" / "human_gate.py")
 tool_preview = _load("hermes_tool_preview", HERE.parent / "_shared" / "tool_preview.py")
+mandate = cfa.mandate
 
 # The actions each profile's schema offers (checked again by the gate, the handler and the engine),
 # and the ones an inbound A2A request may run there. The Assistant alone changes anything and never
@@ -113,8 +117,8 @@ READ_PROPERTIES = {
 
 
 WRITE_DESCRIPTION = READ_DESCRIPTION + (
-    " Changes, each on its own approval card the user answers (agree the details in chat first; never retry a "
-    "denied one unchanged): dns_change (zone, changes: up to 20 of {op: add, type, name, content, ttl, proxied, "
+    " Changes, each on its own approval card the user answers unless it fits a zone mandate in force "
+    "(cloudflare_mandate; agree the details in chat first; never retry a denied one unchanged): dns_change (zone, changes: up to 20 of {op: add, type, name, content, ttl, proxied, "
     "priority for MX, comment} | {op: update, id, the fields that change} | {op: delete, id}; A, AAAA, CNAME, "
     "MX, TXT and NS records; all apply at once or none does), cache_purge (zone, and one of urls, hosts or "
     "prefixes, up to 30 inside the zone, or everything: true), worker_rollback (script; back to the previous "
@@ -134,7 +138,7 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "(dns_change changes, zone_setting settings, email_rule rules): one card, one answer. "
     "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
-    "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
+    "single query) changes nothing that does not fit a zone mandate. 'not done' means nothing changed; 'stopped part way' lists what was done; "
     "'UNCERTAIN' means read it in Cloudflare before anything else.")
 
 WRITE_PROPERTIES = {
@@ -212,6 +216,36 @@ WRITE_ALSO = {
     "project": "pages_rollback: the project",
     "tunnel": "tunnel_route: the tunnel",
 }
+
+
+MANDATE_DESCRIPTION = (
+    "The user's standing approval for covered changes to a few of their Cloudflare zones, so those skip their "
+    "card. create (account = a stored token's label, zones = 1 to 3 domains or zone ids of that account, classes "
+    "= dns (proxied A, AAAA and CNAME records, added or updated) | settings (settings that neither weaken "
+    "protection nor turn it off) | purge (URLs, hosts or prefixes), per_hour = covered changes an hour, 1 to 20 "
+    "(each record, setting, URL, host or prefix of a call counts one), days 1 to 7, purpose = one line): always "
+    "asks on its own card. Never covered, whatever it says: a delete, MX, TXT, NS and other record types, an "
+    "unproxied record, a name starting with _, weaker or switched-off protection, purging everything, a "
+    "tunnel's hostnames or CNAME, e-mail rules, rollbacks, storage, another zone or account, a call with more "
+    "changes than per_hour. list: the "
+    "mandates in force. revoke (mandate = its id): ends it at once. Propose one only as "
+    "cloudflare-access:manage says; never to get past a card the user denied.")
+
+MANDATE_PROPERTIES = {
+    "action": {"type": "string", "enum": ["create", "list", "revoke"]},
+    "account": {"type": "string", "description": "create: a stored token's label (status lists them); default the "
+                                                 "only one"},
+    "zones": {"type": "array", "items": {"type": "string"}, "maxItems": mandate.MAX_ZONES,
+              "description": "create: the zones, domains (example.com) or zone ids"},
+    "classes": {"type": "array", "items": {"type": "string", "enum": list(mandate.CLASSES)}, "minItems": 1,
+                "description": "create: what the mandate covers"},
+    "per_hour": {"type": "integer", "description": f"create: covered changes an hour, 1 to {mandate.MAX_PER_HOUR}; "
+                                                   "each record, setting, URL, host or prefix counts one"},
+    "days": {"type": "integer", "description": f"create: 1 to {mandate.MAX_DAYS}"},
+    "purpose": {"type": "string", "description": "create: what it is for, one line"},
+    "mandate": {"type": "string", "description": "revoke: the mandate id"},
+}
+MANDATE_CREATE_ARGS = {"action", "account", "zones", "classes", "per_hour", "days", "purpose"}
 
 
 def schema_parts(actions) -> tuple[str, dict]:
@@ -292,7 +326,9 @@ def make_handler(profile: str):
                 raise cfa.CloudflareError(refusal)
             if _is_write(args):
                 reason = human_gate.no_human()
-                if reason:
+                # Where nobody can answer a card only a write the hook recorded as covered by a zone mandate
+                # goes on; the engine counts it against the mandate before anything is sent.
+                if reason and not cfa.covered_by_mandate(args, _call_id()):
                     return json.dumps({"ok": False, "error": human_gate.refusal(TOOL, reason)})
             text = json.dumps(cfa.execute(args, home=_home(), call_id=_call_id(), can_write=can_write,
                                           allowed=allowed), ensure_ascii=False)
@@ -305,29 +341,112 @@ def make_handler(profile: str):
     return cloudflare
 
 
+def _mandate_terms(args: dict) -> dict:
+    """The terms of a ``cloudflare_mandate`` create call, the zones read now and checked to belong to the
+    one account."""
+    extra = sorted(k for k, v in args.items() if v is not None and k not in MANDATE_CREATE_ARGS)
+    if extra:
+        raise cfa.CloudflareError("create does not take " + ", ".join(extra))
+    refs = args.get("zones")
+    if not isinstance(refs, list) or not 1 <= len(refs) <= mandate.MAX_ZONES:
+        raise cfa.CloudflareError(f"zones is a list of one to {mandate.MAX_ZONES} domains or zone ids")
+    account, account_id, zones = cfa.account_of(args), None, []
+    for ref in refs:
+        zone, reply = cfa.zone_of(cfa.zone_ref({"zone": ref}), account)
+        if account_id not in (None, reply.get("account_id")):
+            raise cfa.CloudflareError("the zones are not all of one account")
+        account, account_id = reply.get("account"), reply.get("account_id")
+        zones.append({"id": zone["id"], "name": zone.get("name") or ""})
+    return mandate.terms(account, account_id, zones, args.get("classes"), args.get("per_hour"), args.get("days"),
+                         args.get("purpose"))
+
+
+def make_mandate_handler(profile: str):
+    can_write = bool(set(PROFILES[profile]) & set(cfa.WRITES))
+
+    def cloudflare_mandate(args, **kwargs):
+        try:
+            args = args if isinstance(args, dict) else {}
+            if not can_write:
+                raise cfa.CloudflareError(cfa.READ_ONLY)
+            if _inbound_peer():
+                raise cfa.CloudflareError(f"{MANDATE_TOOL} is not available to inbound A2A requests")
+            home = _home()
+            if home is None:
+                raise cfa.CloudflareError("the profile home is unknown; nothing was done")
+            action = args.get("action")
+            if action == "list":
+                return json.dumps({"ok": True, "mandates": [mandate.summary(m) for m in mandate.active(home)]},
+                                  ensure_ascii=False)
+            if action == "revoke":
+                return json.dumps({"ok": True, **mandate.revoke(home, args.get("mandate"))}, ensure_ascii=False)
+            if action != "create":
+                raise cfa.CloudflareError("action is create, list or revoke")
+            shown = mandate.take_card(args, _call_id())
+            if shown is None:
+                raise cfa.CloudflareError(f"{MANDATE_TOOL}: not done. A mandate is made only on its own card; "
+                                          "nothing was made.")
+            reason = human_gate.no_human()
+            if reason:
+                return json.dumps({"ok": False, "error": human_gate.refusal(MANDATE_TOOL, reason)})
+            if not mandate.same_terms(_mandate_terms(args), shown):
+                raise cfa.CloudflareError(f"{MANDATE_TOOL}: not done. Its zones changed since the card; nothing "
+                                          "was made.")
+            return json.dumps({"ok": True, "mandate": mandate.create(home, shown)}, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+    return cloudflare_mandate
+
+
+def _mandate_gate(profile: str, args, call_id: str):
+    """pre_tool_call for ``cloudflare_mandate``: every create asks on a card of its own, with a fresh key and
+    never where nobody can answer it or for an inbound A2A request; list and revoke only read or narrow."""
+    if not set(PROFILES[profile]) & set(cfa.WRITES):
+        return {"action": "block", "message": f"{MANDATE_TOOL}: {cfa.READ_ONLY}"}
+    if _inbound_peer():
+        return {"action": "block", "message": f"{MANDATE_TOOL} is not available to inbound A2A requests"}
+    if not isinstance(args, dict) or args.get("action") != "create":
+        return None
+    reason = human_gate.no_human()
+    if reason:
+        return {"action": "block", "message": human_gate.refusal(MANDATE_TOOL, reason)}
+    try:
+        terms = _mandate_terms(args)
+        message = mandate.card(terms)
+    except Exception as exc:
+        return {"action": "block", "message": f"{MANDATE_TOOL}: not done: {exc}"}
+    mandate.note_card(args, call_id, terms)
+    # A mandate is never covered by a mandate, and its key is fresh: every one asks.
+    return {"action": "approve", "message": message, "rule_key": f"cloudflare-access:mandate:{secrets.token_hex(8)}"}
+
+
 def make_gate(profile: str):
     can_write = bool(set(PROFILES[profile]) & set(cfa.WRITES))
 
     def gate(**kwargs):
-        """pre_tool_call: approval for every change, a block for actions the profile is not offered, inbound
-        A2A beyond what it may run, changes that would fail or that no person can approve, and ways around
-        the tool."""
+        """pre_tool_call: approval for every change that fits no zone mandate, a block for actions the profile
+        is not offered, inbound A2A beyond what it may run, changes that would fail or that no person can
+        approve, and ways around the tool."""
         tool = kwargs.get("tool_name")
         args = kwargs.get("args")
+        if tool == MANDATE_TOOL:
+            return _mandate_gate(profile, args, str(kwargs.get("tool_call_id") or ""))
         if tool == TOOL:
             refusal = _refusal(profile, args)
             if refusal:
                 return {"action": "block", "message": refusal if refusal.startswith(TOOL) else f"{TOOL}: {refusal}"}
             if not _is_write(args):
                 return None
-            reason = human_gate.no_human()
-            if reason:
-                return {"action": "block", "message": human_gate.refusal(TOOL, reason)}
             try:
                 request = cfa.approval_request(args, call_id=str(kwargs.get("tool_call_id") or ""),
-                                               can_write=can_write)
+                                               can_write=can_write, home=_home(),
+                                               unattended=human_gate.no_human())
+            except cfa.Unattended as exc:
+                return {"action": "block", "message": human_gate.refusal(TOOL, str(exc))}
             except Exception as exc:
                 return {"action": "block", "message": f"{TOOL}: not done: {exc}"}
+            if isinstance(request, cfa.Covered):
+                return None   # inside a mandate the user approved on its own card: no card, also unattended
             if request:
                 reason, rule_key = request
                 return {"action": "approve", "message": reason, "rule_key": rule_key}
@@ -371,5 +490,12 @@ def register(ctx):
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
                       schema=schema, emoji="🌐")
     tool_preview.enums(TOOL, schema, "action", "report")
+    if "manage" in skills_for(profile):
+        mandate_schema = {"name": MANDATE_TOOL, "description": MANDATE_DESCRIPTION, "parameters": {
+            "type": "object", "properties": MANDATE_PROPERTIES, "required": ["action"],
+            "additionalProperties": False}}
+        ctx.register_tool(name=MANDATE_TOOL, toolset=TOOLSET, handler=make_mandate_handler(profile),
+                          description=MANDATE_DESCRIPTION, schema=mandate_schema, emoji="📜")
+        tool_preview.enums(MANDATE_TOOL, mandate_schema, "action")
     ctx.register_hook("pre_tool_call", make_gate(profile))
     register_skills(ctx, profile)

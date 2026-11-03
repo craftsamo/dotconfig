@@ -8,7 +8,9 @@ domain or its id and always checked to belong to the label's own account.
 A change (the Assistant's alone) runs only after Hermes' approval card for that exact call (see
 ``approval_request``): the card names the account, the zone and what changes, read fresh from
 Cloudflare; execution plans it again and refuses on any difference, sends every request under the
-token the card was made with, and never retries. Contract: docs/cloudflare-access.md.
+token the card was made with, and never retries. A change that fits a zone mandate (``mandate.py``)
+skips the card: execution then re-checks and counts it against the mandate before anything is sent.
+Contract: docs/cloudflare-access.md.
 """
 
 from __future__ import annotations
@@ -28,25 +30,30 @@ import tempfile
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
+from typing import NamedTuple
 
 HERE = Path(__file__).resolve().parent
 
 
-def _load_shared(name):
-    key = f"hermes_{name}"
+def _load_module(key, path):
     if key not in sys.modules:
         import importlib.util
-        spec = importlib.util.spec_from_file_location(key, HERE.parent / "_shared" / f"{name}.py")
+        spec = importlib.util.spec_from_file_location(key, path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[key] = module
         spec.loader.exec_module(module)
     return sys.modules[key]
 
 
+def _load_shared(name):
+    return _load_module(f"hermes_{name}", HERE.parent / "_shared" / f"{name}.py")
+
+
 cards = _load_shared("card")
 approval_tier = _load_shared("approval_tier")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
+mandate = _load_module("hermes_cloudflare_access_mandate", HERE / "mandate.py")
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
@@ -144,6 +151,12 @@ _TERMINAL = re.compile(
     r"(?![\w-])|find-generic-password"
     r"|dump-keychain|\bsecret\s+export\b", re.IGNORECASE)
 _STORE = re.compile(r"\.cloudflare-access(?![\w-])|\.cloudflared(?![\w-])|\.wrangler/config\b", re.IGNORECASE)
+# The zone mandates' state in the profile home (<HERMES_HOME>/cloudflare-access/{mandates/, head.json,
+# uses.jsonl, mandates.jsonl}) and the Keychain item of their MAC key: matched on the text and on the real
+# path it resolves to, so a link or a `..` does not hide it; the plugin's own source stays readable.
+_MANDATE_STATE = re.compile(r"cloudflare-access/+(?:mandates|head\.json|uses\.jsonl)", re.IGNORECASE)
+_MANDATE_KEY = re.compile(r"CLOUDFLARE_MANDATE_KEY", re.IGNORECASE)
+RESOLVE_MAX = 4096          # a longer argument is not a path worth resolving
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 
 
@@ -1347,7 +1360,7 @@ def _plan(action: str, reply: dict, title: str) -> dict:
     return {"action": action, "account": reply["account"], "account_id": reply.get("account_id"),
             "fingerprint": reply.get("fingerprint"), "title": title, "effect": None, "once": False, "facts": [],
             "lines": [], "details": [], "steps": [], "bind": [], "shape": None, "zone_id": None, "each": False,
-            "pairs": []}
+            "pairs": [], "replaced": []}
 
 
 def _same_token(plan: dict, reply: dict) -> None:
@@ -1519,6 +1532,7 @@ def _plan_dns_change(args: dict) -> dict:
     zname = zone.get("name") or ""
     plan = _plan("dns_change", reply, "Change DNS records")
     plan["facts"] = [("Zone", zname)]
+    plan["zone_id"] = zone["id"]
     current = {}
     if ids:
         results, read = get_many([(f"/zones/{zone['id']}/dns_records/{rid}", []) for rid in ids],
@@ -1542,6 +1556,7 @@ def _plan_dns_change(args: dict) -> dict:
             record = current[object_id(change["id"], "id")]
             patch, line, notes = _record_patch(change, record, zname)
             patches.append({"id": record["id"], **patch})
+            plan["replaced"].append({k: record.get(k) for k in ("id", "type", "name", "content", "proxied")})
             lines.append(line)
             details += notes
         else:
@@ -2361,9 +2376,19 @@ def rule_key(plan: dict, plan_digest: str) -> str:
 
 
 # The gate's view of each write, per tool call, so execution sends exactly what the card showed:
-# (when, the plan's digest).
-_approved: dict[str, tuple[float, str]] = {}
+# (when, the plan's digest, the id of the zone mandate that covers it instead of a card, else None).
+_approved: dict[str, tuple[float, str, str | None]] = {}
 _approved_lock = threading.Lock()
+
+
+class Covered(NamedTuple):
+    """``approval_request``'s answer for a write that fits a zone mandate: no card is asked."""
+
+    mandate: str
+
+
+class Unattended(CloudflareError):
+    """A write that needs a card where no person can answer one; the message is the reason."""
 
 
 def _call_key(args: dict, call_id: str) -> str:
@@ -2371,31 +2396,55 @@ def _call_key(args: dict, call_id: str) -> str:
                                      default=str).encode("utf-8")).hexdigest()
 
 
-def approval_request(args: dict, call_id: str = "", can_write: bool = False) -> tuple[str, str] | None:
-    """(card, allowlist rule key) for a write, None for a read or a preview; raises for a call that would
-    fail anyway, so it is blocked without asking."""
+def _note_approval(args: dict, call_id: str, plan_digest: str, mandate_id: str | None) -> None:
+    with _approved_lock:
+        now = time.monotonic()
+        for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
+            _approved.pop(old, None)
+        _approved[_call_key(args, call_id)] = (now, plan_digest, mandate_id)
+
+
+def approval_request(args: dict, call_id: str = "", can_write: bool = False, home=None,
+                     unattended: str | None = None) -> tuple[str, str] | Covered | None:
+    """(card, allowlist rule key) for a write, None for a read or a preview; ``Covered`` (no card) for a write
+    that fits a zone mandate in force at ``home``; raises for a call that would fail anyway, so it is blocked
+    without asking. ``unattended`` is why no person can answer a card here, if so: a write that does not fit
+    a mandate then raises ``Unattended`` with it, before anything is read or recorded."""
     args = args if isinstance(args, dict) else {}
     if action_of(args) not in WRITES or is_preview(args):
         return None
     if not can_write:
         raise CloudflareError(READ_ONLY)
+    if unattended and (home is None or not mandate.active(home)):
+        raise Unattended(unattended)
     plan = write_plan(args)
-    text, plan_digest = card(plan), digest(plan)
-    with _approved_lock:
-        now = time.monotonic()
-        for old in [k for k, (at, _) in _approved.items() if now - at > APPROVAL_TTL]:
-            _approved.pop(old, None)
-        _approved[_call_key(args, call_id)] = (now, plan_digest)
+    plan_digest = digest(plan)
+    covered = mandate.covering(home, plan)[0] if home is not None else None
+    if covered:
+        _note_approval(args, call_id, plan_digest, covered)
+        return Covered(covered)
+    if unattended:
+        raise Unattended(unattended)
+    text = card(plan)
+    _note_approval(args, call_id, plan_digest, None)
     return text, rule_key(plan, plan_digest)
 
 
-def _approved_write(args: dict, call_id: str) -> str | None:
-    """The digest of the approval this call passed, consumed; None without one."""
+def covered_by_mandate(args: dict, call_id: str) -> bool:
+    """Whether the hook recorded this call as covered by a zone mandate; the record is left in place."""
+    with _approved_lock:
+        entry = _approved.get(_call_key(args if isinstance(args, dict) else {}, call_id))
+    return bool(entry and entry[2] and time.monotonic() - entry[0] <= APPROVAL_TTL)
+
+
+def _approved_write(args: dict, call_id: str) -> tuple[str, str | None] | None:
+    """(the digest of the approval this call passed, the mandate that covers it if any), consumed; None
+    without one."""
     with _approved_lock:
         entry = _approved.pop(_call_key(args, call_id), None)
     if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
         return None
-    return entry[1]
+    return entry[1], entry[2]
 
 
 def preview(args: dict) -> dict:
@@ -2406,17 +2455,24 @@ def preview(args: dict) -> dict:
             "note": "nothing was sent; the write itself needs the same arguments without preview, and its card"}
 
 
-def write(args: dict, call_id: str = "") -> dict:
+def write(args: dict, call_id: str = "", home=None) -> dict:
     approved = _approved_write(args, call_id)
     if approved is None:
         return {"ok": False, "error": "not done: this write did not pass its approval card; nothing was sent"}
+    approved_digest, mandate_id = approved
     try:
         plan = write_plan(args)
     except CloudflareError as exc:
         return {"ok": False, "error": f"not done: {exc}"}
-    if digest(plan) != approved:
+    if digest(plan) != approved_digest:
         return {"ok": False, "error": "not done: what the card showed changed before the write ran (in Cloudflare, "
                                       "or the stored token); nothing was sent. Read it again, then ask anew"}
+    if mandate_id:
+        # Counted before anything is sent, and the count stands whatever becomes of the request.
+        why = mandate.use(home, mandate_id, plan) if home is not None else "the profile home is unknown"
+        if why:
+            return {"ok": False, "error": f"not done: it no longer fits the zone mandate ({why}); nothing was "
+                                          "changed. Send it again: it will ask on a card."}
     return run(plan)
 
 
@@ -2488,7 +2544,7 @@ def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: 
             raise CloudflareError(READ_ONLY)
         if is_preview(args):
             return preview(args)
-        return write(args, call_id)
+        return write(args, call_id, home)
     if action == "status":
         _only(args, "status", set())
         return status(can_write)
@@ -2510,11 +2566,31 @@ def _strings(value):
             yield from _strings(item)
 
 
+def _resolved(text: str) -> str:
+    """The real path a path-like argument names (``~``, ``..`` and links resolved), else ''."""
+    if not text or "\n" in text or len(text) > RESOLVE_MAX:
+        return ""
+    try:
+        return os.path.realpath(os.path.expanduser(text.strip()))
+    except (OSError, ValueError):
+        return ""
+
+
+def _names_mandate_state(text: str) -> bool:
+    if _MANDATE_STATE.search(text) or _MANDATE_KEY.search(text):
+        return True
+    real = _resolved(text)
+    return bool(real) and bool(_MANDATE_STATE.search(real))
+
+
 def bypass(tool: str, args) -> str | None:
     """A block message when a terminal or file call would go around the tool, else None.
 
     A pattern match on the call's text, not a sandbox."""
     args = args if isinstance(args, dict) else {}
+    if tool == "terminal" or tool in FILE_TOOLS:
+        if any(_names_mandate_state(text) for text in _strings(args)):
+            return BYPASS_MESSAGE
     if tool == "terminal":
         command = args.get("command")
         place = project_place.project_dir(args) if isinstance(command, str) else None

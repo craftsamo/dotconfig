@@ -7,7 +7,9 @@ its local SQLite mirror current and serves sends over the store's socket. Reads 
 user's approval by the plugin's ``pre_tool_call`` hook (``approval_request``), which also records
 a digest of what the card showed: ``send`` refuses a call without that record or whose request
 has changed since. Files to send are frozen into a private outbox when the approval card is
-made, and only those copies go out (``outbox_binding``). Contract: docs/whatsapp-access.md.
+made, and only those copies go out (``outbox_binding``). A plain text send that fits a send mandate
+in force (``send_mandate``) runs with no card: the hook records the mandate's id with the digest and
+``send`` counts the send against it before wacli is called. Contract: docs/whatsapp-access.md.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import NamedTuple
 
 
 def _load_shared(name: str):
@@ -56,12 +59,14 @@ def _load_common(name: str):
 
 
 archives = _load_shared("archive_check")
+send_mandate = _load_shared("send_mandate")
 cards = _load_common("card")
 shell_commands = _load_common("shell_commands")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "backfill", "media",
            "send")
 WRITES = {"send"}
+SERVICE = "whatsapp"    # the service name of its send mandates (messaging/_shared/send_mandate.py)
 # Need the store lock the sync agent holds for its whole run, so they pause it for the call.
 PAUSING = {"check", "backfill"}
 
@@ -134,6 +139,14 @@ NOT_SET_UP = ("WhatsApp is not set up: no wacli account exists. The user pairs o
               "(`hermes/launchd/whatsapp-access-launchctl.sh pair <name> +<number>`); "
               "see docs/whatsapp-access.md.")
 NO_WACLI = "wacli is not installed (`brew install openclaw/tap/wacli`); see docs/whatsapp-access.md."
+NO_CARD = "this send fits no send mandate in force, and no card can be answered here"
+NO_MANDATE_HOME = "the profile home is unknown, so no send mandate can be read or made"
+# Chats a send mandate never names (a person or a group only), with the reason the user is told.
+MANDATE_REFUSED = {
+    "lid": "a contact whose number is hidden (@lid): its card could not show who it is",
+    "newsletter": "a channel (newsletter): it reaches an audience the card cannot list",
+    "broadcast": "a broadcast list: it reaches an audience the card cannot list",
+}
 
 # Ways around the tool: the CLI where a command runs it (shell_commands; `_CLI`, the name as a word
 # anywhere, judges a line that cannot be read that way), its store, its sync launcher and env.
@@ -143,11 +156,19 @@ _PATHS = re.compile(r"\.wacli(?![\w-])|wacli\.db|wacli-sync|local\.wacli|WACLI_|
                     r"|whatsapp-access-sync|whatsapp-access\.sync|whatsapp-access-launchctl")
 # In a terminal call, the plugin's own code is a way around its hook too (importing the engine).
 _ENGINE = re.compile(r"whatsapp-access|whatsapp_access")
+# The send mandates' state in the profile home (<home>/whatsapp-access/: the mandates, the head that decides
+# which are in force, the ledgers, the history) and the Keychain item of their MAC key. Matched on the text
+# and, for the state, on the path it resolves to, so a link or a `..` does not hide it; the plugin's own
+# source (plugins/messaging/whatsapp-access/) and names that merely contain the words stay readable.
+_MANDATE_STATE = re.compile(r"(?<!messaging/)(?<![\w.-])whatsapp-access/+(?:mandates|head\.json|uses\.jsonl)",
+                            re.IGNORECASE)
+_MANDATE_KEY = re.compile(r"WHATSAPP_MANDATE_KEY", re.IGNORECASE)
+PATH_RESOLVE_MAX = 4096     # a longer argument is not a path worth resolving
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "WhatsApp runs only through the whatsapp tool, never through the terminal or file tools, and "
-    "its store (~/.wacli) is never read directly. Use the whatsapp tool; pairing an account and "
-    "its sync service are the user's job.")
+    "its store (~/.wacli) and send mandates are never read directly. Use the whatsapp tool; pairing "
+    "an account and its sync service are the user's job.")
 
 
 class WhatsAppError(Exception):
@@ -1243,8 +1264,9 @@ def file_not_dispatched(exc: BaseException) -> bool:
 
 
 # The gate's view of each send, per tool call, so the write sends exactly what the card showed:
-# the same account, chat, text, reply and requested files (the request digest covers them all).
-_approved: dict[str, tuple[float, str]] = {}
+# the same account, chat, text, reply and requested files (the request digest covers them all). A
+# send inside a send mandate carries the mandate's id instead of a card (None for a send that asked).
+_approved: dict[str, tuple[float, str, str | None]] = {}
 _approved_lock = threading.Lock()
 
 
@@ -1260,38 +1282,69 @@ def call_key(args: dict, call_id: str) -> str:
                                      default=str).encode("utf-8")).hexdigest()
 
 
-def _remember(args: dict, call_id: str, digest: str) -> None:
+def _remember(args: dict, call_id: str, digest: str, mandate_id: str | None = None) -> None:
     with _approved_lock:
         now = time.monotonic()
-        for old in [k for k, (at, _) in _approved.items() if now - at > APPROVAL_TTL]:
+        for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
             _approved.pop(old, None)
-        _approved[call_key(args, call_id)] = (now, digest)
+        _approved[call_key(args, call_id)] = (now, digest, mandate_id)
 
 
-def _approved_digest(args: dict, call_id: str) -> str | None:
-    """The request digest the gate recorded for this call, taken once; None when there is none (or
-    it is too old)."""
+def _approved_record(args: dict, call_id: str) -> tuple[str, str | None] | None:
+    """(the request digest, the mandate id or None) the gate recorded for this call, taken once; None
+    when there is none (or it is too old)."""
     with _approved_lock:
         entry = _approved.pop(call_key(args, call_id), None)
     if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
         return None
-    return entry[1]
+    return entry[1], entry[2]
 
 
-def send(args: dict, call_id: str = "") -> dict:
+def covered(args: dict, call_id: str) -> str | None:
+    """The mandate the gate recorded for this very call, without using the record up; None when the
+    call is unrecorded, stale or went through a card."""
+    with _approved_lock:
+        entry = _approved.get(call_key(args, call_id))
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[2]
+
+
+def _use_mandate(home: Path | None, mandate_id: str, plan: dict) -> str | None:
+    """At the write: why the send no longer fits the mandate (nothing is counted), or None after it has
+    been counted."""
+    if home is None:
+        return NO_MANDATE_HOME
+    try:
+        return send_mandate.use(home, SERVICE, mandate_id, mandate_view(plan))
+    except Exception as exc:  # noqa: BLE001 - fail closed: nothing is sent
+        return f"the send could not be counted: {exc}"
+
+
+def send(args: dict, call_id: str = "", home: Path | None = None) -> dict:
     """The approved send. The gate's record of this very call is taken first, and the request is
-    rebuilt and must match it before anything reaches wacli. With files, the request is matched
-    against the snapshot by its paths alone (the originals may since have changed or gone), and the
-    snapshot is consumed once."""
-    approved = _approved_digest(args, call_id)
-    if approved is None:
+    rebuilt and must match it before anything reaches wacli. A send recorded under a send mandate is
+    then counted against it, under the mandate store's lock, and goes out as text only. With files,
+    the request is matched against the snapshot by its paths alone (the originals may since have
+    changed or gone), and the snapshot is consumed once."""
+    record = _approved_record(args, call_id)
+    if record is None:
         return {"ok": False, "error": "not sent: this send did not pass its approval card; call send again"}
+    approved, mandate_id = record
     requested = _requested(args)
     plan = send_plan(args, files=[{"path": str(p)} for p in requested])
     request = request_digest(plan, requested)
     if request != approved:
         return {"ok": False, "error": "not sent: the account, chat, text, reply or files changed after the "
                                       "approval card was made; ask again"}
+    if mandate_id is not None:
+        # Counted before it goes out, whatever becomes of the request; a file or a reply never gets past
+        # this (use refuses it), so a covered send never takes the files path.
+        why = _use_mandate(home, mandate_id, plan)
+        if why:
+            return {"ok": False, "error": f"not sent: it no longer fits the send mandate ({why}); nothing was "
+                                          "sent. Send it again: it will ask on a card."}
+        return _send_text(plan)
     if not requested:
         return _send_text(plan)
     try:
@@ -1416,7 +1469,7 @@ def execute(args: dict, home: Path | None = None, call_id: str = "") -> dict:
     args = args if isinstance(args, dict) else {}
     recover_abandoned_pauses()
     if action_of(args) in WRITES:
-        return send(args, call_id)
+        return send(args, call_id, home)
     return read(args, home)
 
 
@@ -1507,12 +1560,92 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
     return f"whatsapp-access:send:{digest}"
 
 
-def approval_request(args: dict, ids: dict | None = None, call_id: str = "") -> tuple[str, str] | None:
-    """(card, allowlist rule key) for a send, None for a read; raises for a call that would fail
-    anyway, so it is blocked without asking. Files are frozen into this call's snapshot here, and
-    the request digest of what the card shows is recorded under ``call_id`` for the write to match.
-    The key covers the exact account, chat, text, reply and file contents, so "session" or "always"
-    only ever repeats that identical message."""
+# --- send mandates ------------------------------------------------------------------------------
+# A plain text send to a chat a send mandate names runs without its card. The mandate is the user's,
+# made on a card of its own (messaging/_shared/send_mandate.py); the hook decides a send is covered and
+# the write checks and counts it again.
+
+class Covered(NamedTuple):
+    """A send that fits a send mandate in force: it needs no card. ``mandate`` is the mandate's id."""
+
+    mandate: str
+
+
+def _mandate_jid(value: str) -> str:
+    """The JID a mandate may name: a person's phone JID or a group's. Everything else a send could reach
+    is refused in words. Asks wacli nothing."""
+    jid = value.strip()
+    refused = MANDATE_REFUSED.get(jid.rpartition("@")[2])
+    if refused:
+        raise WhatsAppError(f"{jid} is {refused}; a mandate names only a person by phone number or a group")
+    if not SEND_JID.match(jid):
+        raise WhatsAppError("each chat is a person JID (…@s.whatsapp.net) or a group JID (…@g.us) from chats or "
+                            f"search, not a name or phone number: {jid!r}")
+    return jid
+
+
+def _mandate_chat(account: str, jid: str) -> dict:
+    """One chat of a new mandate as the send mandate keeps it: a person by phone JID (identified by its
+    number) or a group (by its JID), named as the mirror names it."""
+    try:
+        info = run(["chats", "show", "--jid", jid], account=account, timeout=CARD_TIMEOUT) or {}
+    except Exception:  # noqa: BLE001 - the name is only a label; the identity is the JID
+        info = {}
+    name = info.get("name") if isinstance(info, dict) else None
+    group = jid.endswith("@g.us")
+    return {"id": jid, "name": str(name or ""), "kind": "group" if group else "user",
+            "identity": jid if group else _phone(jid)}
+
+
+def mandate_terms(args: dict) -> dict:
+    """The terms a ``create`` call asks for, with the account and the chats read now (the end fixed
+    now). Raises for terms that are not acceptable, a hidden-number contact, a channel or a broadcast
+    list included. Asks wacli nothing until the number, the kind and the uniqueness of the chats hold."""
+    raw = args.get("chats")
+    if not isinstance(raw, list) or not all(isinstance(value, str) for value in raw):
+        raise WhatsAppError("chats is a list of person or group JIDs from chats or search")
+    if not 1 <= len(raw) <= send_mandate.MAX_CHATS:
+        raise WhatsAppError(f"chats is a list of one to {send_mandate.MAX_CHATS} chats")
+    if len({value.strip() for value in raw}) != len(raw):
+        raise WhatsAppError("each chat is named once")
+    jids = [_mandate_jid(value) for value in raw]
+    account = resolve_account(args, required=False)
+    chats = [_mandate_chat(account, jid) for jid in jids]
+    return send_mandate.terms(SERVICE, account, chats, args.get("per_hour"), args.get("max_chars"),
+                              args.get("days"), args.get("purpose"), account_label=account)
+
+
+def mandate_card(terms: dict) -> str:
+    """The card of a new send mandate, with every bound on it."""
+    return send_mandate.card(terms, _one_line)
+
+
+def mandate_view(plan: dict) -> dict:
+    """The send as a mandate sees it (send_mandate.fits)."""
+    return {"service": SERVICE, "account": plan["account"], "chat": plan["chat"], "text": plan["text"],
+            "files": len(plan["files"]), "reply": bool(plan["reply_to"])}
+
+
+def _covering_mandate(plan: dict, home: Path | None) -> str | None:
+    """The id of a mandate in force this send fits, else None. With no home, no readable key or any
+    doubt, nothing covers it."""
+    if home is None:
+        return None
+    try:
+        return send_mandate.covering(home, SERVICE, mandate_view(plan))[0]
+    except Exception:  # noqa: BLE001 - fail closed: the send asks on its card
+        return None
+
+
+def approval_request(args: dict, ids: dict | None = None, call_id: str = "", home: Path | None = None,
+                     ask: bool = True) -> tuple[str, str] | Covered | None:
+    """(card, allowlist rule key) for a send, ``Covered`` for a plain text send that fits a send mandate
+    in force under ``home`` (no card), None for a read; raises for a call that would fail anyway, so it
+    is blocked without asking. Files are frozen into this call's snapshot here, and the request digest
+    of what the card shows (with a covering mandate's id, if any) is recorded under ``call_id`` for the
+    write to match. The key covers the exact account, chat, text, reply and file contents, so "session"
+    or "always" only ever repeats that identical message. With ``ask`` off (no person can answer a
+    card) a send outside every mandate raises, and nothing is recorded or copied."""
     args = args if isinstance(args, dict) else {}
     if "_outbox" in args:
         raise WhatsAppError("_outbox is set by the plugin, never by a caller")
@@ -1520,6 +1653,12 @@ def approval_request(args: dict, ids: dict | None = None, call_id: str = "") -> 
         return None
     plan = send_plan(args)
     request = request_digest(plan, _requested(args))
+    mandate_id = _covering_mandate(plan, home)
+    if mandate_id:
+        _remember(args, call_id, request, mandate_id)
+        return Covered(mandate_id)
+    if not ask:
+        raise WhatsAppError(NO_CARD)
     staged = None
     if plan["files"]:
         _, staged = snapshot_for_call(plan, request, ids or {}, "gate")
@@ -1554,6 +1693,24 @@ def _strings(value):
             yield from _strings(item)
 
 
+def _resolved(text: str) -> str:
+    """The real path a path-like argument names (``~``, ``..`` and links resolved), else ''."""
+    if not text or "\n" in text or len(text) > PATH_RESOLVE_MAX:
+        return ""
+    try:
+        return os.path.realpath(os.path.expanduser(text.strip()))
+    except (OSError, ValueError):
+        return ""
+
+
+def _names_mandate_state(text: str) -> bool:
+    """Whether ``text`` names the send mandates' state or their key, directly or by the path it resolves to."""
+    if _MANDATE_STATE.search(text) or _MANDATE_KEY.search(text):
+        return True
+    real = _resolved(text)
+    return bool(real) and bool(_MANDATE_STATE.search(real))
+
+
 def bypass(tool: str, args) -> str | None:
     """A block message when a terminal or file call would go around the tool, else None.
 
@@ -1567,5 +1724,8 @@ def bypass(tool: str, args) -> str | None:
             return BYPASS_MESSAGE
     elif tool in FILE_TOOLS:
         if any(_PATHS.search(text) for text in _strings(args)):
+            return BYPASS_MESSAGE
+    if tool == "terminal" or tool in FILE_TOOLS:
+        if any(_names_mandate_state(text) for text in _strings(args)):
             return BYPASS_MESSAGE
     return None

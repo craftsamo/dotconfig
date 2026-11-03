@@ -21,7 +21,9 @@ Drive downloads go to ``google_access.download_dir`` (config.yaml), else
 snapshots (PDF and PNG pages) go to its ``sheet-snapshots/``.
 
 Which calls change something, and therefore need a human approval, is decided here
-(``approval_request``) so the plugin hook and the tests share one rule.
+(``approval_request``) so the plugin hook and the tests share one rule. A gcloud command that is not a read
+skips its card only inside a gcloud mandate (``gcloud_mandate.py``); the engine runs it only as the hook
+recorded it.
 
   gaccess auth CLIENT_SECRET.json   authorize in the browser (loopback) and store the token
   gaccess check                     token (moving an old token.json in), scopes, gcloud login
@@ -60,20 +62,23 @@ import time
 import unicodedata
 from email.message import EmailMessage
 from pathlib import Path
+from typing import NamedTuple
 
 _THREAD_LOCK = threading.Lock()
 
 
-def _load_shared(name):
-    key = f"hermes_{name}"
+def _load_module(key, path):
     if key not in sys.modules:
         import importlib.util
-        spec = importlib.util.spec_from_file_location(key,
-                                                      Path(__file__).resolve().parents[1] / "_shared" / f"{name}.py")
+        spec = importlib.util.spec_from_file_location(key, path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[key] = module
         spec.loader.exec_module(module)
     return sys.modules[key]
+
+
+def _load_shared(name):
+    return _load_module(f"hermes_{name}", Path(__file__).resolve().parents[1] / "_shared" / f"{name}.py")
 
 
 cards = _load_shared("card")
@@ -81,6 +86,7 @@ approval_tier = _load_shared("approval_tier")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
 workspace_layout = _load_shared("workspace_layout")
+mandate = _load_module("hermes_google_access_gcloud_mandate", Path(__file__).resolve().parent / "gcloud_mandate.py")
 
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
@@ -96,6 +102,7 @@ STDOUT_LIMIT = 40000
 STDERR_LIMIT = 8000
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
+APPROVAL_TTL = 900          # a gate record older than this does not cover a gcloud write
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "snapshot", "comments", "update", "batch_update",
                   "append", "clear", "create", "add_sheet", "layout", "data", "chart", "pivot", "protect",
@@ -204,6 +211,12 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:gcloud|gsutil|bq
 _PATHS = re.compile(r"(?<!plugins/)google-access|google-workspace/scripts|google_api\.py"
                     r"|CLOUDSDK_|\.config/gcloud|google_token\.json|google_client_secret\.json"
                     r"|GOOGLE_OAUTH|GOOGLE_ACCESS_AGE|AGE-SECRET-KEY|dump-keychain|\bsecret\s+export\b")
+# The gcloud mandates' state (<HERMES_HOME>/google-access/{mandates/, head.json, uses.jsonl, mandates.jsonl})
+# and the Keychain item of their MAC key: matched on the text and on the real path it resolves to, so a link,
+# a `..` or another letter case does not hide it; the plugin's own source stays readable.
+_MANDATE_STATE = re.compile(r"google-access/+(?:mandates|head\.json|uses\.jsonl)", re.IGNORECASE)
+_MANDATE_KEY = re.compile(r"GCLOUD_MANDATE_KEY", re.IGNORECASE)
+RESOLVE_MAX = 4096          # a longer argument is not a path worth resolving
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "Google (Sheets, Gmail, Drive) and gcloud run only through the google_sheets, google_gmail, "
@@ -4143,8 +4156,76 @@ def _encryption_status(home: Path) -> str:
 
 # --- gcloud ---------------------------------------------------------------------------------------
 
+class GcloudCall(NamedTuple):
+    """A validated gcloud call: what runs, and what a gcloud mandate (``gcloud_mandate.py``) judges it by."""
+
+    argv: list[str]             # the arguments after `gcloud`
+    read_only: bool
+    path: tuple[str, ...]       # the command path, as the SDK's tree names it (release track included)
+    resolved: bool              # whether the installed SDK's tree confirmed the path is a command
+    project: str                # the project parameter, '' when none was given
+    args: tuple[str, ...]       # the positionals and flags the caller gave
+    sensitive: bool             # the path holds a GCLOUD_SENSITIVE word
+    writes_file: bool           # a GCLOUD_WRITE_FLAGS flag was given
+    flags: tuple[tuple[str, str | None], ...]   # the long flags given, in order, each with its value (None: none)
+    positionals: tuple[str, ...]                # the plain arguments given
+    unparsed: str | None        # why args are not only long flags of this command and positionals, else None
+    kinds: dict                 # the flags the SDK's tree lists for the command, and the global ones
+
+    def kind(self, flag: str) -> str | None:
+        """'bool' or 'value' for a flag the tree lists for this command (a `--no-` form of a bool flag
+        included), else None."""
+        return _flag_kind(self.kinds, flag)
+
+
+def _flag_kind(kinds: dict, flag: str) -> str | None:
+    kind = kinds.get(flag)
+    if kind is None and flag.startswith("--no-") and kinds.get("--" + flag[len("--no-"):]) == "bool":
+        return "bool"
+    return None if kind is None else "bool" if kind == "bool" else "value"
+
+
+def _parse_args(extra: list[str], kinds: dict) -> tuple[tuple, tuple, str | None]:
+    """(long flags with their values, positionals, why the arguments are anything else). A flag the tree
+    does not list, a short flag and `--` (the end of flags) are not read: nothing after them can be told from
+    a flag or a value."""
+    flags, positionals, i = [], [], 0
+    while i < len(extra):
+        token = extra[i]
+        i += 1
+        if token == "--":
+            return tuple(flags), tuple(positionals), "-- (the end of flags) is not covered"
+        if not token.startswith("-"):
+            positionals.append(token)
+            continue
+        if not token.startswith("--"):
+            return tuple(flags), tuple(positionals), f"{token} is a short flag; only long flags are covered"
+        name, equals, value = token.partition("=")
+        kind = _flag_kind(kinds, name)
+        if kind is None:
+            return tuple(flags), tuple(positionals), f"{name} is not a flag the installed gcloud lists here"
+        if equals and kind == "bool":
+            return tuple(flags), tuple(positionals), f"{name} is a switch; it takes no =value"
+        if equals:
+            flags.append((name, value))
+        elif kind == "bool":
+            flags.append((name, None))
+        elif i < len(extra) and not extra[i].startswith("-"):
+            flags.append((name, extra[i]))
+            i += 1
+        else:
+            return tuple(flags), tuple(positionals), f"{name} has no value"
+    return tuple(flags), tuple(positionals), None
+
+
 def gcloud_plan(args: dict) -> tuple[list[str], bool]:
     """Validate a gcloud call; return (arguments after `gcloud`, read_only)."""
+    call = gcloud_call(args)
+    return call.argv, call.read_only
+
+
+def gcloud_call(args: dict) -> GcloudCall:
+    """Validate a gcloud call and describe it."""
     command = args.get("command")
     if not isinstance(command, list) or not command:
         raise AccessError("command is the gcloud command path as an array, e.g. [\"projects\", \"list\"]")
@@ -4177,14 +4258,22 @@ def gcloud_plan(args: dict) -> tuple[list[str], bool]:
         argv.append(f"--project={project}")
     argv.extend(extra)
     writes_file = any(arg == flag or arg.startswith(flag + "=") for arg in extra for flag in GCLOUD_WRITE_FLAGS)
-    return argv, _read_only(command) and not writes_file
+    found = _command_path(command)
+    path, kinds = found if found else (None, {})
+    sensitive = path is not None and _sensitive(path)
+    read_only = path is not None and not sensitive and _read_verb(path[-1]) and not writes_file
+    flags, positionals, unparsed = _parse_args(extra, kinds)
+    return GcloudCall(argv, read_only, tuple(path or command), path is not None, project, tuple(extra),
+                      sensitive, writes_file, flags, positionals, unparsed, kinds)
 
 
-def _read_only(command: list[str]) -> bool:
-    """True only for a complete, known command path whose command is a read verb."""
+def _command_path(command: list[str]) -> tuple[list[str], dict] | None:
+    """(the command path as the installed SDK's tree names it (an alias followed), checked to be a command;
+    the flags the tree lists for it and the global ones); None when there is no tree to ask, since a
+    positional cannot then be told from the path."""
     tree = _command_tree()
     if tree is None:
-        return False  # cannot tell a positional from the command path: ask
+        return None
     command = list(GCLOUD_ALIASES.get(tuple(command), command))
     node = tree
     for token in command:
@@ -4195,10 +4284,21 @@ def _read_only(command: list[str]) -> bool:
         node = children[token]
     if node.get("commands"):
         raise AccessError(f"`gcloud {' '.join(command)}` is a command group; name a command")
-    verb = command[-1]
-    if any(token in GCLOUD_SENSITIVE for token in command):
-        return False
+    return command, {**(tree.get("flags") or {}), **(node.get("flags") or {})}
+
+
+def _sensitive(path: list[str]) -> bool:
+    return any(token in GCLOUD_SENSITIVE for token in path)
+
+
+def _read_verb(verb: str) -> bool:
     return verb in GCLOUD_READ_VERBS or verb.startswith(GCLOUD_READ_PREFIXES)
+
+
+def _read_only(command: list[str]) -> bool:
+    """True only for a complete, known command path whose command is a read verb."""
+    found = _command_path(command)
+    return found is not None and not _sensitive(found[0]) and _read_verb(found[0][-1])
 
 
 def _command_tree():
@@ -4246,21 +4346,33 @@ def _child_env(config_dir: Path) -> dict:
     return env
 
 
-def gcloud(home, args: dict) -> dict:
-    argv, _ = gcloud_plan(args)
+def gcloud(home, args: dict, call_id: str = "") -> dict:
+    """Run a gcloud command. A command that is not a read runs only as the gate saw it: the gate's record of
+    this very call is taken, the call planned again must give the same digest, and one covered by a gcloud
+    mandate is counted against it, under the mandate store's lock, before the command starts."""
+    call = gcloud_call(args)
     config_dir = gcloud_config_dir(home)
     if not config_dir.is_dir():
         raise AccessError("Hermes' gcloud is not logged in; the user runs `gaccess gcloud-login` once")
     timeout = _int(args, "timeout", GCLOUD_TIMEOUT, GCLOUD_TIMEOUT_MAX)
-    try:
-        done = subprocess.run([_gcloud_binary(), *argv], stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=timeout,
-                              env=_child_env(config_dir))
-    except subprocess.TimeoutExpired as exc:
-        raise AccessError(f"gcloud did not finish within {timeout}s") from exc
+    binary = _gcloud_binary()
+    covered = False
+    if not call.read_only:
+        refused, covered = _gcloud_write_refusal(home, args, call, call_id)
+        if refused:
+            return {"ok": False, "error": refused}
+    # A command run on a mandate has no working directory of its own to read: a relative name or an implicit
+    # `.` resolves to nothing. A command the user saw on a card keeps the process's.
+    with tempfile.TemporaryDirectory(prefix="gcloud-mandate-") if covered else contextlib.nullcontext() as cwd:
+        try:
+            done = subprocess.run([binary, *call.argv], stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=timeout,
+                                  env=_child_env(config_dir), cwd=cwd)
+        except subprocess.TimeoutExpired as exc:
+            raise AccessError(f"gcloud did not finish within {timeout}s") from exc
     stdout, out_cut = _clip(done.stdout or "", STDOUT_LIMIT)
     stderr, err_cut = _clip(done.stderr or "", STDERR_LIMIT)
-    return {"ok": done.returncode == 0, "exit_code": done.returncode, "command": "gcloud " + shlex.join(argv),
+    return {"ok": done.returncode == 0, "exit_code": done.returncode, "command": "gcloud " + shlex.join(call.argv),
             "stdout": stdout, "stderr": stderr, "truncated": out_cut or err_cut}
 
 
@@ -4278,6 +4390,104 @@ def _args_digest(args: dict) -> str:
 
 def _rule_key(tool: str, args: dict) -> str:
     return approval_tier.each_key("google-access", tool, _args_digest(args))
+
+
+# --- gcloud writes: the gate's record of each call ------------------------------------------------
+# So a gcloud write runs exactly what the gate saw: (when, the digest of the command it would run, the id
+# of the gcloud mandate that covers it instead of a card, else None).
+
+_GCLOUD_APPROVED: dict[str, tuple[float, str, str | None]] = {}
+_GCLOUD_APPROVED_LOCK = threading.Lock()
+
+
+class Covered(NamedTuple):
+    """``approval_request``'s answer for a gcloud command that fits a gcloud mandate: no card is asked."""
+
+    mandate: str
+
+
+class Unattended(AccessError):
+    """A gcloud command that needs a card where no person can answer one; the message is the reason."""
+
+
+def _call_key(args: dict, call_id: str) -> str:
+    """One tool call's identity: its id when it has one, else its arguments. The id alone, because the hook
+    sees the arguments as the model wrote them and the handler sees them after Hermes coerces their types;
+    the command's digest is what binds the content."""
+    if call_id:
+        return hashlib.sha256(json.dumps(["call", call_id], ensure_ascii=False).encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps(["args", args], sort_keys=True, ensure_ascii=False,
+                                     default=str).encode("utf-8")).hexdigest()
+
+
+def _argv_digest(call: GcloudCall) -> str:
+    return hashlib.sha256(json.dumps(call.argv, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _note_gcloud_approval(args: dict, call_id: str, digest: str, mandate_id: str | None) -> None:
+    with _GCLOUD_APPROVED_LOCK:
+        now = time.monotonic()
+        for old in [k for k, (at, _, _) in _GCLOUD_APPROVED.items() if now - at > APPROVAL_TTL]:
+            _GCLOUD_APPROVED.pop(old, None)
+        _GCLOUD_APPROVED[_call_key(args, call_id)] = (now, digest, mandate_id)
+
+
+def covered_by_mandate(args: dict, call_id: str) -> bool:
+    """Whether the gate recorded this call as covered by a gcloud mandate; the record is left in place."""
+    with _GCLOUD_APPROVED_LOCK:
+        entry = _GCLOUD_APPROVED.get(_call_key(args if isinstance(args, dict) else {}, call_id))
+    return bool(entry and entry[2] and time.monotonic() - entry[0] <= APPROVAL_TTL)
+
+
+def _take_gcloud_approval(args: dict, call_id: str) -> tuple[str, str | None] | None:
+    """(the digest of the command the gate saw, the mandate that covers it if any), consumed; None without
+    a record."""
+    with _GCLOUD_APPROVED_LOCK:
+        entry = _GCLOUD_APPROVED.pop(_call_key(args, call_id), None)
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[1], entry[2]
+
+
+def _gcloud_write_refusal(home, args: dict, call: GcloudCall, call_id: str) -> tuple[str | None, bool]:
+    """(why a gcloud write may not run now, or None; whether it runs on a gcloud mandate). It needs the gate's
+    record of this very call, planned again to the same command; a call recorded under a gcloud mandate is
+    then counted against it, before anything runs, and refused if it no longer fits."""
+    approved = _take_gcloud_approval(args, call_id)
+    if approved is None:
+        return "not done: this command did not pass its approval card; nothing was run", False
+    digest, mandate_id = approved
+    if digest != _argv_digest(call):
+        return "not done: the command changed after its approval card was made; nothing was run. Ask again", False
+    if mandate_id:
+        why = mandate.use(home, mandate_id, call)
+        if why:
+            return (f"not done: it no longer fits the gcloud mandate ({why}); nothing was run. Send it again: "
+                    "it will ask on a card."), False
+    return None, bool(mandate_id)
+
+
+def _gcloud_request(args: dict, home, call_id: str | None, unattended: str | None):
+    """The gcloud branch of ``approval_request``: None for a read, ``Covered`` for a command that fits a
+    mandate in force at ``home``, else the card. The call is recorded for the write only when ``call_id`` is
+    given."""
+    call = gcloud_call(args)
+    if call.read_only:
+        return None
+    digest = _argv_digest(call)
+    covered = mandate.covering(home, call)[0] if home is not None else None
+    if covered:
+        if call_id is not None:
+            _note_gcloud_approval(args, call_id, digest, covered)
+        return Covered(covered)
+    if unattended:
+        raise Unattended(unattended)
+    # The whole command or no card: a flag cut off the end would change what was approved.
+    reason = _fitted("gcloud", "Run a command", (cards.DANGER, "May change cloud resources"), [],
+                     sections=[("Command", ["gcloud " + shlex.join(call.argv)])])
+    if call_id is not None:
+        _note_gcloud_approval(args, call_id, digest, None)
+    return reason, _rule_key("gcloud", args)
 
 
 # --- Sheets approval cards ------------------------------------------------------------------------
@@ -4545,10 +4755,16 @@ def _check_lines(guards: list[dict], tab=...) -> list[str]:
     return [f"Check: {shown}" + (f" (+{rest} more)" if rest > 0 else "")]
 
 
-def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None:
+def approval_request(tool: str, args: dict, home=None, call_id: str | None = None,
+                     unattended: str | None = None) -> tuple[str, str] | Covered | None:
     """(reason shown to the human, allowlist rule key) for a call that changes something, else None.
 
     Raises AccessError for a call the tool would reject anyway, so it is blocked without asking.
+    A gcloud command that fits a gcloud mandate in force at ``home`` is answered ``Covered`` (no card), also
+    where nobody can answer one; ``unattended`` is why nobody can, if so: a gcloud command that fits no
+    mandate then raises ``Unattended`` with it. A gcloud answer is recorded for the write (the engine runs a
+    gcloud write only as recorded) when ``call_id`` is given, the hook's id of the call or '' when it has none;
+    a probe passes none and records nothing.
     Spreadsheet edits share one key per spreadsheet and My Drive uploads share one key per profile
     (via approval_tier), so "session" / "always" on the first card covers the rest of that target;
     every other rule key covers the exact arguments, so an "always" answer never widens to other
@@ -4598,12 +4814,7 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
                                      scope=(profile,), eligible=not sensitive, exact=tool)
         return reason, key
     elif tool == "gcloud":
-        argv, read_only = gcloud_plan(args)
-        if read_only:
-            return None
-        # The whole command or no card: a flag cut off the end would change what was approved.
-        reason = _fitted("gcloud", "Run a command", (cards.DANGER, "May change cloud resources"), [],
-                         sections=[("Command", ["gcloud " + shlex.join(argv)])])
+        return _gcloud_request(args, home, call_id, unattended)
     else:
         return None
     return reason, _rule_key(tool, args)
@@ -4629,9 +4840,28 @@ def _strings(value):
             yield from _strings(item)
 
 
+def _resolved(text: str) -> str:
+    """The real path a path-like argument names (``~``, ``..`` and links resolved), else ''."""
+    if not text or "\n" in text or len(text) > RESOLVE_MAX:
+        return ""
+    try:
+        return os.path.realpath(os.path.expanduser(text.strip()))
+    except (OSError, ValueError):
+        return ""
+
+
+def _names_mandate_state(text: str) -> bool:
+    if _MANDATE_STATE.search(text) or _MANDATE_KEY.search(text):
+        return True
+    real = _resolved(text)
+    return bool(real) and bool(_MANDATE_STATE.search(real))
+
+
 def bypass(tool: str, args) -> str | None:
     """A block message when a terminal or file call would go around the tools, else None."""
     args = args if isinstance(args, dict) else {}
+    if (tool == "terminal" or tool in FILE_TOOLS) and any(_names_mandate_state(text) for text in _strings(args)):
+        return BYPASS_MESSAGE
     if tool == "terminal":
         command = args.get("command")
         project = project_place.project_dir(args) is not None if isinstance(command, str) else False
