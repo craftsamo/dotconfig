@@ -96,12 +96,13 @@ def test_only_the_assistant_gets_the_tools():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == {"google_sheets", "google_gmail", "google_drive", "gcloud"}
+    assert set(ctx.tools) == {"google_sheets", "google_gmail", "google_drive", "gcloud", "gcloud_mandate"}
     assert {t["toolset"] for t in ctx.tools.values()} == {"google_access"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
     for name, tool in ctx.tools.items():
         params = tool["schema"]["parameters"]
-        assert params["additionalProperties"] is False and params["required"] == plugin.REQUIRED[name]
+        assert params["additionalProperties"] is False
+        assert params["required"] == plugin.REQUIRED.get(name, ["action"])
         assert tool["schema"]["name"] == name
 
 
