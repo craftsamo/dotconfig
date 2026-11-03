@@ -602,7 +602,7 @@ print -r -- 'not-the-master' | secret keychain master set --stdin >/dev/null 2>&
 [[ "$(secret get KC_ONE -p $KCN)" == 'kc-value-1' ]] \
   && ok "get still works after wrong master attempt" || bad "get still works after wrong master attempt"
 
-# --force with wrong password succeeds, status reports MISMATCH and exits 1
+# --force with wrong password succeeds, status reports MISMATCH and exits 1, ls warns
 print -r -- 'not-the-master' | secret keychain master set --force --stdin >/dev/null 2>&1 \
   && ok "master set --force succeeds" || bad "master set --force succeeds"
 [[ "$(secret keychain master reveal)" == 'not-the-master' ]] \
@@ -610,6 +610,9 @@ print -r -- 'not-the-master' | secret keychain master set --force --stdin >/dev/
 mstatbad=$(secret keychain master status 2>&1)
 [[ $? -ne 0 && $mstatbad == *"$KCN"* && $mstatbad == *MISMATCH* ]] \
   && ok "master status reports MISMATCH and exits 1" || bad "master status reports MISMATCH and exits 1"
+lswarn=$(secret ls -p $KCN 2>&1)
+[[ $lswarn == *"does not unlock"* && $lswarn == *KC_ONE* ]] \
+  && ok "ls warns on master mismatch and still lists item" || bad "ls warns on master mismatch and still lists item"
 
 # Restore true master
 print -r -- "$MP" | secret keychain master set --stdin >/dev/null 2>&1 \

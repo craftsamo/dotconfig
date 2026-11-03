@@ -117,6 +117,8 @@ _secret_kc_suffix() {          # $1 project -> " [kc:NAME]" for UI headers, or "
 #   account "master"           shared master (secret keychain master set)
 # Lookup order: per-keychain item > master item > give up (GUI prompt).
 # No-op for the default keychain or when nothing is stored.
+# When a stored password fails to unlock its keychain, a warning is printed
+# naming the keychain and pointing to `secret keychain master status`.
 # The lookups and the unlock cost ~60 ms, so one `secret` invocation does
 # them once per keychain ($_kc_unlocked, set by the dispatcher, holds the
 # time) and trusts the result for a minute — long enough for `env` and
@@ -131,16 +133,22 @@ _secret_kc_ensure() {          # $1 keychain path/name
   [[ -z $kc || $kc == "$_kc_default" ]] && return 0
   (( ${_kc_unlocked[$kc]:-0} + 60 > EPOCHSECONDS )) && return 0
   _kc_unlocked[$kc]=$EPOCHSECONDS
-  local pw
+  local pw src_desc
+  local short=${${kc:t}%.keychain-db}
   pw=$(security find-generic-password -s 'keychain-password' \
-        -a "${${kc:t}%.keychain-db}" -w "$_kc_default" 2>/dev/null)
-  if [[ -z $pw ]]; then
+        -a "$short" -w "$_kc_default" 2>/dev/null)
+  if [[ -n $pw ]]; then
+    src_desc="keychain-password/$short"
+  else
     pw=$(security find-generic-password -s 'keychain-password' \
           -a "$(_secret_master_account)" -w "$_kc_default" 2>/dev/null)
+    [[ -n $pw ]] && src_desc="stored master"
   fi
   [[ -n $pw ]] || return 0
-  print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
-    | security -i >/dev/null 2>&1
+  if ! print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kc")" \
+      | security -i >/dev/null 2>&1; then
+    _secret_err "$src_desc does not unlock keychain '$short' — check: secret keychain master status"
+  fi
   return 0
 }
 
