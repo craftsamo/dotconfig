@@ -1759,12 +1759,11 @@ _secret_kc_customs() {         # registered custom keychain paths, one per line
   done
 }
 
-# Validate a keychain password. The keychain must be locked for macOS to
-# actually check it, so this locks first; a WRONG password leaves the
-# keychain locked (callers report that). Exit 0 = password is correct.
+# Validate a keychain password. macOS checks the password even on an
+# unlocked keychain, so validating no longer locks, and a wrong password
+# leaves the keychain as it was. Exit 0 = password is correct.
 _secret_kc_try_pw() {          # $1 keychain  $2 password
-  unset "_kc_unlocked[$1]"     # the lock below invalidates _secret_kc_ensure's memo
-  security lock-keychain "$1" 2>/dev/null
+  unset "_kc_unlocked[$1]"     # invalidates _secret_kc_ensure's memo
   print -r -- "unlock-keychain -p $(_secret_quote_si "$2") $(_secret_quote_si "$1")" \
     | security -i >/dev/null 2>&1
 }
@@ -1929,12 +1928,11 @@ _secret_kc_remember() {        # NAME [--stdin]: store keychain password in logi
     IFS= read -rs "pw?password of keychain '$short' (hidden): " || { print '' >&2; return 1 }
     print '' >&2
   fi
-  # verify the password: lock, then unlock with it (argv-free via security -i)
+  # verify the password (argv-free via security -i)
   unset "_kc_unlocked[$kcpath]"
-  security lock-keychain "$kcpath" 2>/dev/null
   if ! print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kcpath")" \
       | security -i >/dev/null 2>&1; then
-    _secret_err "wrong password for '$short' (keychain left locked)"
+    _secret_err "wrong password for '$short'"
     return 1
   fi
   # store in the login keychain (service "keychain-password", account NAME)
