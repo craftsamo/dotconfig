@@ -132,8 +132,10 @@ research or a comment, a dated note is a comment.
   are comments on the parent.
 - `## Plan` — the sub-issues as `#n` with one line each on what they
   deliver; no checkboxes (the sub-issue panel shows progress), no numbering
-  (blocked-by carries the order). Parts not yet split may stay prose.
-- `## Acceptance` — the checks run after every piece lands (`- [ ]`).
+  (blocked-by carries the order). Parts not yet split may stay prose. It
+  lists every sub-issue the panel shows: one added later gets its line.
+- `## Acceptance` — the checks run after every piece lands (`- [ ]`); never
+  a count of the pieces, which goes stale when one is added.
 
 **Execution unit** (a sub-issue, or an issue about to be implemented):
 
@@ -142,16 +144,20 @@ research or a comment, a dated note is a comment.
   decisions folded in.
 - `## Research` (optional) — what of the parent's findings this unit rests
   on, transcribed so it stands alone when the parent closes, plus what
-  kickoff found.
+  kickoff found: only the facts the requirements rest on, each with its
+  source; the full survey, spike or measurement stays in its comment.
 - `## Implementation outline` — Draft: prose bullets of the expected
-  slices. Fixed: a `- [ ]` checklist of PR layers, bottom to top; a line is
-  ticked with its `#n` when that PR opens.
+  slices. Fixed: a `- [ ]` checklist of PR layers, bottom to top, each line
+  what the layer delivers; it is ticked and ends `— #n` when that PR opens.
 - `## Open decisions` — what kickoff must settle; removed when Fixed.
 - `## Acceptance` — done checks (`- [ ]`).
 - `## Evidence` — links to the comments, decisions and predecessors.
 
 No status line: the shape says Draft or Fixed, the board's Status and the
-ticks say how far.
+ticks say how far. The body is the spec as it stands now, rewritten in place
+when it changes, never extended with dated sections; how it got there is the
+comments' ("Comments" below). A worked parent and unit, with neutral names:
+`references/issue-example.md`.
 
 **Any other issue** (one that is not a unit of a plan), by kind: feature
 `## Purpose` / `## Requirements` / `## Acceptance criteria`; enhancement
@@ -159,6 +165,33 @@ ticks say how far.
 `## Suspected cause` / `## Repro steps`; chore `## Summary` and
 `**Target**:`; design `## Goal / context` / `## Options` / `## Decision`;
 test `## Target` / `## Cases` / `## Pass criteria`.
+
+## Comments
+
+One comment per event, opened by a bold lead that names it, so the thread
+reads as the work's history. They are yours, never a build's (a build under
+a mandate only ticks its own layers and moves its Status), and each asks on
+its card unless a mandate's classes cover comments ("Mandates"). They are
+text others read: on a `shared` or `other` target, agree the words as
+"Before writing, by tier" says. A decision is stated in the repository's
+terms, never in the user's quoted words.
+
+- **Decision:** `**Decision: <what was settled>.**`, then its reasons as
+  bullets; one decision per comment. Defaults taken without asking the user
+  go together in one `**Defaults taken (not asked).**` comment, each with
+  its reason, so they can be questioned later.
+- **Research:** a survey, a spike or a measurement, dated, with its sources
+  and its table or log (long output in `<details>`). The body's research
+  keeps only what the requirements rest on.
+- **Revision:** when another issue's result changes this one's spec,
+  `**Revised after <what> on #n.**` with the change and why; the body is
+  rewritten to match in the same list.
+- **Landing:** when a unit's last PR lands, `Landed in #n (with #a, #b):`
+  (the pull requests) and what now works. An acceptance line this unit
+  could not meet moves to a later unit: the comment names where, the line
+  here is ticked and ends `— moved to #n`, and that unit's acceptance gains
+  the line, all in one list. The later unit must exist already; one still to
+  be created is made in an earlier call.
 
 ## Setting up a board
 
@@ -233,16 +266,31 @@ put items on it in the next.
   body, a build reads it and reports a slice that will not fit as a
   question; under the mandate ("Mandates") a build ticks its own layers.
 - **Work moves:** tick an outline line with its PR `#n` by `issue_edit`
-  `body` (read it, change the checkbox, send it whole) or add a step with
-  `append_body`; a decision or a hand-over is an `issue_comment`. When the
-  unit's last PR lands, `item_set` `Status` `Done`. When the parent's last
-  unit is Done, its acceptance is checked, it is closed and set `Done` too.
+  `body` (read it, change the checkbox, send it whole); a decision or a
+  hand-over is an `issue_comment` in the shape of "Comments", and a decision
+  that changes the spec also rewrites the body in the same list. When the
+  unit's last PR lands, its acceptance lines are ticked against their
+  evidence, the Landing comment is written and `item_set` `Status` `Done`.
+  When the parent's last unit is Done, its acceptance is checked, it is
+  closed and set `Done` too.
+- **Work found mid-job** (a bug, a follow-up, a gap a unit uncovered): when
+  the goal needs it, `issue_create` under the parent (an issue with no
+  parent: an issue of its own) with its `kind`, the execution-unit body and
+  `blocked_by` where order matters, never under a unit (below a unit is a
+  pull request); a unit that has grown several such
+  pieces is split into a parent and new units as "Replacing issues" says.
+  Then, in the next call, the
+  parent's `## Plan` gains its line. Work the goal does not need is an issue
+  of its own with no parent, or a draft.
 - **Waiting on someone outside:** a dated `issue_comment` on the parent and
   `item_set` `Status` `Waiting`; when it resumes, another dated comment and
   back to `In Progress`.
 - **Close:** `issue_close` with a reason (`completed`, `not planned`,
   `duplicate`) and a `comment` saying why; when a PR's merge already closed
   it, only move the board's Status. Closing an issue does not move Status.
+  Every acceptance line of an issue closed `completed` is ticked or moved as
+  the Landing comment says, before you close it or, when a merge closed it,
+  right after; never one left open.
 - **Tidy:** `item_archive` for a dropped draft or a long-closed item; nothing
   is ever deleted.
 
