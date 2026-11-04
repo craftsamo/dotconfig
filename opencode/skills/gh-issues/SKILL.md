@@ -141,9 +141,11 @@ is the implementation. Omit it when Requirements already make the work plain.
   issue.
 - `## Plan` — the sub-issues as `#n` with one line each on what they deliver;
   order comes from blocked-by, not from this list. Later, undecomposed parts
-  may stay prose. No `- [ ]` here: the sub-issue panel shows progress.
+  may stay prose. No `- [ ]` here: the sub-issue panel shows progress. It
+  lists every sub-issue the panel shows: one added later gets its line.
 - `## Acceptance` — the integration checks run after every sub-issue lands
-  (`- [ ]`). The parent's exit criterion.
+  (`- [ ]`). The parent's exit criterion; never a count of the sub-issues,
+  which goes stale when one is added.
 
 **Sub-issue, or any issue about to be implemented** (the execution unit):
 
@@ -152,12 +154,15 @@ is the implementation. Omit it when Requirements already make the work plain.
   folded in.
 - `## Research` (optional) — the excerpts of the parent's research this issue
   relies on, transcribed so it stays self-contained when the parent closes,
-  plus its own kickoff findings. Fold into Requirements when short.
+  plus its own kickoff findings: only the facts Requirements rest on, each
+  with its source; the full survey, spike or measurement stays in its
+  comment (`<Comments>`). Fold into Requirements when short.
 - `## Implementation outline` — Draft: prose bullets of the expected PR
-  slices. Fixed: a `- [ ]` checklist of stack layers, bottom to top; tick a
-  layer when its PR opens and append the `#n` (the layers land together, so
-  the ticks are the progress). The checklist, not a set of issues, is the
-  decomposition, so re-slicing is a text edit.
+  slices. Fixed: a `- [ ]` checklist of stack layers, bottom to top, each
+  line what the layer delivers; tick a layer when its PR opens and end the
+  line `— #n` (the layers land together, so the ticks are the progress). The
+  checklist, not a set of issues, is the decomposition, so re-slicing is a
+  text edit.
 - `## Open decisions` — what kickoff must settle; removed when Fixed, re-added
   when an escalated discovery raises one.
 - `## Acceptance` — done checks (`- [ ]`).
@@ -165,11 +170,43 @@ is the implementation. Omit it when Requirements already make the work plain.
 
 The body carries no status line: whether the spec is Draft or Fixed shows
 in its shape (`<SpecLifecycle>`), and how far the work is shows in the
-board's Status, the outline's ticks and the issue's state.
-
-A repository with Issue Forms uses them instead of these skeletons.
+board's Status, the outline's ticks and the issue's state. The body is the
+spec as it stands now, rewritten in place when it changes, never extended
+with dated sections; how it got there is the comments' (`<Comments>`).
 
 </Bodies>
+
+<Comments>
+
+One comment per event, opened by a bold lead that names it, so the thread
+reads as the work's history. A decision is stated in the repository's terms,
+never as a quote from a chat. In a run Hermes commissions, its operating note
+decides which of these comments, edits and new issues are yours; the rest go
+into the run's report.
+
+- **Decision:** `**Decision: <what was settled>.**`, then its reasons as
+  bullets; one decision per comment. Defaults taken without asking the user
+  go together in one `**Defaults taken (not asked).**` comment, each with its
+  reason, so they can be questioned later.
+- **Research:** a survey, a spike or a measurement, dated, with its sources
+  and its table or log (long output in `<details>`). The body's
+  `## Research` keeps only what Requirements rest on.
+- **Revision:** when another issue's result changes this one's spec,
+  `**Revised after <what> on #n.**` with the change and why; the body is
+  rewritten to match right after.
+- **Landing:** when a unit's last PR lands, `Landed in #n (with #a, #b):`
+  (the pull requests) and what now works. An acceptance line the unit could
+  not meet moves to a later unit: the comment names where, the line here is
+  ticked and ends `— moved to #n`, and that unit's `## Acceptance` gains the
+  line. The later unit must exist first.
+
+e.g. a unit's thread: `**Decision: attachments over 25 MB are linked, not
+embedded.**` with two reasons; `**Defaults taken (not asked).**` naming the
+export file after the account and the date; then `Landed in #15 (with #14):
+the settings page exports every note in one file. The help page section
+moves to #13.`
+
+</Comments>
 
 <Notation>
 
@@ -225,8 +262,10 @@ Draft.
 Domain research (market, primary sources, constraints) belongs to the parent
 issue as **comments** — the originals — with only the distillate in its
 `## Details`. System research (how to realize one issue here) belongs to that
-issue's `## Research` at kickoff. Implementation detail is not persisted as
-issue content; the PR carries it. Research never gets an issue of its own.
+issue at kickoff: the full findings as a Research comment (`<Comments>`),
+the sourced facts Requirements rest on in its `## Research`. Implementation
+detail is not persisted as issue content; the PR carries it. Research never
+gets an issue of its own.
 
 A discovery that exceeds the current scope is not absorbed on the spot:
 escalate it to the issue's `## Open decisions` (system level) or a parent
@@ -262,13 +301,28 @@ the current PR on scope.
   with `gh_issue_relate { issue: "<parent>", addSubIssues: [...] }`.
 - Kickoff: `gh_issue_update { issue, body }` with the Fixed body; Status
   In Progress on the board (`gh-projects`).
-- Progress note or decision: `gh_issue_comment { issue, body }`; a change to
-  the spec edits the body (`appendBody` for an addendum section).
+- Decision, research, revision or hand-off: `gh_issue_comment { issue, body
+  }` in the shape of `<Comments>`; one that changes the spec also rewrites
+  the body (`gh_issue_update { issue, body }`, the whole body, not an
+  appended section).
 - A layer's PR opened: `gh_issue_update { issue, body }` ticking the outline
   line with its PR `#n`.
+- Work found mid-job (a bug, a follow-up, a gap a unit uncovered): when the
+  goal needs it, `gh_issue_create` under the parent (an issue with no parent:
+  an issue of its own) with its `kind`, a unit body and `blockedBy` where
+  order matters, never under the unit (below a
+  unit is a PR); a unit that has grown several such pieces is split into a
+  parent and new units per `<Supersede>`. Then add its line to the parent's
+  `## Plan`. Work the goal does not need is an issue with no parent, or a
+  board draft (`gh-projects`).
 - Done: the closing PR merges; or `gh_issue_update { issue, state: "closed",
-  reason: "completed", comment }` when no PR closes it. Dropped: `reason:
-  "not planned"`. A twin: `reason: "duplicate"` with the original in `comment`.
+  reason: "completed", comment }` when no PR closes it. Either way, every
+  `## Acceptance` line is ticked or moved (`<Comments>` Landing) before the
+  close or, when a merge closed it, right after. A unit that landed through
+  PRs gets the Landing comment; one closed without a PR says what now works
+  in the close `comment` instead. Dropped: `reason: "not planned"`. A twin:
+  `reason: "duplicate"` with the original in `comment`. Neither ticks its
+  acceptance nor gets a Landing comment.
 - Sub-issues of a parent: `gh_issue_list { parent: "<n>", state: "all" }`.
   Open work on a milestone: `gh_issue_list { milestone: "<title>" }`.
 - Re-enter in a new session: `gh_issue_view` on the issue; its outline
