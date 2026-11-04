@@ -212,10 +212,15 @@ under its default message leaves one commit that names only the top layer.
    opens (`gh_issue_update`). After changing a lower layer: `git_stack
    rebase`, `git_publish_preview`, `git_publish push`. Once the completing
    layer is published, hand over the landing plan; land the stack only on an
-   explicit request, in one merge (`<Landing>`), which closes the unit.
+   explicit request, in one merge (`<Landing>`), which closes the unit. Once
+   it lands, tick or move its acceptance lines and post the Landing comment
+   (`gh-issues` `<Comments>`). Work the unit turns up goes under the parent,
+   never under the unit (`gh-issues` `<Recipes>`). In a run Hermes
+   commissions, its operating note decides which of these writes are yours.
 6. **Close the loop.** When every sub-issue lands, run the parent's
-   `## Acceptance`, close it (`gh_issue_update { state: "closed", reason:
-   "completed" }`), set Status Done, summarize. No orphan local files.
+   `## Acceptance`, ticking each line, close it (`gh_issue_update { state:
+   "closed", reason: "completed" }`), set Status Done, summarize. No orphan
+   local files.
 7. **Re-enter across sessions.** `gh_project_item_list { status:
    "-Done,-Cancelled" }` → `gh_issue_view` the unit: its header, outline checklist
    and closing PRs say where it stopped; `gh stack checkout <layer branch
