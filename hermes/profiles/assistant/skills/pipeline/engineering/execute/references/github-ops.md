@@ -125,6 +125,7 @@ approved and before the first unit's build:
 | Event | On GitHub |
 | --- | --- |
 | The roadmap changes (a unit split, merged, added or dropped) | after the user approves the new roadmap, "Replacing issues" in the tracking skill: successors first, then the replaced ones closed with their numbers |
+| A unit's work turns up more work (a bug, a follow-up) | the tracking skill's "Work found mid-job": a sibling under the parent, never under the unit, and the parent's Plan updated with it |
 | The job is dropped | each open issue closed `not planned` with one comment saying why, Status Cancelled, drafts archived, the mandate revoked |
 | The job pauses on someone outside | a dated note on the parent, Status Waiting; back to In Progress with a dated note when it resumes; revoke the mandate when the pause outlasts it |
 | A new session resumes the job | the parent issue from the decision log, read fresh with `github_issue` `view` before any report |
