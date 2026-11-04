@@ -87,9 +87,10 @@ the checks and the review beside its slice of the spec.
 
 <Titles>
 
-An action phrase stating the work (EN imperative, JA「〜する」), short, with
-the detail in the body. For a bug, name the fix. e.g. "Retry the upload once
-on a 5xx", 「ルートの README.md を整備する」. Not a noun, not a bare symptom.
+An action phrase stating the work (an imperative, or its equivalent in the
+repository's language), short, with the detail in the body. For a bug, name
+the fix. e.g. "Retry the upload once on a 5xx"; in a Japanese repository
+「ルートの README.md を整備する」. Not a noun, not a bare symptom.
 
 </Titles>
 
@@ -99,10 +100,18 @@ GitHub Markdown; only the sections that apply, never an empty placeholder.
 `##` for a kind's main sections, `###` to split one, `**Label**:` for a
 one-line field. References, code, logs and links take the forms in
 `<Notation>`; code changes are `diff` fences. `**Refs**:` holds related
-issues, PRs and docs. Write section names in the repository's language; the
-meaning stays 1:1 with the English below. Never write `Parent: #n` — the
-sub-issue panel is the one source of parentage. Reference siblings as `#n`
-and create issues in dependency order so the numbers exist.
+issues, PRs and docs. Never write `Parent: #n` — the sub-issue panel is the
+one source of parentage. Reference siblings as `#n` and create issues in
+dependency order so the numbers exist.
+
+Section names are fixed by meaning, not by wording. A repository with Issue
+Forms uses their headings. Otherwise read the repository's existing issues
+first and reuse the names they already give each meaning below (a section of
+theirs with no meaning here is not copied); only where none exists yet,
+translate the English name once into the repository's language, and every
+later body there keeps that word. Never add a section outside these lists: a
+decision folds into Requirements, a finding goes into Research or a comment,
+a dated note is a comment.
 
 Per kind:
 
@@ -203,8 +212,9 @@ shape says which stage it is in — no status line repeats it:
    implement. The checklist stays editable while the layers above are
    unwritten.
 
-An issue is Draft while it has an `## Open decisions` section or a prose
-outline; Fixed once it has neither and its outline is a checklist. Only an
+An issue is Draft while it has an open-decisions section (`## Open
+decisions`, or the repository's word for it) or a prose outline; Fixed once
+it has neither and its outline is a checklist. Only an
 issue derived from an already-confirmed spec starts Fixed. Never implement a
 Draft.
 
