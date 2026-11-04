@@ -58,7 +58,7 @@ A board shows and schedules; an issue is the record of one piece of work.
 | What must finish first | **blocked by** on the later issue |
 | What sort of work | the kind: an Issue Type in an organization that defines it, else a `type:<kind>` label |
 | Where it stands | the board's **Status** (Todo, In Progress, Done, Cancelled; `Waiting` where a board adds it) |
-| How settled its spec is | the body's shape: an `## Open decisions` section or a prose outline means Draft, a checklist outline and no open decisions means Fixed |
+| How settled its spec is | the body's shape: an open-decisions section (`## Open decisions`, or the repository's word for it) or a prose outline means Draft, a checklist outline and no open decisions means Fixed |
 
 Order, parentage, time and standing live in these relations and shapes,
 never in body text: a body never says `Parent: #n`, numbers waves, names a
@@ -84,7 +84,7 @@ Closing an issue never moves Status by itself.
 
 An execution unit's spec has two stages, told apart by the body's shape.
 **Draft** at planning: provisional requirements, a prose outline of the
-expected slices, an `## Open decisions` section. **Fixed** at kickoff: the
+expected slices, an open-decisions section. **Fixed** at kickoff: the
 code read, the open decisions settled with the user and folded into the
 requirements, the outline a checklist of layers, the open decisions gone.
 Slicing every unit up front causes rework:

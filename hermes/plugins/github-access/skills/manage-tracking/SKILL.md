@@ -110,11 +110,19 @@ GitHub renders some forms as links with their title or code; prefer them.
 ## Issue bodies
 
 The shapes of the read skill's "Parent and execution unit", in GitHub
-Markdown: `##` for the sections, `**Label**:` for a one-line field, only the
-sections that apply, never an empty placeholder. Section names go in the
-repository's language with the same meaning; a repository with Issue Forms
-uses their headings instead. Title: an action phrase (EN imperative,
-JA「〜する」), the detail in the body.
+Markdown: `##` for the sections, `###` to split a long one, `**Label**:` for
+a one-line field, only the sections that apply, never an empty placeholder.
+Title: an action phrase (an imperative, or its equivalent in the
+repository's language), the detail in the body.
+
+**Section names are fixed by meaning, not by wording.** A repository with
+Issue Forms uses their headings. Otherwise read the repository's existing
+issues first and reuse the names they already give each meaning below (a
+section of theirs with no meaning here is not copied); only where none
+exists yet, translate the English name once into the repository's language,
+and every later body there keeps that word. Never add a section outside
+these lists: a decision folds into the requirements, a finding goes into the
+research or a comment, a dated note is a comment.
 
 **Parent** (a goal with pieces):
 
