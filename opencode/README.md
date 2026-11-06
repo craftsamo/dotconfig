@@ -377,26 +377,32 @@ leaves no rows. Any newer reading of the login replaces it. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
-| Role                    | Steps, in order                                                              |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| explore-max             | gpt-6.1-sol xhigh → claude-opus-5-5 xhigh                                    |
-| explore-high            | flash high → gpt-6.1-sol high → claude-sonnet-5-5 high                       |
-| explore-medium          | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
-| reviewer                | gpt-6.1-sol medium → claude-sonnet-5-5 medium                                |
-| worker                  | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
-| refactorer              | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
-| worker-deep             | claude-sonnet-5-5 high → gpt-6.1-sol high → flash high                       |
-| explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                       |
-| explore-small           | flash low → gpt-6-luna low → claude-haiku-5-5 low                            |
-| verifier                | gpt-6-luna low → claude-haiku-5-5 low                                        |
-| debugger, reviewer-deep | gpt-6.1-sol high → claude-opus-5-5 high                                      |
-| searcher-deep           | grok-4.7 medium → gpt-6.1-sol medium → flash high → claude-sonnet-5-5 medium |
-| searcher                | flash low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low            |
+| Role                    | Steps, in order                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| explore-max             | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                        |
+| explore-high            | flash high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
+| explore-medium          | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| reviewer                | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                |
+| worker                  | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| refactorer              | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| worker-deep             | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → flash high                         |
+| explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
+| explore-small           | flash low → gpt-6-luna low → claude-haiku-5-5 low                                                |
+| verifier                | gpt-6-luna low → claude-haiku-5-5 low                                                            |
+| debugger, reviewer-deep | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                          |
+| searcher-deep           | grok-4.7 medium → gpt-6.1-sol medium → flash high → agy sonnet medium → claude-sonnet-5-5 medium |
+| searcher                | flash low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
 
 "flash" is Gemini 3.8 Flash on Antigravity, whose efforts are models of their
-own (`antigravity-gemini-3.8-flash-low`, `-medium`, `-high`). Claude closes
-every route: the Sub and Main logins first, then the paid lanes (Team, Main,
-Sub) as the very last stops; the searchers have no lane. Native model IDs are
+own (`antigravity-gemini-3.8-flash-low`, `-medium`, `-high`); "agy sonnet" and
+"agy opus" are Claude on Antigravity the same way
+(`antigravity-claude-sonnet-5-5-medium`, `antigravity-claude-opus-5-5-high`,
+…), drawing on the Antigravity Claude group that Sonnet and Opus share. It
+has no Haiku and no xhigh, so the Haiku routes go without it and explore-max
+takes Opus high there. Claude closes every route: Claude on Antigravity first,
+an included pool whose group resets every five hours, then the Sub
+and Main logins, then the paid lanes (Team, Main, Sub) as the very last
+stops; the searchers have no lane. Native model IDs are
 explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
 `claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini Flash leads
 the explore tiers below max, the worker, the refactorer and the searcher:
@@ -404,7 +410,10 @@ its Antigravity group resets daily and keeps the ChatGPT window and the
 Claude logins for the work behind it. worker-deep reverses that lead order:
 the hard implementation it gets is where Flash falls furthest behind the
 other two on agentic coding benchmarks, so its Sonnet logins come first, then
-Sol, then Flash, and the paid lanes still close it. explore-max stays on Sol
+Claude on Antigravity, then Sol, then Flash, and the paid lanes still close
+it. Claude on Antigravity follows the logins there rather than leading, so
+the first step (the model its agent file names) stays a Claude login's, and
+such a child still moves to the other login on a window limit. explore-max stays on Sol
 since its xhigh runs are long and rare. ChatGPT's fast mode (the `-fast` models, priority processing
 of the same model at 2.5x the included usage) is kept for explore-spark alone,
 a short lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
