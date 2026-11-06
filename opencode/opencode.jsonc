@@ -68,14 +68,17 @@
         //
         // Gemini Flash on Antigravity leads the explore tiers below max, the
         // worker, the refactorer and the searcher, and backs up the deep
-        // searcher; Claude closes every route: the saved logins first, then
-        // the paid credit lanes as the very last stops. worker-deep reverses
-        // the lead order: its hard implementation is where Flash falls
-        // furthest behind, so the Sonnet logins come first, then Sol, then
-        // Flash, then the lanes.
+        // searcher; Claude closes every route: Claude on Antigravity first
+        // (its own quota group, Sonnet or Opus; it has no Haiku and no xhigh),
+        // then the saved logins, then the paid credit lanes as the very last
+        // stops. worker-deep reverses the lead order: its hard implementation
+        // is where Flash falls furthest behind, so the Sonnet logins come
+        // first, then Claude on Antigravity, then Sol, then Flash, then the
+        // lanes.
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#xhigh",
             "anthropic/claude-opus-5-5-main#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
@@ -85,6 +88,7 @@
           "explore-high": [
             "google/antigravity-gemini-3.8-flash-high",
             "openai/gpt-6.1-sol#high",
+            "google/antigravity-claude-sonnet-5-5-high",
             "anthropic/claude-sonnet-5-5-sub#high",
             "anthropic/claude-sonnet-5-5-main#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
@@ -94,6 +98,7 @@
           "explore-medium": [
             "google/antigravity-gemini-3.8-flash-medium",
             "openai/gpt-6.1-sol#medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -102,6 +107,7 @@
           ],
           "reviewer": [
             "openai/gpt-6.1-sol#medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -111,6 +117,7 @@
           "worker": [
             "google/antigravity-gemini-3.8-flash-medium",
             "openai/gpt-6.1-sol#medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -120,6 +127,7 @@
           "refactorer": [
             "google/antigravity-gemini-3.8-flash-medium",
             "openai/gpt-6.1-sol#medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -129,6 +137,7 @@
           "worker-deep": [
             "anthropic/claude-sonnet-5-5-sub#high",
             "anthropic/claude-sonnet-5-5-main#high",
+            "google/antigravity-claude-sonnet-5-5-high",
             "openai/gpt-6.1-sol#high",
             "google/antigravity-gemini-3.8-flash-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
@@ -163,6 +172,7 @@
           ],
           "debugger": [
             "openai/gpt-6.1-sol#high",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#high",
             "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
@@ -171,6 +181,7 @@
           ],
           "reviewer-deep": [
             "openai/gpt-6.1-sol#high",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#high",
             "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
@@ -181,6 +192,7 @@
             "xai/grok-4.7#medium",
             "openai/gpt-6.1-sol#medium",
             "google/antigravity-gemini-3.8-flash-high",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium"
           ],
