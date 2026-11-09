@@ -286,7 +286,8 @@ the person's agent rules), anything naming `deploy`, `publish`, `secret`,
 `--remote` or `--prod` (a project's task runner can reach those past every other
 rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (force and protected-branch
 pushes, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
-aliases and extensions, edits under `.git/`), and last the person's own denies
+aliases and extensions, edits under `.git/`, the Signal tools `signal_*` with
+their reads), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or
 `secret get`. OpenCode checks each command as written, environment prefixes,
 wrappers (`env`, `sh -c`, `xargs`), options before git's subcommand, tabs and
@@ -298,6 +299,9 @@ though an identifier spelled like one (`gh_api`) does not. They guard a
 cooperative agent's spellings, not a sandbox: several spaces between gh's
 words are not covered, and the ruleset (a couple of thousand rules, re-sent
 every turn) is capped by a test.
+The Signal tools are denied whole, reads included, which also hides them from
+the run: the Assistant reaches the person's account through its own plugin and
+cards, and a run's ask would reach only the caller, who must never approve a send.
 The gated git writes, per-command configuration (`git -c`, `--config-env`)
 and branch moves ask in a write run and are denied in a read-only one, whose
 session rules hold denies only: a read-only agent may deny those itself, and

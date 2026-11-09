@@ -2449,6 +2449,8 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
             for tool in ("gh_issue_view", "gh_issue_list", "gh_project_resolve", "gh_project_item_list"):
                 assert policy.decide(rules, tool, "*") != "deny", (kind, tool)
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+            for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
+                assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
             # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
             # target, so even a bare `exit` allow would approve a file write unseen.
             project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
