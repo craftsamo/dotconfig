@@ -271,6 +271,15 @@ describe("agent rules over a project's catch-all", () => {
       expect([command, decide("build", "shell", command)]).toEqual([command, "ask"])
     expect(decide("plan", "shell", "nps lint")).toBe("ask")
   })
+
+  test("a Signal write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of ["signal_message_send", "signal_file_send", "signal_message_delete"]) {
+      expect([tool, decide("build", tool, "default/group:abc")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "default/group:abc")]).toEqual([tool, "deny"])
+    }
+    expect(decide("plan", "signal_chat_read", "*")).toBe("allow")
+    expect(decide("build", "skill", "signal-sends")).toBe("allow")
+  })
 })
 
 describe("subagents that reset shell to ask", () => {
