@@ -31,6 +31,13 @@
     // stale export (quota-refresh.ts). Bump deliberately and re-check both
     // and /quota_status.
     "@slkiser/opencode-quota@6.0.0",
+    // Signal through a linked device (craft-agent/signal-tools): reads and,
+    // after an approval that shows what the call carries, sends. The account,
+    // its sync service and mirror are shared with Hermes, so pin the same
+    // release Hermes runs. Default toolsets only (files and actions stay off);
+    // the permission rules below cover every tool, so turning one on later
+    // needs no new rule.
+    { "package": "@craftsamo/signal-tools@0.3.0", "options": { "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
@@ -350,6 +357,17 @@
           "resource": "*",
           "effect": "deny"
         },
+        // Signal: reads only.
+        {
+          "action": "signal_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "signal_*_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         {
           "action": "subagent",
           "resource": "*",
@@ -395,6 +413,7 @@
         { "action": "skill", "resource": "pullrequest", "effect": "allow" },
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
+        { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -421,6 +440,7 @@
         { "action": "skill", "resource": "pullrequest", "effect": "allow" },
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
+        { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -2316,6 +2336,13 @@
       "resource": "japanese-*",
       "effect": "allow"
     },
+    // signal-tools' skills (signal-chats, signal-sends, …): how to use its
+    // tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "signal-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2561,6 +2588,15 @@
       "action": "web_ui_check",
       "resource": "*",
       "effect": "allow"
+    },
+    // Signal tools (@craftsamo/signal-tools): reads never ask; every write
+    // asserts this action with the chat it goes to and a description of what
+    // it carries, so it asks here. Read-only agents deny the writes, and
+    // Hermes' run rulesets deny the whole action.
+    {
+      "action": "signal_*",
+      "resource": "*",
+      "effect": "ask"
     },
     // Google Search from opencode-antigravity-auth. Every session gets it,
     // whatever its model, and it spends the Antigravity login: Antigravity
