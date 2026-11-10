@@ -70,10 +70,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `references/whatsapp.md`.
 - **The user's Signal** (reading chats, saving a file someone sent, checking
   a number, sending a message or a workspace file) — only through the
-  `signal` tool, never the terminal or Signal Desktop; sends wait for
-  approval on their card (Note to Self can be approved for the session or
-  always). Any Signal work loads `skill_view(name="signal-access:account")`
-  first — `references/signal.md`.
+  `signal_*` tools, never the terminal or Signal Desktop; every send waits for
+  approval on its card. Any Signal work loads the matching
+  `signal-tools:<toolset>` skill first — `references/signal.md`.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
   mentions, friends, syncing a server, sending, reacting, pinning, editing or
   deleting their own message, managing a server's roles) — only through the
@@ -155,7 +154,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/lookups.md` | in-turn parallel lookups via `delegate_task` |
 | `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
 | `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:account` skill) |
-| `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-access:account` skill): replies, files to send, the inbox folder |
+| `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
 | `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-access:account` skill): what stays inline, the test server, files and reports |
 | `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-access:account` skill): what stays inline, choosing the chat, files and reports |
 | `references/x.md` | reading X as the sub-account, verifying posts, downloading a post's media, and when an X Article draft may be finished in the browser |
