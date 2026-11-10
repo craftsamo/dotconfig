@@ -11,13 +11,13 @@ docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                      | Home                                                                                               | Reader    |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------- |
-| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/messaging/whatsapp-access/wa.py`                                                          | all       |
-| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/messaging/whatsapp-access/__init__.py`                                                    | Assistant |
-| Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl`     | people    |
+| Piece                                                                                      | Home                                                                                             | Reader    |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | --------- |
+| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/messaging/whatsapp-access/wa.py`                                                        | all       |
+| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/messaging/whatsapp-access/__init__.py`                                                  | Assistant |
+| Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl`   | people    |
 | How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp-access:account` plugin skill (`plugins/messaging/whatsapp-access/skills/account/`) | Assistant |
-| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                               | Assistant |
+| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                             | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)
 (Homebrew `openclaw/tap/wacli`, built on whatsmeow), which joins each account
@@ -66,7 +66,7 @@ device: history before pairing is best-effort.
   download — a file sent unprompted with "open it on your computer" is the
   known malware pattern. A `.zip` or tar archive is downloaded and inspected,
   and kept only if it passes, and `unpack` unpacks it
-  ([Signal access](./signal-access.md), "Received archives" and "Unpacking").
+  ([chat files and archives](./access-common.md#chat-files-and-archives)).
   The downloaded file's content is sniffed, not only the name and the type
   WhatsApp gave it, so a ZIP called `photo.jpg` is deleted.
 - **`check`** asks WhatsApp whether numbers are registered and returns each JID;
@@ -134,10 +134,10 @@ is looked up so the quote resolves.
   card was made". The allowlist key is never what the write is checked
   against.
 - **Files** come only from `~/Workspaces`, judged by real path, so a link that
-  leads out counts as outside. The refusal list is signal-access's, and `.zip`
+  leads out counts as outside. The refusal list is the shared one, and `.zip`
   and tar archives are read entry by entry on the snapshot copy and sent only if
   every entry would pass those rules alone; the rules and the reasons are in
-  [Signal access](./signal-access.md). WhatsApp carries one file per message,
+  [chat files and archives](./access-common.md#chat-files-and-archives). WhatsApp carries one file per message,
   so each file is its own message, in order; the text becomes the first file's caption
   (a longer text than the caption limit is sent on its own first) and
   `reply_to` quotes from the first. WhatsApp drops the caption of an audio
