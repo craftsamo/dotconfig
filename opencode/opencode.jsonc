@@ -37,7 +37,7 @@
     // release Hermes runs. Default toolsets only (files and actions stay off);
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
-    { "package": "@craftsamo/signal-tools@0.3.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/signal-tools@0.3.1", "options": { "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
