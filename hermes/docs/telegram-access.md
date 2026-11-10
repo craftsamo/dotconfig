@@ -21,7 +21,7 @@ paced background reads, no read receipts, no status changes, and sends only
 after approval, unless a plain text send fits a send mandate.
 
 One choice goes against the terms' letter on purpose: disappearing messages
-are kept as signal-access keeps them (see "The mirror"), although §1.4 names
+are kept (see "The mirror"), although §1.4 names
 "preventing self-destructing content from disappearing" as forbidden. The user
 chose the same retention for every messenger and accepted that risk too; the
 mirror stays local, private and out of backups, and expired content is for the
@@ -79,7 +79,7 @@ basic groups and Saved Messages always; supergroups and channels only while
 they are on the sync list. A quieter private chat is followed from now on, its
 history fetched only by `backfill`.
 
-- **Disappearing messages are kept** (the signal-access rule). A message on a
+- **Disappearing messages are kept.** A message on a
   chat's auto-delete timer stays with its text after it; a read reports
   `disappears` or `expired`. A view-once photo or video is marked `view_once`
   and stays too. The agent keeps the file of every such message as it arrives,
@@ -127,10 +127,10 @@ message under `telegram_access.download_dir`, else
 `<HERMES_HOME>/telegram-downloads/`, and returns the path.
 
 - Programs are refused by name and declared type before the download and by
-  the bytes after it — the rules signal-access uses, plus animated `.tgs`
+  the bytes after it — the shared rules, plus animated `.tgs`
   stickers (gzip). A `.zip` or tar archive is downloaded and inspected before it
-  is saved ([Signal access](./signal-access.md), "Received archives"); `unpack`
-  unpacks it ("Unpacking").
+  is saved, and `unpack` unpacks it
+  ([chat files and archives](./access-common.md#chat-files-and-archives)).
 - A disappearing message's file is copied from the agent's kept copy, with the
   same checks and without asking Telegram, so it can be saved after the message
   expired; the result notes that the file is for the user only. A view-once file
@@ -165,8 +165,8 @@ the card.
   the chat with its stable identity, the reply target and every file with its
   SHA-256. Every file is always on the card: a send whose files do not fit is
   refused (send fewer at once); the text gets what is left.
-- **Files** come only from `~/Workspaces` under signal-access's rules (see
-  [Signal access](./signal-access.md)). Archives are read entry by entry and
+- **Files** come only from `~/Workspaces` under the shared rules (see
+  [chat files and archives](./access-common.md#chat-files-and-archives)). Archives are read entry by entry and
   sent only if every entry would pass those rules alone; other archive formats
   are refused.
 - **Approval covers Saved Messages per account, or the exact message.** A send to

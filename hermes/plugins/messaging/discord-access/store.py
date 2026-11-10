@@ -45,7 +45,7 @@ WHOLE_GUILD_CHANNELS = 10  # a whole server follows its most recently active tex
 # are only ever fetched from these, never from the original sites behind a link preview.
 MEDIA_HOST = re.compile(r"^(?:cdn\.discordapp\.com|media\.discordapp\.net|images-ext-\d+\.discordapp\.net)$")
 STICKER_FORMATS = {1: "png", 2: "png", 3: "json", 4: "gif"}   # PNG, APNG, Lottie, GIF
-# Archives and programs: never saved from a chat (the same rules as signal-access).
+# Archives and programs: never saved from a chat (docs/access-common.md "Chat files and archives").
 RISKY_MIME = re.compile(r"zip|rar|7z|tar|gzip|bzip|x-xz|compressed|archive|java-archive|android\.package"
                         r"|msdownload|msdos|x-executable|x-mach|x-sh\b|x-shellscript|javascript|vbscript"
                         r"|x-apple-diskimage|x-iso|x-elf|x-sharedlib|x-object|x-python|x-ruby|x-perl|x-php"
