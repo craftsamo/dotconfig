@@ -116,9 +116,9 @@ link-preview media and stickers — one folder per message under
   proxied copies, never from the site behind the link; stickers from Discord's
   CDN. Any other host is refused.
 - Programs are refused by name and declared type before the download, and by
-  the bytes after it, the same rules as signal-access. A `.zip` or tar archive
-  is downloaded and inspected before it is saved ([Signal access](./signal-access.md),
-  "Received archives"); `unpack` unpacks it ("Unpacking").
+  the bytes after it. A `.zip` or tar archive is downloaded and inspected
+  before it is saved, and `unpack` unpacks it
+  ([chat files and archives](./access-common.md#chat-files-and-archives)).
 - Writes go through the message folder's descriptor, opened without following
   links; a link or folder already at a name is left alone and the next free
   name used, so nothing is written through a link.
@@ -170,10 +170,10 @@ one the card notes that sending reopens it.
   the profile's `config.yaml`. Each file must resolve (symlinks followed) to a
   regular file inside a root and outside the state directory, be non-empty and
   within Discord's limit without Nitro. Credentials, keys and local databases
-  are refused whatever the root (the same refusal list as signal-access).
+  are refused whatever the root (the shared refusal list).
 - **Archives are opened first** on the snapshot copy
   (`plugins/messaging/_shared/archive_check.py`; rules in
-  [Signal access](./signal-access.md)); one bad entry refuses the whole archive
+  [chat files and archives](./access-common.md#chat-files-and-archives)); one bad entry refuses the whole archive
   and the error names it. Source scripts inside are allowed. A format that
   cannot be read, and a file that is an archive but not named like one, go as
   the files they are: the roots stay the boundary.

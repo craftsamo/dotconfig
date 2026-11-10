@@ -67,7 +67,6 @@ EXPECTED = {
         "manage-roles": {"assistant"},
     },
     "inspection/screen-listen": {"listen": {"assistant"}, "attend-discord": {"assistant"}},
-    "messaging/signal-access": {"account": {"assistant"}},
     "messaging/telegram-access": {"account": {"assistant"}},
     "messaging/whatsapp-access": {"account": {"assistant"}, "count-activity": {"assistant"}},
     "orchestration/opencode": {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}},

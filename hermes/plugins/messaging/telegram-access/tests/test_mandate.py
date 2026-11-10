@@ -504,9 +504,9 @@ def test_reads_are_unaffected_by_a_mandate(monkeypatch, isolated):
     assert uses(isolated) == 0
 
 
-def test_a_signal_mandate_covers_nothing_here(isolated, agent):
+def test_a_whatsapp_mandate_covers_nothing_here(isolated, agent):
     chats = [{"id": str(fakes.ALICE), "name": "Alice", "kind": "user", "identity": "+819011111111"}]
-    t = sm.terms("signal", ACCOUNT, chats, 5, 100, 7, "Reports")
+    t = sm.terms("whatsapp", ACCOUNT, chats, 5, 100, 7, "Reports")
     sm.create(isolated, t)
     assert hook("telegram_account", SEND)["action"] == "approve"
 

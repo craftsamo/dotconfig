@@ -115,7 +115,7 @@ DOWNLOAD_MAX_MB = (100, 500)
 KIND_LABEL = {"user": "person", "bot": "bot", "group": "group", "supergroup": "supergroup", "channel": "channel",
               "self": "saved messages"}
 
-# Files: only from the user's workspace, real paths, a few at a time (the rules signal-access uses).
+# Files: only from the user's workspace, real paths, a few at a time (docs/access-common.md "Chat files and archives").
 # SEND_ROOT pins the root (tests); unset, it is the workspace layout's root, read at each send.
 SEND_ROOT = None
 FILES_MAX = 10
