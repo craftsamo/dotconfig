@@ -92,6 +92,12 @@ skills.
   with `attach_to_session` and a never-coming schedule (`0 0 29 2 *`), not a
   paused one (an event cannot fire a paused job). See
   [docs/ops/webhook.md](docs/ops/webhook.md).
+- **A third-party plugin is installed at the commit `scripts/external-plugins.json`
+  pins, by `scripts/external-plugins.py`** — never linked from a checkout,
+  installed by hand at another commit, or edited in `~/.hermes/plugins`. Its
+  npm twin in `opencode/opencode.jsonc` stays on the same release (a test
+  holds them equal): both share one account state
+  ([docs/ops/plugins.md](docs/ops/plugins.md) "Third-party plugins").
 - **Managed skills never get `skip-worktree`**: their changes must stay visible
   in `git status`. Ownership by directory type and the `learned/` → `technic/`
   promotion step: [docs/ops/tracking.md "Tracked vs ignored"](docs/ops/tracking.md).
@@ -587,9 +593,13 @@ Commands: [README "Commands"](README.md#commands).
   directive needs one of these, and builds its card with
   `plugins/_shared/card.py`: a card of its own shape reads unlike every other
   one and is cut by the chat rather than fitted
-  ([card shape](docs/access-common.md#card-shape)). The one exception is a
+  ([card shape](docs/access-common.md#card-shape)). A third-party plugin
+  keeps its own card when that card shows what the call carries and pins it;
+  a dotconfig guard then refuses its writes where no person can answer
+  (`guards/signal-tools-guard`; [decision](docs/decisions/signal-tools-plugin.md)).
+  The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
-  orders, GitHub change lists, Telegram, Signal and WhatsApp text sends,
+  orders, GitHub change lists, Telegram and WhatsApp text sends,
   Cloudflare zone changes, gcloud commands): it
   runs with no card, so the mandate's own bounds, re-checked and counted at the write,
   are the control — never let anything but such a card widen them

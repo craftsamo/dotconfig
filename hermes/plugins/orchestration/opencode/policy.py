@@ -224,6 +224,11 @@ PROJECT_WRITES = (
     "gh_project_create", "gh_project_link", "gh_project_field_ensure", "gh_project_view_ensure",
     "gh_project_item_add", "gh_project_item_set", "gh_project_item_promote",
 )
+# The person's own messaging accounts, reads included: a run is commissioned by the
+# Assistant, whose access to them goes through its own plugin and cards, and a run's
+# asks reach only the caller, who could approve a send there with no card at all.
+# Denying the whole action also hides the tools from the run.
+MESSAGING_DENY_TOOLS = ("signal_*",)
 
 
 def rule(action, resource, effect):
@@ -374,7 +379,8 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
         out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
     opened = set(RUN_GH_WRITES) if policy == "write" and mandate else set()
-    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY if name not in opened]
+    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY + MESSAGING_DENY_TOOLS
+            if name not in opened]
     out += [rule(name, "*", "ask") for name in RUN_GH_WRITES if name in opened]
     # A person's own denies are re-stated last, so an agent's broad allow (build's
     # `shell: *`) never reopens `sudo` or `secret get`. Their `external_directory`

@@ -1,0 +1,8 @@
+name: signal-tools-guard
+version: 1.0.0
+description: >-
+  Guard for the third-party signal-tools plugin. Blocks its writes where no
+  person can answer an approval card and for inbound A2A requests, and blocks
+  the terminal and file tools from reaching the Signal account around its
+  tools (signal-cli, its CLI, state, logs and launch agents).
+kind: standalone

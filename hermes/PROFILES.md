@@ -45,7 +45,7 @@ Each doc then holds only its own deltas.
 
 [Google](./docs/google-access.md) · [GitHub](./docs/github-access.md) ·
 [WhatsApp](./docs/whatsapp-access.md) ·
-[Signal](./docs/signal-access.md) · [Discord](./docs/discord-access.md) ·
+[Signal](./docs/signal-tools.md) · [Discord](./docs/discord-access.md) ·
 [Telegram](./docs/telegram-access.md) · [X](./docs/x-access.md) ·
 [note](./docs/note-access.md) · [Substack](./docs/substack-access.md) ·
 [YouTube](./docs/youtube-access.md) · [Stripe](./docs/stripe-access.md) ·
