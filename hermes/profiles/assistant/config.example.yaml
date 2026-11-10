@@ -1089,8 +1089,6 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 google_access:
   download_dir: ~/Workspaces/.inbox/google
-signal_access:
-  download_dir: ~/Workspaces/.inbox/signal
 whatsapp_access:
   download_dir: ~/Workspaces/.inbox/whatsapp
 discord_access:

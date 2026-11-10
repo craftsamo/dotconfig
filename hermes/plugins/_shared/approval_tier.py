@@ -82,7 +82,6 @@ TIERS: dict[str, dict[str, Rule]] = {
         "watermark_remove": Rule(STANDING, "watermark-off", "channel"),
         "moderate": Rule(STANDING, "moderate-hold", "channel"),
     },
-    "signal-access": {"send": Rule(STANDING, "send-self", "account")},
     "telegram-access": {"send": Rule(STANDING, "send-self", "account")},
     "discord-access": {
         "unreact": Rule(STANDING, "unreact-in", "channel"),

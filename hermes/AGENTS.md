@@ -347,7 +347,7 @@ skills.
   the `.unpacked` folder name that `extract` gives an unpacked archive, and the
   skills the messaging plugins ship name it too: rename it everywhere or the
   guard stops matching without a failure. Keep each sender's own file rules
-  passed in rather than copied there ([docs/signal-access.md](docs/signal-access.md),
+  passed in rather than copied there ([docs/access-common.md](docs/access-common.md#chat-files-and-archives),
   [docs/web3.md](docs/web3.md)).
 - **A card's rule key comes from `plugins/_shared/approval_tier.py`.** An action
   not in its table gets the exact key. To let one answer cover later calls to a

@@ -109,12 +109,3 @@ npm version in `opencode.jsonc` together, run `install`, then
 3. `signal-tools-cli link --account default`, scan the code on the phone,
    then `signal-tools-cli service install --account default`.
 4. Restart the gateway.
-
-Moving from the old `signal-access` plugin keeps its device and history:
-stop its agent (`signal-access-launchctl.sh uninstall`), run
-`scripts/signal-history-import.py` from the live checkout (it copies
-signal-cli's data and the mirror into the `default` label; `--dry-run`
-first), then install the service as in step 3 without linking. The old state
-stays as it was, but it is a backup only until the new service receives or
-sends anything: after that, going back means linking the device again, never
-starting the old agent on its stale copy.

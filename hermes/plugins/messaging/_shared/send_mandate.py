@@ -1,4 +1,4 @@
-"""send_mandate: the service-independent half of a send mandate for Telegram, Signal and WhatsApp.
+"""send_mandate: the service-independent half of a send mandate for Telegram and WhatsApp.
 
 A send mandate is the user's standing approval for plain text sends to a few chats, made on a card of
 its own. It belongs to one service and one signed-in account and names: one to five chats (each by its
@@ -24,7 +24,7 @@ before it goes out, whatever becomes of it. Without a readable MAC key no mandat
 nothing is counted. The ledger fails closed: a mandate whose opening row is missing, and any ledger
 that is not a plain file of this user (opened without following links), count as used up.
 
-Shared by telegram-access, signal-access and whatsapp-access (each loads this file by path as
+Shared by telegram-access and whatsapp-access (each loads this file by path as
 ``hermes_send_mandate``; it is not a plugin and has no manifest). Contract: docs/decisions/send-mandates.md.
 """
 
@@ -65,9 +65,6 @@ SERVICES = {
     "telegram": {"label": "Telegram", "state": "telegram-access", "scope": "telegram-access",
                  "key_prefix": "TELEGRAM_MANDATE_KEY_", "kinds": ("self", "user", "group", "supergroup"),
                  "max_per_hour": MAX_PER_HOUR},
-    "signal": {"label": "Signal", "state": "signal-access", "scope": "signal-access",
-               "key_prefix": "SIGNAL_MANDATE_KEY_", "kinds": ("self", "user", "group"),
-               "max_per_hour": MAX_PER_HOUR},
     # An unofficial client: more automated sends raise the risk of the account being limited.
     "whatsapp": {"label": "WhatsApp", "state": "whatsapp-access", "scope": "whatsapp-access",
                  "key_prefix": "WHATSAPP_MANDATE_KEY_", "kinds": ("user", "group"), "max_per_hour": 5},

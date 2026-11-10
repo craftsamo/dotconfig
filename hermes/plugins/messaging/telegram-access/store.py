@@ -13,7 +13,7 @@ activity), and the messages of the chats it keeps current — private chats, bot
 always, supergroups and channels only while they are on the sync list. A chat that leaves the
 sync list loses its messages here.
 
-Retention, as the user chose it (the signal-access rules): a message that disappears on the
+Retention, as the user chose it: a message that disappears on the
 chat's auto-delete timer, and a self-destructing (view-once) photo or video, stays here with its
 text and the file the agent kept (``kept/``), marked expired when it is read back; a message
 deleted on Telegram is removed with its kept file. Contract: docs/telegram-access.md.
@@ -45,8 +45,8 @@ CHANNEL_BASE = 1_000_000_000_000      # Telethon's marked ids: channels are -(10
 SYNC_MAX = 30                         # chats on the sync list
 DELETE_GRACE = 5 * 60 * 1000          # a delete this close to a message's auto-delete time is the timer's
 
-# Archives and programs: never kept, saved or sent (the signal-access rules, plus animated .tgs
-# stickers, which are gzip).
+# Archives and programs: never kept, saved or sent (docs/access-common.md "Chat files and archives",
+# plus animated .tgs stickers, which are gzip).
 RISKY_MIME = re.compile(r"zip|rar|7z|tar|gzip|bzip|x-xz|compressed|archive|java-archive|android\.package"
                         r"|msdownload|msdos|x-executable|x-mach|x-sh\b|x-shellscript|javascript|vbscript"
                         r"|x-apple-diskimage|x-iso|x-elf|x-sharedlib|x-object|x-python|x-ruby|x-perl|x-php"

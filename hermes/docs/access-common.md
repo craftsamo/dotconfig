@@ -167,6 +167,75 @@ wallet transfer on EVM or Solana, built and signed in the web3 engine
 ([web3.md](web3.md)), and a Sheets edit, cell by cell
 ([google-access.md](google-access.md)).
 
+## Chat files and archives
+
+Telegram, WhatsApp and Discord take files someone sent and send the user's
+files under the same rules. Each plugin's module holds its own lists and
+passes them to the shared code (`plugins/messaging/_shared/archive_check.py`,
+which is not a plugin and has no manifest); each doc records only its
+differences. The Signal package keeps rules of its own
+([signal-tools.md](signal-tools.md)); its guard runs the same unpacked guard.
+
+- **Received files.** Programs are refused by name, declared type and sniffed
+  content, and so are archive formats that cannot be inspected. Every saved
+  file carries the macOS quarantine flag, so macOS asks before it opens an
+  application or script from it.
+- **Received archives.** A `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2` or
+  `.tar.xz` is saved only after the shared inspection (`vet_received`) passes
+  on the downloaded copy: no program, installer, other archive, link,
+  encrypted entry or escaping path, within the entry and size caps. Unlike a
+  send, key and secret names and private key blocks are not refused (nothing
+  here can leak), and source scripts are allowed: they do nothing until
+  someone runs them. The listed file names are the sender's words, so they are
+  cleaned of control, bidi and invisible characters and the result's note says
+  they are data. A name that says zip or tar over other content, `.rar`, `.7z`
+  and the like are refused, and the file is deleted.
+- **Unpacking** (`unpack`, and `entries` for only some of the names or
+  folders). The plugin unpacks the archive itself (`extract`), never a system
+  tool, into `<name>.unpacked/` next to it. The saved archive is copied to a
+  private folder and inspected again there, and the entries are written from
+  that same copy, so nothing can change between the check and the unpacking.
+  Each file is created below the new folder through descriptors that follow no
+  link and overwrite nothing, with mode 0644 (the sender's execute bit is
+  dropped) and the quarantine flag. Any failure removes everything written and
+  leaves the archive saved. The unpacked files are for reading as data and for
+  analysis with the Assistant's own scripts, kept outside the folder.
+- **Never run what was received.** Each plugin's hook blocks a terminal call
+  that would run a file inside a `*.unpacked` folder (an interpreter or a path
+  as the command, `source`, `open`, `chmod`, `xattr` changing the quarantine
+  flag, build and package tools, `find -exec` and `xargs`). Reading (`cat`,
+  `head`, `grep`, `jq`, `file`, `ls`, `cp` out) and `python analyze.py
+<folder>/data.csv` are not blocked: the script that runs is the
+  Assistant's, and the data is only read. It is a pattern match on the call's
+  text, not a sandbox; a file copied out of the folder, a script that loads a
+  file inside it (`pickle`, an unsafe `yaml` load, a notebook, a macro) or a
+  changed working directory kept from an earlier call are not seen. The
+  execute bit, the quarantine flag and the Assistant's own rules are the other
+  layers.
+- **Files sent** come only from `~/Workspaces`, judged by real path, so a link
+  that leads out counts as outside. Refused always: paths through key or
+  settings folders, key- and secret-like names, installers and programs (by
+  name and by sniffed type), archives other than the ones below, anything
+  containing a private key block anywhere in the file, empty files. **Source
+  scripts** are sent like any other file if the sniffed type says script or
+  plain text too: a `run.sh` that is really a binary is refused. A bundle or
+  shortcut (`.app`, `.command`, `.lnk`) is not a script.
+- **Archives sent** (`.zip`, `.tar` and its compressed forms) are read, never
+  unpacked to disk. The first bytes must match the extension, so a ZIP named
+  `photo.jpg` stays refused as an archive by content. Every entry is held to
+  the sender's rules for a single file, plus a plain relative name (no `..`,
+  absolute or backslash path), a regular file or folder (no links, devices or
+  pipes), not another archive, not encrypted. Source scripts are allowed
+  inside an archive as they are alone: each sender passes `allow_scripts`, and
+  `SCRIPT_FILES` / `SCRIPT_MIME` in the module say what counts as a script, so
+  the plugins agree. Entry count and unpacked size are capped, counted from the
+  bytes actually read rather than the sizes the archive claims. One bad entry
+  refuses the whole archive and the message names it. Formats the standard
+  library cannot read (`.rar`, `.7z`, a bare `.gz`) and ZIP-based programs
+  (`.jar`, `.apk`, `.ipa`) stay refused; Office files are not archives here.
+  A file that changes while the send is prepared, the inspection included, is
+  refused.
+
 ## Bypass guard (Ways around the tool)
 
 A `pre_tool_call` hook blocks terminal calls and file-tool calls whose text
