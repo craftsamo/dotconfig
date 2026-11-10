@@ -44,6 +44,14 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   is used only where a config or a session selects its provider. `google-access` and `hermes-achievements` (upstream writes
   its data to a fixed path; per-machine, ignored) stay at the top level. A
   directory with no `plugin.yaml` (`_shared/`) is code, not a plugin.
+- **Third-party plugins.** A plugin maintained elsewhere is not linked: the
+  runtime installs it at a pinned commit as a real directory beside the links
+  (`~/.hermes/plugins/<name>`, keyed by its bare name in `plugins.enabled` and
+  `plugins.entries`). `scripts/external-plugins.json` holds each pin and
+  `scripts/external-plugins.py` installs (`install`, live checkout only) and
+  compares (`status`) it; `install.sh` leaves the directory alone. Never
+  `hermes plugins install` one by hand at another commit. Current:
+  `signal-tools` ([signal-tools.md](../signal-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
   first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,
   `code` or `goal` in the chat's progress line (a message body or a local path
