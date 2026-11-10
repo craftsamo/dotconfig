@@ -17,6 +17,7 @@ pipeline/technic topology, plugin enablement, and Git ownership boundaries.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -557,6 +558,12 @@ def plugin_skill_files(errors: list[str] | None = None) -> dict[str, dict[str, P
     return found
 
 
+def external_plugins() -> dict[str, dict[str, Any]]:
+    """The third-party plugins ``scripts/external-plugins.json`` pins, by name; none without it."""
+    pins = HERMES_ROOT / "scripts" / "external-plugins.json"
+    return json.loads(pins.read_text(encoding="utf-8")) if pins.is_file() else {}
+
+
 def validate_plugin_skills(errors: list[str]) -> int:
     """Skills a plugin ships must be registered by it, and every qualified
     ``skill_view`` call in a profile must name one that exists."""
@@ -597,6 +604,9 @@ def validate_plugin_skills(errors: list[str]) -> int:
                     errors.append(f"plugin skill must not contain symlinks: {entry}")
         for name in sorted(registered - skills.keys()):
             errors.append(f"SKILLS names {name} but {plugin_dir}/skills/{name}/SKILL.md is missing")
+    # A third-party plugin's skills ship in its own release; its pin lists their names.
+    existing |= {f"{plugin}:{name}" for plugin, entry in external_plugins().items()
+                 for name in entry.get("skills", ())}
     for path in sorted((HERMES_ROOT / "profiles").rglob("*.md")):
         rel = path.relative_to(HERMES_ROOT / "profiles").parts
         if len(rel) < 3 or rel[1] != "skills" or rel[2] == "learned" or ".archive" in rel:
@@ -627,6 +637,12 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
         errors.append(
             f"skills.create_dir must be {LEARNED_CREATE_DIR!r}, got {create_dir!r}: {config}"
         )
+    # A third-party plugin whose writes only a dotconfig guard holds is enabled with that guard.
+    if isinstance(enabled, list):
+        for plugin, entry in external_plugins().items():
+            for needed in entry.get("requires", ()):
+                if plugin in enabled and needed not in enabled:
+                    errors.append(f"{plugin} is enabled without {needed}: {config}")
 
 
 def validate_profile_configs(profile: str, profile_root: Path, errors: list[str]) -> None:

@@ -1,0 +1,10 @@
+{
+  "signal-tools": {
+    "repo": "craft-agent/signal-tools",
+    "version": "0.3.1",
+    "commit": "41ea6727b3e840fe80642c9cc8d182b651aac20b",
+    "npm": "@craftsamo/signal-tools",
+    "skills": ["account", "chats", "contacts", "sends", "files", "actions"],
+    "requires": ["signal-tools-guard"]
+  }
+}
