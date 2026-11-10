@@ -1,5 +1,11 @@
 # Signal access
 
+> [!NOTE]
+> The former Signal plugin. The Assistant now reaches Signal through the
+> third-party package ([signal-tools.md](signal-tools.md)); this plugin stays
+> in the repository, disabled, until it is removed, and the shared archive
+> inspection described below is still in use by the other chat plugins.
+
 The Assistant's access to the user's own Signal account: reading chats and
 messages, and sending text and workspace files that the user approves first
 (a plain text send to a chat named by a [send mandate](#send-mandates) skips

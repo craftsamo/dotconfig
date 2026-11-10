@@ -1,13 +1,13 @@
-# Telegram, Signal and WhatsApp sends without a card only inside a send mandate
+# Telegram and WhatsApp sends without a card only inside a send mandate
 
 Status: in force
-Owner doc: docs/telegram-access.md, docs/signal-access.md and docs/whatsapp-access.md "Send mandates"
+Owner doc: docs/telegram-access.md and docs/whatsapp-access.md "Send mandates"
 
 ## Decision
 
 A text send runs without its approval card only when it fits one send mandate
 the user approved on a card of its own. A mandate belongs to one service
-(Telegram, Signal or WhatsApp) and one signed-in account, and names:
+(Telegram or WhatsApp) and one signed-in account, and names:
 
 - the chats it covers, one to five, each by its id with the name, kind and
   identity the card showed (a group or a person; never a broadcast channel); the
@@ -85,6 +85,6 @@ and its sends do not read the Keychain.
 - Keep the MAC key anywhere a profile receives, or open the state directory to
   file or terminal calls.
 - Remove the 30-day ceiling: a forgotten mandate should lapse on its own.
-- Lift WhatsApp's hourly ceiling to the 30 of Telegram and Signal, count it per
+- Lift WhatsApp's hourly ceiling to the 30 of Telegram, count it per
   mandate instead of per account, or add a hidden-number contact, a channel or a
   broadcast list to a WhatsApp mandate.
