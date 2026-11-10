@@ -109,8 +109,8 @@ account also refuse a task worktree; each launcher says which).
   [docs/discord-access.md](../discord-access.md).
 - `launchd/telegram-access-launchctl.sh {setup,login,logout,install,uninstall,restart,status}`
   — [docs/telegram-access.md](../telegram-access.md).
-- `launchd/signal-access-launchctl.sh {link,setup,install,uninstall,restart,status}`
-  — [docs/signal-access.md](../signal-access.md).
+- Signal's sync service belongs to the third-party package and is managed by
+  its own `service` commands — [docs/signal-tools.md](../signal-tools.md).
 - `launchd/whatsapp-access-launchctl.sh {pair,install,uninstall,restart,status}`
   — one agent per named account; [docs/whatsapp-access.md](../whatsapp-access.md).
 
