@@ -195,7 +195,7 @@ what is never allowed: [decision](decisions/send-mandates.md). A mandate names:
   cannot read the account's own JID, so a mandate may name the account's own
   chat; wacli refuses a text to the linked account itself, so such a send is
   counted and not sent;
-- **how many sends an hour** (1 to **5**, lower than Telegram's and Signal's 30:
+- **how many sends an hour** (1 to **5**, lower than Telegram's 30:
   more automated sends from an unofficial client raise the risk of the account
   being limited) and **the longest text** (at most 1000 characters). The 5 is
   the **account's total across its mandates in force**, not each mandate's: a
