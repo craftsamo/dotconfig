@@ -152,7 +152,7 @@ def test_a_mandate_is_made_on_its_own_card(isolated):
     assert body["chats"] == [{"id": ALICE, "name": "Alice", "kind": "user", "identity": "+819011111111"}]
     assert body["expires"] > time.time() + 6 * 86400
     assert (isolated / "whatsapp-access" / "head.json").is_file()
-    assert not (isolated / "telegram-access").exists() and not (isolated / "signal-access").exists()
+    assert not (isolated / "telegram-access").exists()
 
 
 def test_every_mandate_card_has_a_fresh_key_and_asks_even_with_a_mandate_in_force():
@@ -594,10 +594,9 @@ def test_reads_are_unaffected_by_a_mandate(monkeypatch, isolated):
     assert uses(isolated) == 0
 
 
-def test_a_telegram_or_signal_mandate_covers_nothing_here(isolated):
+def test_a_telegram_mandate_covers_nothing_here(isolated):
     chats = [{"id": ALICE, "name": "Alice", "kind": "user", "identity": "+819011111111"}]
-    for service in ("telegram", "signal"):
-        sm.create(isolated, sm.terms(service, "work", chats, 5, 100, 7, "Reports"))
+    sm.create(isolated, sm.terms("telegram", "work", chats, 5, 100, 7, "Reports"))
     assert hook("whatsapp", SEND)["action"] == "approve"
 
 
