@@ -7,9 +7,9 @@ access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Five kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
 ([hyperliquid.md](hyperliquid.md)), a GitHub change list
-([github-access.md](github-access.md)), a text send on Telegram, Signal or
+([github-access.md](github-access.md)), a text send on Telegram or
 WhatsApp ([telegram-access.md](telegram-access.md),
-[signal-access.md](signal-access.md), [whatsapp-access.md](whatsapp-access.md)),
+[whatsapp-access.md](whatsapp-access.md)),
 a Cloudflare zone change ([cloudflare-access.md](cloudflare-access.md)) and a
 gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
@@ -82,12 +82,13 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. Discord, Telegram, WhatsApp, Signal, Google, note, Stripe and
+  exists. Discord, Telegram, WhatsApp, Google, note, Stripe and
   Cloudflare use the shared check `plugins/_shared/human_gate.py`
   (`no_human`), which fails closed when
-  Hermes' approval context cannot be read; Substack and YouTube refuse through
+  Hermes' approval context cannot be read, and so does the guard of the
+  third-party Signal package ([signal-tools.md](signal-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, GitHub, a Telegram, Signal or WhatsApp text
+  inside a mandate (Hyperliquid, GitHub, a Telegram or WhatsApp text
   send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
@@ -95,6 +96,9 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
+  Signal is the exception: the package's handler is not ours, so only the
+  guard's hook refuses, and the profile validator refuses a config that
+  enables the package without the guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
   600 s so a card stays answerable on Telegram.
 - **Every card has one shape** ([below](#card-shape)), so the user reads

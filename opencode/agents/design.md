@@ -36,6 +36,8 @@ permissions:
   - { action: gh_project_item_add, resource: "*", effect: deny }
   - { action: gh_project_item_set, resource: "*", effect: deny }
   - { action: gh_project_item_promote, resource: "*", effect: deny }
+  - { action: "signal_*", resource: "*", effect: deny }
+  - { action: "signal_*_read", resource: "*", effect: allow }
   # The repository is read-only; the mocks go to a job's drafts directory
   # (under Hermes, the session ruleset opens exactly the run's output directory).
   - { action: edit, resource: "*", effect: deny }

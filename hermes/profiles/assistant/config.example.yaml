@@ -1131,6 +1131,18 @@ plugins:
   entries:
     guards/cron-manifests:
       allow_tool_override: true
+    signal-tools:
+      settings:
+        toolsets:
+          - account
+          - chats
+          - contacts
+          - sends
+          - files
+        download_dir: ~/Workspaces/.inbox/signal
+        send_dirs:
+          - ~/Workspaces
+        language: ja
     web/cascade:
       settings:
         search:
