@@ -124,7 +124,7 @@ whose trunk is always the default branch.
 - **One unit = one stack; one layer = one PR**: `main ← l1 ← l2 ← …`, every
   layer branch named after the unit (`<number>-<slug>/l1`, `/l2`, …).
 - **A multi-layer unit takes NO linked development branch.**
-  `gh_issue_develop` registers the branch among the issue's closing
+  `github_issue_develop` registers the branch among the issue's closing
   references without a keyword, so the first layer to merge closes the unit
   while the layers above are open. Use plain branches (`git_worktree`).
 - **Grow the stack, do not pre-build it.** Add a layer only when about to
@@ -137,7 +137,7 @@ whose trunk is always the default branch.
   layer carries `Closes #<unit>` instead (normally the top; move it when
   another layer is appended). Fill the unit's `## Evidence` before the
   stack lands.
-- **Degenerate case**: a one-PR unit needs no stack, and `gh_issue_develop`
+- **Degenerate case**: a one-PR unit needs no stack, and `github_issue_develop`
   is right there — closing on that merge is wanted.
 
 </BranchTopology>
@@ -186,30 +186,30 @@ under its default message leaves one commit that names only the top layer.
 <Steps>
 
 1. **Capture.** A new requirement or idea → a draft on the board
-   (`gh_project_item_add`) or, with a repository known, an issue
-   (`gh_issue_create { kind, milestone }`). Safe before committing to it.
+   (`github_project_item_create`) or, with a repository known, an issue
+   (`github_issue_create { kind, milestone }`). Safe before committing to it.
 2. **Decompose (when aligning on the plan).** Split along the codebase's
    seams into unit-sized sub-goals (`<Hierarchy>`). Record domain research
    as parent comments; write the parent body (`## Details`, `## Plan`,
    `## Acceptance`) and each sub-issue's Draft body per `gh-issues`.
 3. **Gate — file + wire.** When decided: promote the draft
-   (`gh_project_item_promote`) or create the parent; create the sub-issues
-   in dependency order with `gh_issue_create { parent, blockedBy, milestone,
-   kind }` so `#n` references are real; put the parent on the board
-   (`addToProject: true`), sub-issues too when their dates matter. No
+   (`github_project_item_convert`) or create the parent; create the
+   sub-issues in dependency order with `github_issue_create { parent,
+   blocked_by, milestone, kind }` so `#n` references are real; put the parent
+   on the board (`project`), sub-issues too when their dates matter. No
    branches yet.
 4. **Kickoff a unit (repeat).** Pick the next unblocked sub-issue: run its
    system research → settle `## Open decisions` with the user →
-   `gh_issue_update` the body to Fixed (the outline a layer checklist,
+   `github_issue_edit` the body to Fixed (the outline a layer checklist,
    `## Open decisions` gone); Status → In Progress on the board. Then a task
    branch `<number>-<slug>/l1` off the
    default branch (`git_worktree { action: "create" }`); after its first
    commit, `git_stack split` with no cuts makes it the stack's bottom. A
-   one-PR unit takes `gh_issue_develop` instead.
+   one-PR unit takes `github_issue_develop` instead.
 5. **Execute layer by layer.** Implement the current layer, PR it via
    `git-pullrequest` (`Refs #<unit>`; `Closes` on the completing layer),
    then `git_stack add` for the next. Tick the outline as each layer's PR
-   opens (`gh_issue_update`). After changing a lower layer: `git_stack
+   opens (`github_issue_edit`). After changing a lower layer: `git_stack
    rebase`, `git_publish_preview`, `git_publish push`. Once the completing
    layer is published, hand over the landing plan; land the stack only on an
    explicit request, in one merge (`<Landing>`), which closes the unit. Once
@@ -218,11 +218,11 @@ under its default message leaves one commit that names only the top layer.
    never under the unit (`gh-issues` `<Recipes>`). In a run Hermes
    commissions, its operating note decides which of these writes are yours.
 6. **Close the loop.** When every sub-issue lands, run the parent's
-   `## Acceptance`, ticking each line, close it (`gh_issue_update { state:
-   "closed", reason: "completed" }`), set Status Done, summarize. No orphan
+   `## Acceptance`, ticking each line, close it (`github_issue_close { reason:
+   "completed" }`), set Status Done, summarize. No orphan
    local files.
-7. **Re-enter across sessions.** `gh_project_item_list { status:
-   "-Done,-Cancelled" }` → `gh_issue_view` the unit: its header, outline checklist
+7. **Re-enter across sessions.** `github_project_read { method:
+   "item_list", status: "-Done,-Cancelled" }` → `github_issue_read` `view` the unit: its header, outline checklist
    and closing PRs say where it stopped; `gh stack checkout <layer branch
    or PR>` restores the stack and `gh stack view` shows what landed.
 
@@ -278,6 +278,6 @@ is deleted; no parent dangles.
 - [ ] The unit's stack lands once, when done, as one merge commit whose
   message names the goal and lists every layer.
 - [ ] Superseded issues closed with successor links, never deleted.
-- [ ] Re-enterable from the board and `gh_issue_view` alone.
+- [ ] Re-enterable from the board and `github_issue_read` alone.
 
 </Gates>

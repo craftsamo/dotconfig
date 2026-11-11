@@ -280,6 +280,16 @@ describe("agent rules over a project's catch-all", () => {
     expect(decide("plan", "signal_chat_read", "*")).toBe("allow")
     expect(decide("build", "skill", "signal-sends")).toBe("allow")
   })
+
+  test("a GitHub write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of ["github_issue_create", "github_issue_edit", "github_pr_create", "github_pr_merge", "github_project_item_edit"]) {
+      expect([tool, decide("build", tool, "owner/repo")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "owner/repo")]).toEqual([tool, "deny"])
+    }
+    expect(decide("plan", "github_issue_read", "*")).toBe("allow")
+    expect(decide("plan", "github_pr_read", "*")).toBe("allow")
+    expect(decide("build", "skill", "github-issues")).toBe("allow")
+  })
 })
 
 describe("subagents that reset shell to ask", () => {
@@ -302,6 +312,19 @@ describe("subagents that reset shell to ask", () => {
         expect([command, decide(command)]).toEqual([command, "allow"])
       for (const command of ["node -e 'x'", "kill -TERM 1", "awk '{print}' a"]) expect([command, decide(command)]).toEqual([command, "ask"])
       if (name === "debugger") expect(decide("cat a > b")).toBe("ask")
+    })
+  }
+
+  for (const name of ["review", "reviewer", "debugger"]) {
+    test(`${name} reads GitHub through github-tools but cannot write`, async () => {
+      const own = (await front(name)).permissions
+      const decide = (action: string) => {
+        let effect = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, action, false) && matches(r.resource, "*", false)) effect = r.effect
+        return effect
+      }
+      expect(decide("github_issue_edit")).toBe("deny")
+      expect(decide("github_pr_read")).toBe("allow")
     })
   }
 

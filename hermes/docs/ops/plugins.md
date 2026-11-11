@@ -51,6 +51,7 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `scripts/external-plugins.py` installs (`install`, live checkout only) and
   compares (`status`) it; `install.sh` leaves the directory alone. Never
   `hermes plugins install` one by hand at another commit. Current:
+  `github-tools` ([github-tools.md](../github-tools.md)) and
   `signal-tools` ([signal-tools.md](../signal-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
   first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,

@@ -29,14 +29,13 @@ body and never an issue of its own.
 Every issue body passes through one Writer round before the user or GitHub
 sees it: proofreading, and the gaps a reader would find in it as a spec.
 
-Issues and boards are written by the Assistant through `github_change`; an
+Issues and boards are written by the Assistant through its `github_*` tools
+([github-tools.md](../github-tools.md)); an
 OpenCode run reads the issue bound to its session (the `issue` argument of
 `opencode_run_*`), and a build is refused until the session has one or the
-caller passes the user's words excluding the job. The one thing a build
-writes itself is its own issue's execution state (a ticked layer, its board
-Status to In Progress), inside the job's mandate and checked against it at
-the write ([mandates](./github-mandates.md)); the plan, the other issues,
-Done, closing and comments stay the Assistant's.
+caller passes the user's words excluding the job. A build writes no Issue or
+board state; the Assistant ticks the layers, moves the Status, and keeps the
+plan, the other issues, Done, closing and comments.
 
 ## Why
 

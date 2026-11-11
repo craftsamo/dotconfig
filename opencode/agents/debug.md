@@ -40,6 +40,8 @@ permissions:
   - { action: gh_project_item_promote, resource: "*", effect: deny }
   - { action: "signal_*", resource: "*", effect: deny }
   - { action: "signal_*_read", resource: "*", effect: allow }
+  - { action: "github_*", resource: "*", effect: deny }
+  - { action: "github_*_read", resource: "*", effect: allow }
   - { action: git_publish_preview, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
