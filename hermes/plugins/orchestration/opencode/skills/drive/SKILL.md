@@ -31,7 +31,7 @@ One tool per role: `opencode_run_plan`, `opencode_run_review`,
 `output_dir` only, for the person to open) and `opencode_run_build` (write).
 Each takes `(directory?, session_id?, message, model?, variant?, fork?,
 timeout?, output_dir?, issue?)`; build also takes `approval`,
-`untracked_reason`, `mandate` and `issue_approval`. Which roles exist is
+`untracked_reason` and `issue_approval`. Which roles exist is
 configuration: a role missing from your tools is not configured.
 
 - **New session:** `directory` is an absolute Git worktree root (not a
@@ -97,22 +97,15 @@ configuration: a role missing from your tools is not configured.
   never opens by reporting the approval. The Assistant's engineering pipeline
   never passes `issue_approval`: it changes Issues, boards, pull requests and
   merges itself through its GitHub tools.
-- **`mandate`** (the id of a GitHub mandate in force, `github_mandate list`;
-  bound to the session with its `issue`, inherited by a fork) lets the build
-  write its own issue's execution state itself: tick the issue's body (a
-  layer's line with its PR number, an appended step) and set the issue's
-  board Status to In Progress. Each such write is a permission request the
-  plugin answers while you wait, read status or the notifier watches, after
-  turning it into the `github_change` it amounts to and checking it against
-  the mandate at the write; one the mandate does not cover is rejected with
-  the reason, and the run reports it. Everything else on GitHub (another
-  issue, a close, a comment, a label, a title, Done, a draft, a linked
-  branch, a board the mandate does not name) stays yours, through
-  `github_change`. Without a mandate the run's GitHub writes are denied by
-  the ruleset and you mirror its progress yourself. A stored mandate that
-  lapsed is dropped at the next build (`mandate_dropped` in the result).
-  The task branch reaches the issue's Development panel through the PR's
-  own `Closes`/`Refs #N`; a linked branch (`gh_issue_develop`) is never
+- **GitHub writes are yours, not the run's.** The ruleset denies every GitHub
+  write of a run (Issues, the board, comments, labels, a linked branch); only
+  a build's `github_pr_edit` (a PR's labels, assignees, reviewers and
+  milestone only) reaches you as a request, which you may approve `once`;
+  anything else on the PR is yours. You mirror the run's
+  progress to GitHub yourself, with your GitHub tools: read `progress.md` in
+  the output directory and the run's report, then tick the issue's body and
+  move its board Status. The task branch reaches the issue's Development
+  panel through the PR's own `Closes`/`Refs #N`; a linked branch is never
   made, since a PR from one closes the issue on its first merge.
 - **What a build may do:** edit files in its worktree and run routine commands.
   It rebases its task branch onto the latest base before each push and may

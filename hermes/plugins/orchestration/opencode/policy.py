@@ -210,13 +210,8 @@ def protected_pushes(name):
 TOOL_DENY = ("git_worktree",)
 READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
                         "git_publish", "gh_pr_meta", "gh_pr_meta_apply")
-# The run's own execution state on GitHub: its issue's body and its board Status. Each
-# tool asserts a permission with what it will change before it writes; with a mandate
-# bound to the session these ask (ghwrite answers them inside the mandate), every other
-# GitHub write stays denied. A linked branch (gh_issue_develop) is not among them: a PR
-# from one closes the issue on its first merge, past the Refs/Closes scheme, and the
-# PR's own closing reference already links the branch to the issue.
-RUN_GH_WRITES = ("gh_issue_update", "gh_project_item_set")
+# The old OpenCode GitHub write tools: every one is denied by name in every run (the Assistant
+# writes issues and the board itself, from the run's progress file).
 PROJECT_WRITES = (
     # The gh_issue_* tools write issues past the shell rules above (ISSUE_WRITES
     # asks, `gh issue close` is denied); a run reads with gh_issue_view / list.
@@ -231,8 +226,9 @@ PROJECT_WRITES = (
 MESSAGING_DENY_TOOLS = ("signal_*",)
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
-# write run keeps one: a PR's labels, assignees, reviewers and milestone (github_pr_edit), which
-# gh_pr_meta_apply covered before, asking the caller as it did. The reads' allows are the ruleset's
+# write run keeps one: a PR's labels, assignees, reviewers and milestone only (github_pr_edit,
+# which gh_pr_meta_apply covered before), asking the caller as it did; the caller approves it
+# only while the call carries nothing but those (pr_edit_beyond_metadata). The reads' allows are the ruleset's
 # only allows beyond paths: they follow the deny of the whole action and name each read, so they
 # reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
 # Being session rules, which come after an agent's own, they also reopen these reads for a subagent
@@ -244,6 +240,31 @@ GITHUB_TOOLS_READS = (
     "github_workflow_read", "github_run_read",
 )
 RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit",)
+PR_METADATA_ARGS = frozenset({
+    "pr", "repo", "add_labels", "remove_labels", "add_assignees", "remove_assignees",
+    "add_reviewers", "remove_reviewers", "milestone", "remove_milestone",
+})
+
+
+def github_write(action):
+    """Whether a permission action writes GitHub Issues, the board or anything else past
+    a PR's metadata: an old `gh_*` write tool, or a `github_*` tool that is neither a read
+    nor one of the asks a write run keeps. The caller may reject one, never approve it."""
+    return isinstance(action, str) and (action in PROJECT_WRITES or (
+        matches(GITHUB_TOOLS_DENY, action) and action not in GITHUB_TOOLS_READS
+        and action not in RUN_GITHUB_TOOLS_ASKS))
+
+
+def pr_edit_beyond_metadata(item):
+    """Whether a pending permission request is a `github_pr_edit` that carries more than a
+    PR's labels, assignees, reviewers and milestone (a title, body, base, closing issues or
+    attachments), or whose arguments cannot be read. The caller may reject it, never approve it."""
+    if item.get("action") != "github_pr_edit":
+        return False
+    metadata = item.get("metadata")
+    arguments = metadata.get("arguments") if isinstance(metadata, dict) else None
+    return not isinstance(arguments, dict) or any(
+        name not in PR_METADATA_ARGS and value is not None for name, value in arguments.items())
 
 
 def rule(action, resource, effect):
@@ -326,16 +347,15 @@ def spellings(paths):
 
 
 def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None,
-          gh_aliases=(), read_roots=(), mandate=False):
+          gh_aliases=(), read_roots=()):
     """The session ruleset for one run, ordered broad to narrow under last-match
     evaluation. Its caller-chosen allows are the output directory and, in a
     read-only run, the configured `read_roots` (source checkouts), which the
     person's own outside-path denies still override. `branch` is a write run's
     task branch, whose own lease push asks rather than being denied; each of
-    `gh_aliases` asks like a branch switch. With `mandate` (a write run bound to
-    a GitHub mandate) the run's own GitHub state writes (`RUN_GH_WRITES`) ask
-    instead of being denied: each one is answered inside the mandate or left
-    for the caller, who may only reject it."""
+    `gh_aliases` asks like a branch switch. Every GitHub write is denied
+    (`PROJECT_WRITES`, `GITHUB_TOOLS_DENY`) except a write run's `github_pr_edit`,
+    which asks."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -393,10 +413,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "deny") for pattern in deny]
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
         out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
-    opened = set(RUN_GH_WRITES) if policy == "write" and mandate else set()
-    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY + MESSAGING_DENY_TOOLS
-            if name not in opened]
-    out += [rule(name, "*", "ask") for name in RUN_GH_WRITES if name in opened]
+    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY + MESSAGING_DENY_TOOLS]
     out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
     out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]
     if policy == "write":
