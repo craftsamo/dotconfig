@@ -1,6 +1,8 @@
 # GitHub changes without a card only inside a mandate
 
-Status: in force
+Superseded by [github-tools-plugin.md](github-tools-plugin.md).
+
+Status: superseded by decisions/github-tools-plugin.md
 Owner doc: docs/github-access.md "Mandates"
 
 ## Decision

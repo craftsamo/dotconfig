@@ -15,7 +15,7 @@ rule has one of four tiers:
   channel) and not the request, so one answer covers the later calls to that
   target.
 - **mandate**: no card inside bounds the user set on a card of its own
-  ([GitHub](github-mandates.md), [Hyperliquid](hyperliquid-mandates.md)). The
+  ([Hyperliquid](hyperliquid-mandates.md)). The
   mandates keep their own code; the table only names the tier.
 - **free**: no card. Empty on purpose.
 
