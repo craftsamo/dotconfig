@@ -2415,10 +2415,12 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     scratch, readable = policy.directories("/tmp/fake-opencode")
     narrow = (set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
               | set(policy.DEPENDABOT_ALERT_READS))
+    # The github-tools reads: the whole action is denied right before them, so they reopen reads only.
+    reads = [policy.rule(name, "*", "allow") for name in policy.GITHUB_TOOLS_READS]
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
-            broad = [r for r in rules if r["effect"] == "allow" and r["resource"] not in narrow]
+            broad = [r for r in rules if r["effect"] == "allow" and r["resource"] not in narrow and r not in reads]
             assert broad == ([{"action": "edit", "resource": "*", "effect": "allow"}] if kind == "write" else []), kind
             assert policy.decide(rules, "edit", "src/a.py") == ("allow" if kind == "write" else "deny")
             for protected in (f"{readable[0][:-1]}agent/x.md", f"{readable[1][:-1]}x/SKILL.md"):
@@ -2451,6 +2453,13 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
+            for tool in ("github_issue_create", "github_issue_edit", "github_issue_close", "github_pr_create",
+                         "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
+                         "github_workflow_run", "github_future_write", "github_notification_mark_read"):
+                assert policy.decide(rules, tool, "owner/repo") == "deny", (kind, tool)
+            for tool in ("github_issue_read", "github_pr_read", "github_project_read", "github_run_read"):
+                assert policy.decide(rules, tool, "*") == "allow", (kind, tool)
+            assert policy.decide(rules, "github_pr_edit", "owner/repo") == ("ask" if kind == "write" else "deny")
             # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
             # target, so even a bare `exit` allow would approve a file write unseen.
             project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
