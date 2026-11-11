@@ -204,21 +204,10 @@ def protected_pushes(name):
 # global rules, as git_verify_commits does. A write run states no ask for it:
 # a session-level rule would come after, and reopen, the deny a read-only
 # subagent sets itself. A read-only run is denied both; git_publish_preview
-# only reads and stays open to every run. gh_pr_meta writes PR metadata it
-# judged harmless and gh_pr_meta_apply (asks) the rest: read-only runs are
-# denied both.
+# only reads and stays open to every run.
 TOOL_DENY = ("git_worktree",)
 READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
-                        "git_publish", "gh_pr_meta", "gh_pr_meta_apply")
-# The old OpenCode GitHub write tools: every one is denied by name in every run (the Assistant
-# writes issues and the board itself, from the run's progress file).
-PROJECT_WRITES = (
-    # The gh_issue_* tools write issues past the shell rules above (ISSUE_WRITES
-    # asks, `gh issue close` is denied); a run reads with gh_issue_view / list.
-    "gh_issue_create", "gh_issue_update", "gh_issue_comment", "gh_issue_relate", "gh_issue_develop",
-    "gh_project_create", "gh_project_link", "gh_project_field_ensure", "gh_project_view_ensure",
-    "gh_project_item_add", "gh_project_item_set", "gh_project_item_promote",
-)
+                        "git_publish")
 # The person's own messaging accounts, reads included: a run is commissioned by the
 # Assistant, whose access to them goes through its own plugin and cards, and a run's
 # asks reach only the caller, who could approve a send there with no card at all.
@@ -226,8 +215,8 @@ PROJECT_WRITES = (
 MESSAGING_DENY_TOOLS = ("signal_*",)
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
-# write run keeps one: a PR's labels, assignees, reviewers and milestone only (github_pr_edit,
-# which gh_pr_meta_apply covered before), asking the caller as it did; the caller approves it
+# write run keeps one: a PR's labels, assignees, reviewers and milestone only (github_pr_edit),
+# asking the caller; the caller approves it
 # only while the call carries nothing but those (pr_edit_beyond_metadata). The reads' allows are the ruleset's
 # only allows beyond paths: they follow the deny of the whole action and name each read, so they
 # reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
@@ -248,11 +237,11 @@ PR_METADATA_ARGS = frozenset({
 
 def github_write(action):
     """Whether a permission action writes GitHub Issues, the board or anything else past
-    a PR's metadata: an old `gh_*` write tool, or a `github_*` tool that is neither a read
+    a PR's metadata: a `github_*` tool that is neither a read
     nor one of the asks a write run keeps. The caller may reject one, never approve it."""
-    return isinstance(action, str) and (action in PROJECT_WRITES or (
+    return isinstance(action, str) and (
         matches(GITHUB_TOOLS_DENY, action) and action not in GITHUB_TOOLS_READS
-        and action not in RUN_GITHUB_TOOLS_ASKS))
+        and action not in RUN_GITHUB_TOOLS_ASKS)
 
 
 def pr_edit_beyond_metadata(item):
@@ -354,7 +343,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     person's own outside-path denies still override. `branch` is a write run's
     task branch, whose own lease push asks rather than being denied; each of
     `gh_aliases` asks like a branch switch. Every GitHub write is denied
-    (`PROJECT_WRITES`, `GITHUB_TOOLS_DENY`) except a write run's `github_pr_edit`,
+    (`GITHUB_TOOLS_DENY`) except a write run's `github_pr_edit`,
     which asks."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
@@ -413,7 +402,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "deny") for pattern in deny]
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
         out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
-    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY + MESSAGING_DENY_TOOLS]
+    out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS]
     out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
     out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]
     if policy == "write":

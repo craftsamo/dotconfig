@@ -172,8 +172,7 @@ def _inbound_peer() -> bool:
 
 
 def _is_tool(tool: str) -> bool:
-    """Whether ``tool`` is one of github-tools': ``github_<area>_<verb>``. The old github-access tools
-    (``github_issue``, ``github_change``, …) have one segment and keep their own gate."""
+    """Whether ``tool`` is one of github-tools': ``github_<area>_<verb>``."""
     return TOOL.fullmatch(tool) is not None
 
 

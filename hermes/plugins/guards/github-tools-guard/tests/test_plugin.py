@@ -33,7 +33,6 @@ PROVIDED = (
 )
 READS = tuple(tool for tool in PROVIDED if tool.endswith("_read"))
 WRITES = (*(tool for tool in PROVIDED if tool not in READS), "github_foo_bar")
-OLD_GITHUB_ACCESS = ("github_issue", "github_board", "github_repo", "github_pr", "github_change", "github_mandate")
 
 
 class Ctx:
@@ -137,14 +136,6 @@ def test_inbound_a2a_blocks_reads_and_writes(monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
     for tool in (*READS, *WRITES):
         assert gate(tool) == block(f"{tool} is not available to inbound A2A requests")
-
-
-def test_the_old_github_access_tools_are_not_this_guards(monkeypatch):
-    no_human(monkeypatch)
-    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
-    for tool in OLD_GITHUB_ACCESS:
-        assert not plugin._is_tool(tool)
-        assert gate(tool, action="create") is None
 
 
 def test_other_tools_are_untouched(monkeypatch):
