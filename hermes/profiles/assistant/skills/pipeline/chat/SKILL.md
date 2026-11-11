@@ -124,10 +124,10 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   request the user names, issues and boards, a repository's settings,
   labels, milestones, releases, re-running a run, starting a workflow, branch
   protection) — only
-  through `github_issue`, `github_board`, `github_repo`, `github_pr` and
-  `github_change`, never a gh write in the terminal; every change waits for
-  its card. Code changes are engineering, not Chat. Any GitHub work loads the
-  matching `github-access` skill first — `references/github.md`.
+  through the `github_*` tools (`github_issue_read`, `github_pr_read`,
+  `github_pr_merge`, …), never a gh write in the terminal; every change waits
+  for its card. Code changes are engineering, not Chat. Any GitHub work loads
+  the matching `github-tools` skill first — `references/github.md`.
 - **A project's own tooling** (running a repository's setup, deploy or check
   script, or a step its `AGENTS.md` or README names: `nps setup.google`,
   `pnpm run deploy`, `make …`, `./scripts/…`) — read that `AGENTS.md` and
@@ -161,7 +161,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |
 | `references/youtube.md` | reading YouTube, transcripts and downloads, the user's channels' videos, analytics and settings; approved edits, replies, moderation, uploads, captions, playlist and channel changes; Studio-only channel settings |
-| `references/github.md` | GitHub in Chat: which `github-access` skill (and the `github` technic) a request needs, what stays inline and what is engineering, what is never yours |
+| `references/github.md` | GitHub in Chat: which `github-tools` skill (and the `github` and `github-tracking` technics) a request needs, what stays inline and what is engineering, what is never yours |
 | `references/web3.md` | EVM chains and Solana through the `evm` and `solana` tools: reading transactions, blocks, addresses, tokens, approvals, balances, gas and prices, analysing contracts and programs; the user's Hermes and watch-only wallets, quotes, approved transfers and their outcomes; Hyperliquid reads, trades, backtests and rule strategies through the `hyperliquid` tool |
 
 ## Promotion

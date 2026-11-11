@@ -63,10 +63,10 @@ in ../index.md still applies.
    [web-ui.md](references/web-ui.md): mechanical failures, baseline
    comparison, and the user's look approval only where the approved scope does
    not explain a change.
-5. **PR.** Confirm with `github_pr` `view` that the PR exists with the
+5. **PR.** Confirm with `github_pr_read` `view` that the PR exists with the
    intended repository, base, head, commits and description, and read its CI
    state there: pending or unavailable is not green, a failed required check
-   prevents unqualified acceptance; `github_repo` `run` says why a run failed. A
+   prevents unqualified acceptance; `github_run_read` says why a run failed. A
    local-only exception or a blocked PR is reported as such. Read the title,
    body, commit subjects and branch name as someone who has only the
    repository: a Phase or plan label, a decision-log number, the name of a

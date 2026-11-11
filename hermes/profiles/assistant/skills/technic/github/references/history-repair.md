@@ -7,7 +7,7 @@ showing), then an OpenCode build run commissioned as `opencode:brief` says:
 the repair as an outcome, the conditions it must meet afterwards, what to
 hand back, and that nothing else changes (no merge, no retarget, no other
 branch). How it gets there, which commands and in what order, is the run's.
-Read the result back yourself with `github_pr` `view` and a fetch of the
+Read the result back yourself with `github_pr_read` `view` and a fetch of the
 clone before reporting it done.
 
 Two limits shape every brief. A build pushes only the task branch its
@@ -93,7 +93,7 @@ locally carry no "Verified" mark.
 Existing pull requests become one native stack, bottom to top on the trunk,
 without any branch moving or being pushed: commission that outcome, and ask
 back each branch's tip before and after (identical) and the stack's size and order. Then
-check `stack` on the top pull request with `github_pr` `view` (size, the
+check `stack` on the top pull request with `github_pr_read` `view` (size, the
 trunk as base, the entry order). For layered work, ask for this from the first
 layer, each new pull request linked as it opens. A chain can also be linked
 from GitHub's page, where an eligible pull request shows a banner; prefer
