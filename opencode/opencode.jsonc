@@ -353,16 +353,6 @@
           "resource": "*",
           "effect": "deny"
         },
-        {
-          "action": "gh_pr_meta",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "gh_pr_meta_apply",
-          "resource": "*",
-          "effect": "deny"
-        },
         // Signal: reads only.
         {
           "action": "signal_*",
@@ -508,16 +498,6 @@
         },
         {
           "action": "git_publish",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "gh_pr_meta",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "gh_pr_meta_apply",
           "resource": "*",
           "effect": "deny"
         },
@@ -1720,7 +1700,7 @@
       "effect": "allow"
     },
     // Labels, assignees, review requests and milestones can start workflows,
-    // merge bots and notifications: gh_pr_meta judges them; the shell asks.
+    // merge bots and notifications: github_pr_edit judges them; the shell asks.
     // Spelled by containment so `gh pr -R o/r edit` and first-position or
     // attached short options (`-mv1`) ask too; a title holding such a word
     // asks as well, which only costs a prompt.
@@ -2414,96 +2394,6 @@
       "resource": "morning",
       "effect": "deny"
     },
-    // Custom GitHub Issues tools (lib/custom-tools/gh_issue/) — view and list
-    // read; create, update, comment, relate and develop write after checking
-    // the viewer's permission, report a repository the viewer does not own as
-    // foreign, close only with a reason and never delete. Read-only agents
-    // deny the writing ones (agents/*.md, Hermes' run rulesets).
-    {
-      "action": "gh_issue_view",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_list",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_create",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_update",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_comment",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_relate",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_issue_develop",
-      "resource": "*",
-      "effect": "allow"
-    },
-    // Custom GitHub Projects tools (lib/custom-tools/gh_project/) — resolve and
-    // item_list read; the rest write to a board the viewer can update (create,
-    // link, field_ensure, view_ensure, item_add, item_set, item_promote),
-    // archive instead of delete, and item_promote checks the repository's
-    // permission. Read-only agents deny the writing ones.
-    {
-      "action": "gh_project_resolve",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_item_list",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_create",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_link",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_field_ensure",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_view_ensure",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_item_add",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_item_set",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_project_item_promote",
-      "resource": "*",
-      "effect": "allow"
-    },
     // Custom git workflow tools (lib/custom-tools/git/) — read/index only,
     // except git_commit (staged changes only; no --no-verify), git_rebase
     // (current task branch, no editor), git_worktree (never discards changes;
@@ -2595,24 +2485,6 @@
       "action": "git_commit_lint",
       "resource": "*",
       "effect": "allow"
-    },
-    // Pull-request status and CI wait (lib/custom-tools/gh.ts) — read-only
-    {
-      "action": "gh_pr_status",
-      "resource": "*",
-      "effect": "allow"
-    },
-    // PR metadata (lib/custom-tools/pr-meta.ts): gh_pr_meta applies only what
-    // nothing reacts to and returns the rest; gh_pr_meta_apply applies that: ask.
-    {
-      "action": "gh_pr_meta",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "gh_pr_meta_apply",
-      "resource": "*",
-      "effect": "ask"
     },
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     {

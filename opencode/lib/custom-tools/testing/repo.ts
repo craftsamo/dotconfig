@@ -59,15 +59,11 @@ export type GhRule = { re: string; out?: string; code?: number; times?: number }
 const RUN_TOOL = join(import.meta.dir, "run-tool.ts")
 
 /**
- * Runs a tool in a child process whose PATH starts with a fake `gh` that
- * answers from `rules` (first regex matching the space-joined arguments).
- * Unmatched calls exit 1, like an unreachable GitHub.
+ * Writes a fake `gh` into the fixture that answers from `rules` (first regex
+ * matching the space-joined arguments; unmatched calls exit 1, like an
+ * unreachable GitHub) and returns the environment that puts it first on PATH.
  */
-export function runWithFakeGh(
-  f: Fixture,
-  tool: { module: string; name: string; args?: Record<string, unknown>; gate?: "record" | "deny" | "hermes" },
-  rules: GhRule[],
-): { ok: boolean; out?: any; error?: string; asserted: any[]; calls: string[] } {
+function installFakeGh(f: Fixture, rules: GhRule[]) {
   const bin = join(f.root, "bin")
   mkdirSync(bin, { recursive: true })
   const log = join(f.root, "gh-calls.log")
@@ -100,18 +96,46 @@ export function runWithFakeGh(
     ].join("\n"),
   )
   chmodSync(gh, 0o755)
+  return {
+    env: { PATH: `${bin}:${process.env.PATH}`, FAKE_GH_RULES: JSON.stringify(rules), FAKE_GH_LOG: log },
+    calls: () => readFileSync(log, "utf8").split("\n").filter(Boolean),
+  }
+}
+
+/**
+ * Runs a tool in a child process whose PATH starts with a fake `gh` that
+ * answers from `rules`.
+ */
+export function runWithFakeGh(
+  f: Fixture,
+  tool: { module: string; name: string; args?: Record<string, unknown> },
+  rules: GhRule[],
+): { ok: boolean; out?: any; error?: string; calls: string[] } {
+  const fake = installFakeGh(f, rules)
   const res = Bun.spawnSync(["bun", RUN_TOOL], {
     cwd: f.dir,
-    env: {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-      FAKE_GH_RULES: JSON.stringify(rules),
-      FAKE_GH_LOG: log,
-      TOOL_INPUT: JSON.stringify({ ...tool, cwd: f.dir }),
-    },
+    env: { ...process.env, ...fake.env, TOOL_INPUT: JSON.stringify({ ...tool, cwd: f.dir }) },
   })
   const text = res.stdout.toString()
   if (!text) throw new Error(`run-tool produced no output: ${res.stderr.toString()}`)
-  const calls = readFileSync(log, "utf8").split("\n").filter(Boolean)
-  return { ...JSON.parse(text), calls }
+  return { ...JSON.parse(text), calls: fake.calls() }
+}
+
+/**
+ * Runs `fn` in this process with the fake `gh` first on PATH, for code that is
+ * not a tool and so has no child to confine it. The environment is restored
+ * when `fn` settles; use it from sequential tests only.
+ */
+export async function withFakeGh<T>(f: Fixture, rules: GhRule[], fn: () => Promise<T>): Promise<{ value: T; calls: string[] }> {
+  const fake = installFakeGh(f, rules)
+  const saved = Object.fromEntries(Object.keys(fake.env).map((key) => [key, process.env[key]]))
+  Object.assign(process.env, fake.env)
+  try {
+    return { value: await fn(), calls: fake.calls() }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
 }

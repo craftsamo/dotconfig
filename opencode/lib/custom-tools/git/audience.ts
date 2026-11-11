@@ -25,7 +25,7 @@ const RULES: Rule[] = [
   },
   {
     rule: "tooling",
-    re: /\bgit_[a-z_]+\b|\bgh_pr_[a-z_]+\b|\bOpenCode\b|\bHermes\b/g,
+    re: /\bgit_[a-z_]+\b|\bgh_pr_[a-z_]+\b|\bgithub_[a-z]+_[a-z_]+\b|\bOpenCode\b|\bHermes\b/g,
     hint: "Say what was checked, not what checked it: the agents, tools and harness that built the work are not part of the repository (unless the repository is about them).",
   },
   {
