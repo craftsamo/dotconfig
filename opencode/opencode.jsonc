@@ -38,6 +38,12 @@
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
     { "package": "@craftsamo/signal-tools@0.3.1", "options": { "language": "ja" } },
+    // GitHub issues, boards, pull requests, stacks, repositories, releases and
+    // Actions (craft-agent/github-tools). Reads never ask; every write asserts
+    // its tool ID with the repositories or boards it touches and a description
+    // of the change, so the github_* rule below asks. Hermes pins the same
+    // release (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/github-tools@0.12.0", "options": { "toolsets": "all", "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
@@ -368,6 +374,17 @@
           "resource": "*",
           "effect": "allow"
         },
+        // GitHub: reads only.
+        {
+          "action": "github_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "github_*_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         {
           "action": "subagent",
           "resource": "*",
@@ -414,6 +431,7 @@
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
+        { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -441,6 +459,7 @@
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
+        { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -501,6 +520,17 @@
           "action": "gh_pr_meta_apply",
           "resource": "*",
           "effect": "deny"
+        },
+        // GitHub: reads only.
+        {
+          "action": "github_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "github_*_read",
+          "resource": "*",
+          "effect": "allow"
         },
       ],
     },
@@ -2343,6 +2373,13 @@
       "resource": "signal-*",
       "effect": "allow"
     },
+    // github-tools' skills (github-issues, github-projects, …): how to use its
+    // tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "github-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2595,6 +2632,13 @@
     // Hermes' run rulesets deny the whole action.
     {
       "action": "signal_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // GitHub tools (@craftsamo/github-tools): reads never ask; every write
+    // asserts its tool ID, so it asks here. Read-only agents deny the writes.
+    {
+      "action": "github_*",
       "resource": "*",
       "effect": "ask"
     },
