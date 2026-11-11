@@ -229,6 +229,21 @@ PROJECT_WRITES = (
 # asks reach only the caller, who could approve a send there with no card at all.
 # Denying the whole action also hides the tools from the run.
 MESSAGING_DENY_TOOLS = ("signal_*",)
+# github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
+# its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
+# write run keeps one: a PR's labels, assignees, reviewers and milestone (github_pr_edit), which
+# gh_pr_meta_apply covered before, asking the caller as it did. The reads' allows are the ruleset's
+# only allows beyond paths: they follow the deny of the whole action and name each read, so they
+# reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
+# Being session rules, which come after an agent's own, they also reopen these reads for a subagent
+# that denies `*` itself; accepted, since they only read through the person's own `gh` login.
+GITHUB_TOOLS_DENY = "github_*"
+GITHUB_TOOLS_READS = (
+    "github_issue_read", "github_pr_read", "github_stack_read", "github_project_read", "github_repo_read",
+    "github_label_read", "github_milestone_read", "github_ruleset_read", "github_release_read",
+    "github_workflow_read", "github_run_read",
+)
+RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit",)
 
 
 def rule(action, resource, effect):
@@ -382,6 +397,10 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY + MESSAGING_DENY_TOOLS
             if name not in opened]
     out += [rule(name, "*", "ask") for name in RUN_GH_WRITES if name in opened]
+    out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
+    out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]
+    if policy == "write":
+        out += [rule(name, "*", "ask") for name in RUN_GITHUB_TOOLS_ASKS]
     # A person's own denies are re-stated last, so an agent's broad allow (build's
     # `shell: *`) never reopens `sudo` or `secret get`. Their `external_directory`
     # denies went in above the scratch-dir allows instead.
