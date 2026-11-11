@@ -4,10 +4,9 @@ What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
 Google, GitHub, X, note, Substack, YouTube, Stripe and Cloudflare. Each `*-access` doc inherits this one
 and records only its own differences; read it first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Five kinds of write skip their card only inside a
+doc ([web3.md](web3.md)). Four kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
-([hyperliquid.md](hyperliquid.md)), a GitHub change list
-([github-access.md](github-access.md)), a text send on Telegram or
+([hyperliquid.md](hyperliquid.md)), a text send on Telegram or
 WhatsApp ([telegram-access.md](telegram-access.md),
 [whatsapp-access.md](whatsapp-access.md)),
 a Cloudflare zone change ([cloudflare-access.md](cloudflare-access.md)) and a
@@ -86,9 +85,10 @@ was changed.
   Cloudflare use the shared check `plugins/_shared/human_gate.py`
   (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal package ([signal-tools.md](signal-tools.md)); Substack and YouTube refuse through
+  third-party Signal and GitHub packages ([signal-tools.md](signal-tools.md),
+  [github-tools.md](github-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, GitHub, a Telegram or WhatsApp text
+  inside a mandate (Hyperliquid, a Telegram or WhatsApp text
   send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a

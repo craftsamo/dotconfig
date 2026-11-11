@@ -1,5 +1,8 @@
 # GitHub access
 
+> The Assistant no longer uses this plugin; it uses [github-tools](github-tools.md).
+> The directory is kept only until its removal.
+
 The Assistant's access to GitHub Issues, Projects (v2) boards and
 repositories through the user's own `gh` login. Read it when changing the
 plugin's engine, its approval rules or its tiers. Common rules:

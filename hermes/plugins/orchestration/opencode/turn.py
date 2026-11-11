@@ -361,24 +361,16 @@ def wait_limit(home, settings, requested=None):
     return max(1.0, min(limits))
 
 
-def reply(request, decision, reason=None):
-    """Answer one pending permission request on the session that raised it."""
-    body = {"decision": decision, **({"message": reason} if reason else {})}
-    call("post", "/api/session/{sid}/permission/{per}/reply", body, sid=request["session_id"], per=request["id"])
-
-
 def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, clock=time.time, ignore=(),
-               watch=None, decide=None):
+               watch=None):
     """Block until the newest turn hands back to the caller, or `limit` seconds pass.
 
     Handing back means: the turn finished (an idle marker closed it), it is paused on a
     permission request or question, it is stuck in a provider retry worth a decision, its
     outcome cannot be confirmed, or `watch(now)` (a notifier's progress watch) reports
     Phase steps that finished or stalled. Requests in `ignore` were just answered: the
-    service can still list one for a moment, and it is never handed back again. A
-    `decide(request)` that returns `(decision, reason)` answers a request in the caller's
-    place (a build's own GitHub write inside its mandate); one it returns `(None, …)` for
-    is handed back. Nothing is written anywhere."""
+    service can still list one for a moment, and it is never handed back again. Nothing
+    is written anywhere."""
     poll = POLL if poll is None else poll
     deadline = clock() + limit
     cache, last_retry = {}, None
@@ -398,27 +390,6 @@ def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, 
             running_sessions = active()
             running = sid in running_sessions
             found = [p for p in pending(sid, directory_of(info), cache) if p.get("id") not in ignore]
-            if found and decide:
-                kept = []
-                for request in found:
-                    decision, reason = decide(request)
-                    if decision is None:
-                        kept.append(request)
-                        continue
-                    # Someone else (another wait, the notifier, a person) may have answered it
-                    # meanwhile: the service then says so, and the request is just done.
-                    with contextlib.suppress(api.ApiError):
-                        reply(request, decision, reason)
-                    ignore.add(request["id"])
-                if len(kept) != len(found):
-                    # The run goes on from the answer; read its next state before handing back,
-                    # inside the same deadline.
-                    found = kept
-                    if not found and running and now < deadline:
-                        first = False
-                        unseen = None
-                        sleep(min(poll, max(0.0, deadline - now)))
-                        continue
             turn = None if running else latest_turn(sid)
             unreachable = None
         except api.Unavailable:
@@ -512,10 +483,9 @@ def finished(sid, info, turn):
     return describe(sid, info, status, turn=turn, extra=extra)
 
 
-def snapshot(sid, decide=None):
-    """The run's current state without waiting; `decide` answers the run's own GitHub
-    writes it finds pending, as a wait would."""
-    record = await_turn(sid, 0, poll=0, sleep=lambda _: None, decide=decide)
+def snapshot(sid):
+    """The run's current state without waiting."""
+    record = await_turn(sid, 0, poll=0, sleep=lambda _: None)
     record.pop("timed_out", None)
     if record.get("status") == "running":
         record["note"] = note(record) or record.get("note")

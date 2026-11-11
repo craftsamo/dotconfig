@@ -43,7 +43,7 @@ Shared contract first: [Access plugins — common contract](./docs/access-common
 (risk acceptance, secret scoping, approval gate, bypass guard, shared setup).
 Each doc then holds only its own deltas.
 
-[Google](./docs/google-access.md) · [GitHub](./docs/github-access.md) ·
+[Google](./docs/google-access.md) · [GitHub](./docs/github-tools.md) ·
 [WhatsApp](./docs/whatsapp-access.md) ·
 [Signal](./docs/signal-tools.md) · [Discord](./docs/discord-access.md) ·
 [Telegram](./docs/telegram-access.md) · [X](./docs/x-access.md) ·

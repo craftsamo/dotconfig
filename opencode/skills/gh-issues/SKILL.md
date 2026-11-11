@@ -1,18 +1,17 @@
 ---
 name: gh-issues
 description: >-
-  Use when creating, reading, updating, relating or closing GitHub Issues
-  through the gh_issue_* tools — an issue's body by kind, a parent issue with
-  sub-issues, a milestone, blocked-by / blocking dependencies, the Draft →
-  Fixed spec of an issue about to be implemented, progress and decision
-  comments, closing with a reason, and replacing issues without losing their
-  content (Issue, イシュー, 起票, Issue を立てる, sub-issue, 親 Issue, 子 Issue,
-  parent issue, milestone, マイルストーン, blocked by, 依存関係, issue type,
-  ラベル, Issue を閉じる, close issue, Issue にコメント). Owns the planning
-  model's issue side: parent issue + sub-issues for structure, milestone for
-  time, blocked-by for order, kind as Issue Type or type:* label. Not for
-  boards (gh-projects), PRs (git-pullrequest) or decomposing a requirement
-  (approach-github-planning).
+  Use for the house conventions of GitHub Issues — the issue model (parent
+  issue + sub-issues for structure, milestone for time, blocked-by for order,
+  kind as Issue Type or type:* label), titles, bodies by kind, progress and
+  decision comments, notation, the Draft → Fixed spec of an issue about to be
+  implemented, research, closing references, and replacing issues without
+  losing their content (Issue, イシュー, 起票, Issue を立てる, sub-issue,
+  親 Issue, 子 Issue, parent issue, milestone, マイルストーン, blocked by,
+  依存関係, issue type, ラベル, Issue を閉じる, close issue, Issue にコメント).
+  The tool mechanics are in the package skill `github-issues`; load it
+  together with this one. Not for boards (gh-projects), PRs (git-pullrequest)
+  or decomposing a requirement (approach-github-planning).
 author: CraftSamo
 license: MIT
 ---
@@ -30,7 +29,7 @@ done means, and a close that says why.
 <WhenToUse>
 
 - Record, read, change, relate, comment on or close an issue → this skill and
-  the `gh_issue_*` tools.
+  the `github_issue_*` tools (mechanics: `github-issues`).
 - Decide whether work is one issue, a parent with sub-issues, or a stack of
   PRs, and run it → `approach-github-planning` (it calls back here for the
   issue mechanics).
@@ -45,21 +44,11 @@ done means, and a close that says why.
 
 <Tools>
 
-| Tool | Does | Side effects |
-| --- | --- | --- |
-| `gh_issue_view` | The whole picture of one issue: body, kind, milestone, parent, sub-issues and progress, blocked by / blocking, linked branches, closing PRs, board items (with `PVTI_…` ids), latest comments | none |
-| `gh_issue_list` | Issues of a repository by state, kind, milestone, label, assignee, free search; or a parent's sub-issues | none |
-| `gh_issue_create` | Issue + kind + milestone + parent + blocked-by + board item in one call | creates the issue; later steps report under `errors` without losing it |
-| `gh_issue_update` | Title, body (replace or append), kind, labels, assignees, milestone, close with a reason, reopen | edits; a close needs `reason` |
-| `gh_issue_comment` | A comment | posts |
-| `gh_issue_relate` | Parent set / removed, sub-issues and dependencies added / removed | idempotent against the current relations |
-| `gh_issue_develop` | A linked development branch, or the one that exists | creates a branch; see `<ClosingReferences>` |
-
-Every writer checks the viewer's write permission first and reports a
-repository the viewer does not own as `foreign: true`; nothing deletes. The
-sub-issue, type and dependency flags need `gh` 2.94.0 or later. Issues are
-named as `12`, `#12`, `owner/repo#12` or a URL; a bare number means the
-working tree's repository unless `repo` is passed.
+Load `github-issues` for the tools, how an issue is named and how a call
+fails. Every write asks the person once, with a description of what it will
+change. This skill's recipes use `github_issue_read` (`view`, `list`),
+`github_issue_create`, `github_issue_edit`, `github_issue_comment`,
+`github_issue_close`, `github_issue_relate` and `github_issue_develop`.
 
 </Tools>
 
@@ -244,7 +233,7 @@ shape says which stage it is in — no status line repeats it:
    rework.
 2. **Fixed** at kickoff: run the issue's system research (existing code,
    port sources, library choices, seams), settle Open decisions with the user,
-   `gh_issue_update` the body (decisions folded into Requirements, the
+   `github_issue_edit` the body (decisions folded into Requirements, the
    outline turned into a layer checklist, `## Open decisions` removed), then
    implement. The checklist stays editable while the layers above are
    unwritten.
@@ -269,7 +258,7 @@ gets an issue of its own.
 
 A discovery that exceeds the current scope is not absorbed on the spot:
 escalate it to the issue's `## Open decisions` (system level) or a parent
-comment (domain level) with `gh_issue_update` / `gh_issue_comment`, and keep
+comment (domain level) with `github_issue_edit` / `github_issue_comment`, and keep
 the current PR on scope.
 
 </Research>
@@ -280,7 +269,7 @@ the current PR on scope.
   `Closes #n` only on the PR whose merge completes it — one of the two, never
   both. Closing keywords fire from any PR into the default branch, so a stack
   writes `Closes` on its top layer only. `git-pullrequest` renders this.
-- A **linked development branch** (`gh_issue_develop`) puts its PR among the
+- A **linked development branch** (`github_issue_develop`) puts its PR among the
   issue's closing references **without any keyword**: the first merge closes
   the issue. Take one only for an issue that is a single PR. A multi-PR issue
   takes plain branches (`git_worktree`, then `git_stack`).
@@ -290,44 +279,48 @@ the current PR on scope.
 
 <Recipes>
 
-- Read before acting: `gh_issue_view { issue }` — it returns the parent, the
-  sub-issues, what blocks it, the linked branch, the closing PRs and the board
-  item ids, so one call replaces `gh issue view` + `gh pr list` + a board read.
+- Read before acting: `github_issue_read { method: "view", issue }` — it
+  returns the parent, the sub-issues, what blocks it, the linked branch, the
+  closing PRs and the boards, so one call replaces `gh issue view` + `gh pr
+  list` + a board read.
 - Create a unit of work under a parent, blocked by a sibling, filed on a
-  milestone: `gh_issue_create { title, body, kind, parent: "<n>", blockedBy:
-  ["<m>"], milestone: "<title>", createMilestone: true }`. Add
-  `addToProject: true` to place it on the board (`gh-projects` says which).
+  milestone: `github_issue_create { title, body, kind, parent: "<n>",
+  blocked_by: ["<m>"], milestone: "<title>", create_milestone: true }`. Add
+  `project` (and `fields`) to place it on the board (`gh-projects` says
+  which).
 - Create the parent first, then the sub-issues with `parent`; or attach later
-  with `gh_issue_relate { issue: "<parent>", addSubIssues: [...] }`.
-- Kickoff: `gh_issue_update { issue, body }` with the Fixed body; Status
+  with `github_issue_relate { issue: "<parent>", add_sub_issues: [...] }`.
+- Kickoff: `github_issue_edit { issue, body }` with the Fixed body; Status
   In Progress on the board (`gh-projects`).
-- Decision, research, revision or hand-off: `gh_issue_comment { issue, body
-  }` in the shape of `<Comments>`; one that changes the spec also rewrites
-  the body (`gh_issue_update { issue, body }`, the whole body, not an
-  appended section).
-- A layer's PR opened: `gh_issue_update { issue, body }` ticking the outline
-  line with its PR `#n`.
+- Decision, research, revision or hand-off: `github_issue_comment { issue,
+  body }` in the shape of `<Comments>`; one that changes the spec also
+  rewrites the body (`github_issue_edit { issue, body }`, the whole body, not
+  an appended section).
+- A layer's PR opened: `github_issue_edit { issue, body }` ticking the
+  outline line with its PR `#n`.
 - Work found mid-job (a bug, a follow-up, a gap a unit uncovered): when the
-  goal needs it, `gh_issue_create` under the parent (an issue with no parent:
-  an issue of its own) with its `kind`, a unit body and `blockedBy` where
-  order matters, never under the unit (below a
+  goal needs it, `github_issue_create` under the parent (an issue with no
+  parent: an issue of its own) with its `kind`, a unit body and `blocked_by`
+  where order matters, never under the unit (below a
   unit is a PR); a unit that has grown several such pieces is split into a
   parent and new units per `<Supersede>`. Then add its line to the parent's
   `## Plan`. Work the goal does not need is an issue with no parent, or a
   board draft (`gh-projects`).
-- Done: the closing PR merges; or `gh_issue_update { issue, state: "closed",
-  reason: "completed", comment }` when no PR closes it. Either way, every
+- Done: the closing PR merges; or `github_issue_close { issue, reason:
+  "completed", comment }` when no PR closes it. Either way, every
   `## Acceptance` line is ticked or moved (`<Comments>` Landing) before the
   close or, when a merge closed it, right after. A unit that landed through
   PRs gets the Landing comment; one closed without a PR says what now works
-  in the close `comment` instead. Dropped: `reason: "not planned"`. A twin:
-  `reason: "duplicate"` with the original in `comment`. Neither ticks its
-  acceptance nor gets a Landing comment.
-- Sub-issues of a parent: `gh_issue_list { parent: "<n>", state: "all" }`.
-  Open work on a milestone: `gh_issue_list { milestone: "<title>" }`.
-- Re-enter in a new session: `gh_issue_view` on the issue; its outline
-  checklist and the closing PRs show where it stopped, and `gh stack checkout
-  <layer branch or PR>` restores a stack.
+  in the close `comment` instead. Dropped: `reason: "not_planned"`. A twin:
+  `reason: "duplicate"` with the original in `duplicate_of`. Neither ticks
+  its acceptance nor gets a Landing comment. A close that finds the issue
+  already closed posts no `comment`, so post it with `github_issue_comment`.
+- Sub-issues of a parent: `github_issue_read { method: "list", parent: "<n>",
+  state: "all" }`. Open work on a milestone: `github_issue_read { method:
+  "list", milestone: "<title>" }`.
+- Re-enter in a new session: `github_issue_read` `view` on the issue; its
+  outline checklist and the closing PRs show where it stopped, and `gh stack
+  checkout <layer branch or PR>` restores a stack.
 
 </Recipes>
 
@@ -340,10 +333,10 @@ dangles:
    research excerpts, decisions) so each is self-contained.
 2. Comment on each superseded issue with the successor `#n` list and where
    the content went.
-3. `gh_issue_relate { issue, removeParent: true }`, then close it —
-   `completed` when its job was done (a confirmed spec that was transcribed),
-   `not planned` when replaced mid-flight.
-4. Re-parent surviving sub-issues onto the successors (`gh_issue_relate {
+3. `github_issue_relate { issue, remove_parent: true }`, then
+   `github_issue_close` it — `completed` when its job was done (a confirmed
+   spec that was transcribed), `not_planned` when replaced mid-flight.
+4. Re-parent surviving sub-issues onto the successors (`github_issue_relate {
    issue: "<sub>", parent: "<successor>" }`), splitting any that now spans two.
 
 Closed originals stay readable; successors link back in `## Evidence` or
@@ -353,12 +346,13 @@ Closed originals stay readable; successors link back in `## Evidence` or
 
 <Guardrails>
 
-- `gh_issue_list` before creating, so a twin is found rather than filed.
+- `github_issue_read` `list` before creating, so a twin is found rather than
+  filed.
 - One kind per issue: the tools remove the other `type:*` labels when the
   kind changes.
 - A close always carries a reason; the tool refuses one without.
-- A write to a repository the viewer does not own succeeds and says
-  `foreign: true` — read that before continuing in someone else's tracker.
+- Read `foreign` on a write result before continuing in someone else's
+  tracker (`github-issues`).
 - Milestones are per repository: a parent whose sub-issues span repositories
   carries the milestone in each, under the same title.
 - No `Parent: #n`, no wave numbers, no status percentages in bodies — the
