@@ -1,14 +1,15 @@
 ---
 name: gh-projects
 description: >-
-  Use when work should be visible on a GitHub Projects (v2) board through the
-  gh_project_* tools — which board a repository uses (linked → organization →
-  personal), setting one up with the standard Status / Start / Target fields
-  and Kanban / Backlog / Roadmap views, adding issues or draft notes, moving
-  Status, archiving, and turning a draft into an issue (GitHub Projects,
-  project board, ボード, ロードマップ, roadmap, Kanban, カンバン, draft item,
-  ドラフト, ボードに追加, Status を更新, 進捗更新, タスク管理,
-  ファイルを残さない, ideas to track, cross-session plan). The board shows and
+  Use for the house conventions of GitHub Projects (v2) boards — what goes on
+  a board, which board a repository uses, the standard Status / Start / Target
+  schema and Kanban / Backlog / Roadmap views, Status discipline, draft items
+  and when they become issues, and the recipes for adding, moving and
+  archiving items (GitHub Projects, project board, ボード, ロードマップ,
+  roadmap, Kanban, カンバン, draft item, ドラフト, ボードに追加,
+  Status を更新, 進捗更新, タスク管理, ファイルを残さない, ideas to track,
+  cross-session plan). The tool mechanics are in the package skill
+  `github-projects`; load it together with this one. The board shows and
   schedules; the issue is the record (gh-issues). Not for decomposing a
   requirement (approach-github-planning) or within-session step tracking.
 author: CraftSamo
@@ -39,58 +40,44 @@ board as drafts until they become issues.
 
 <Tools>
 
-| Tool | Does | Side effects |
-| --- | --- | --- |
-| `gh_project_resolve` | Which board a call means, the route taken, every route considered, and the board's fields | none |
-| `gh_project_item_list` | Items with every field flattened by name and the content's facts; filters by Status, content type, repository, title | none |
-| `gh_project_create` | A board by title (reused when present) brought to the standard shape; optional template copy and repository link | creates fields, views, a link |
-| `gh_project_link` | Link or unlink a board and a repository | idempotent |
-| `gh_project_field_ensure` | A custom field, or missing options on one | never removes |
-| `gh_project_view_ensure` | A saved view by name | creates once |
-| `gh_project_item_add` | An issue or PR by reference, or a draft by title, with field values | adds |
-| `gh_project_item_set` | Field values, clears, a draft's text, archive / restore; the item id names the board | never deletes |
-| `gh_project_item_promote` | A draft into an issue of a repository, keeping the item and its fields | creates the issue |
-
-Writers check that the board is writable for the viewer; a repository write
-(link, promote) checks that repository too. Archiving is the only way an item
-leaves a board.
+Load `github-projects` for the tools, how a board is named and found, and how
+a call fails. Every write asks the person once, with a description of what it
+will change. This skill's recipes use `github_project_read` (`view`,
+`item_list`), `github_project_create`, `github_project_link`,
+`github_project_field_ensure`, `github_project_view_ensure`,
+`github_project_item_add`, `github_project_item_create`,
+`github_project_item_edit`, `github_project_item_archive` and
+`github_project_item_convert`, with `github_issue_read` for an issue's board
+items. Archiving is the only way an item leaves a board.
 
 </Tools>
 
 <Resolution>
 
 Projects are owned by a user or an organization; a repository only links one.
-When no `project` is given, every tool takes the same route and reports it:
-
-1. **linked** — a project linked to the repository the call is about (the
-   working tree's, or `repo`). One writable linked project is the board;
-   among several, only an unambiguous title match (`project: "<title>"`).
-2. **org** — the owning organization's open board titled `Roadmap`, when the
-   viewer can update it.
-3. **user** — the viewer's own open board titled `Roadmap`.
-
-A route is skipped when its board is missing or read-only; when none resolves
-the error lists what was considered. `project` pins a board by URL,
-`owner/N`, a number with `owner`, or a title (with `owner`, or searched along
-the route). Run `gh_project_resolve` once per session before the first write
-and read `route` — a write to someone else's board is never a surprise.
+Each board tool names its board (`project`: number, `owner/N`, URL or title;
+`Roadmap` when none is given) and finds it among the boards linked to the
+repository, then the organization's, then the viewer's (`github-projects`
+`Naming a board`). Run `github_project_read { method: "view" }` once per
+session before the first write and read `route`, so a write to someone
+else's board is never a surprise.
 
 Choosing where work lives: a repository you share with a team gets a board
 linked to it (the organization's `Roadmap`, or a per-repository board when
 the team wants one); your own repositories and ideas without a repository go
 on your `Roadmap`. A repository's board is a user- or organization-owned
-board linked to it — link it with `gh_project_link` or
-`gh_project_create { linkRepo }` so the linked route finds it.
+board linked to it — link it with `github_project_link` or
+`github_project_create { link_repo }` so the linked route finds it.
 
 </Resolution>
 
 <Schema>
 
-The standard shape `gh_project_create` ensures; built-in fields carry the rest:
+The standard shape `github_project_create` ensures; built-in fields carry the rest:
 
 | Field | Type | Holds |
 | --- | --- | --- |
-| Status | single-select (built-in) | Todo / In Progress / Done / Cancelled; a board may add `Waiting` (on someone outside) with `gh_project_field_ensure` |
+| Status | single-select (built-in) | Todo / In Progress / Done / Cancelled; a board may add `Waiting` (on someone outside) with `github_project_field_ensure` |
 | Start | date | When work begins; drives the Roadmap view |
 | Target | date | When it should land; drives the Roadmap view |
 
@@ -100,7 +87,7 @@ Parent issue, Sub-issues progress, Linked pull requests. Group or filter
 views by them (`parent-issue:"owner/repo#n"`, `milestone:"v1"`,
 `repo:owner/repo`). A draft has none of them: it is a title and a body.
 
-Optional custom fields when a board wants them (`gh_project_field_ensure`):
+Optional custom fields when a board wants them (`github_project_field_ensure`):
 `Area` (single-select, a team's own taxonomy), `Priority`, an iteration
 field. Kind is not a board field — it is the issue's type or `type:*` label.
 
@@ -131,7 +118,7 @@ things happen; order goes in one line each ("Together with: …", "After: …").
 A draft may end Done without ever becoming an issue when the work never
 touches a repository; its last note records what proves it done.
 
-Turn a draft into an issue (`gh_project_item_promote`) when any of these
+Turn a draft into an issue (`github_project_item_convert`) when any of these
 becomes true: its target is a repository your side works in; it needs a PR,
 an assignee who works in GitHub, or discussion there; it has grown steps
 worth tracking as sub-issues. Then rewrite its body in the issue form
@@ -145,7 +132,7 @@ board or in an issue: a board can be made public later.
 
 <Views>
 
-The standard views `gh_project_create` ensures:
+The standard views `github_project_create` ensures:
 
 - **Kanban** — board layout by Status, `-status:Done -status:Cancelled`.
 - **Backlog** — table, same filter, with Milestone, Parent issue and
@@ -156,52 +143,56 @@ The standard views `gh_project_create` ensures:
 The API creates a view with its layout, filter and columns only; grouping,
 sort, roadmap zoom and the date fields a roadmap reads are set once in the
 UI — a freshly created board draws no bars until Start / Target are bound
-there. A board copied from a template (`gh_project_create { template }`)
+there. A board copied from a template (`github_project_create { template }`)
 keeps those settings, so keep one configured board per owner to copy from.
-`gh_project_view_ensure` adds a view to a board that lacks one and reports
+`github_project_view_ensure` adds a view to a board that lacks one and reports
 columns the board does not have.
 
 </Views>
 
 <Recipes>
 
-- First use in a repository: `gh_project_resolve {}`. No board on any route
-  → `gh_project_create { owner: "<org or @me>", linkRepo: "current" }`,
-  with `template` naming a board whose Roadmap view is already bound to
-  Start / Target when one exists; otherwise bind the dates once in the UI.
-- Capture an idea: `gh_project_item_add { title, body, fields: { Status:
-  "Todo" } }` (a draft). Note on it later: `gh_project_item_set { item,
-  appendBody }`.
-- Decided, repository known: `gh_project_item_promote { item, repo, kind,
-  milestone, createMilestone: true }` — then write its body per
+- First use in a repository: `github_project_read { method: "view" }`. No
+  board on any route → `github_project_create { owner: "<org or @me>",
+  link_repo: "<owner/name>" }`, with `template` naming a board whose Roadmap
+  view is already bound to Start / Target when one exists; otherwise bind the
+  dates once in the UI.
+- Capture an idea: `github_project_item_create { title, body, fields: {
+  Status: "Todo" } }` (a draft). Note on it later:
+  `github_project_item_edit { item, append_body }`.
+- Decided, repository known: `github_project_item_convert { item, repo, kind,
+  milestone, create_milestone: true }` — then write its body per
   `gh-issues`.
-- An issue created elsewhere: `gh_project_item_add { url: "owner/repo#n",
-  fields: { Status: "Todo", Target: "2026-12-01" } }`; or let
-  `gh_issue_create { addToProject: true }` do it.
-- Start / finish / drop: `gh_project_item_set { item, fields: { Status: "In
-  Progress" | "Done" | "Cancelled" } }`. The item id comes from
-  `gh_project_item_list` or `gh_issue_view` (`projects[].itemId`).
+- An issue created elsewhere: `github_project_item_add { item:
+  "owner/repo#n", fields: { Status: "Todo", Target: "2026-12-01" } }`; or let
+  `github_issue_create { project, fields }` do it.
+- Start / finish / drop: `github_project_item_edit { item, fields: { Status:
+  "In Progress" | "Done" | "Cancelled" } }`. The item names itself by its id
+  from `github_project_read` `item_list` or `github_issue_read` `view`
+  (the issue's boards), or by the issue's reference.
 - Schedule: `fields: { Start: "2026-11-01", Target: "2026-11-15" }`.
-- What is open: `gh_project_item_list { status: "-Done,-Cancelled" }`; the
-  items of this repository: `{ contentRepo: "current" }`.
-- Tidy: `gh_project_item_set { item, archived: true }` for a dropped draft or
-  a long-closed issue; never delete.
-- Re-enter across sessions: `gh_project_item_list { status: "In Progress"
-  }` → `gh_issue_view` on the item's issue → its outline and closing PRs say
-  where it stopped.
+- What is open: `github_project_read { method: "item_list", status:
+  "-Done,-Cancelled" }`; the items of this repository: `{ content_repo:
+  "<owner/name>" }`.
+- Tidy: `github_project_item_archive { item }` for a dropped draft or a
+  long-closed issue; never delete.
+- Re-enter across sessions: `github_project_read { method: "item_list",
+  status: "In Progress" }` → `github_issue_read` `view` on the item's issue →
+  its outline and closing PRs say where it stopped.
 
 </Recipes>
 
 <Guardrails>
 
-- `gh_project_item_list` before `item_add`: an issue already on the board is
-  not added twice.
+- `github_project_read` `item_list` before `github_project_item_add`: an
+  issue already on the board is not added twice (the tool also returns the
+  existing item).
 - Status is the board's; the issue's state is the issue's. Closing an issue
   does not move Status (a workflow may) — set Done when the work is done.
 - Built-in fields are set on the issue, never on the board; the tool refuses.
-- A draft that gained a repository is promoted, not re-created as an issue
+- A draft that gained a repository is converted, not re-created as an issue
   beside it.
-- A write whose `route` is `org` or `user` on a repository you do not own
-  lands on a shared or personal board: check that is what was meant.
+- A board found by the organization or viewer lookup, for a repository you
+  do not own, is a shared or personal board: check that is what was meant.
 
 </Guardrails>

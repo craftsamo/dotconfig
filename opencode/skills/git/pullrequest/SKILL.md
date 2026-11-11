@@ -231,9 +231,11 @@ merge bots and notifications, so they are judged before they are set.
   milestone or person that does not exist; nothing is created) or
   `unchanged` — and publishing sets the harmless and approval ones, so show
   them with the rest of the preview.
-- **On an existing PR.** `gh_pr_meta` applies what nothing reacts to at once
-  and returns the rest as `pending` with its reasons; show those to the user
-  and apply them with `gh_pr_meta_apply` (asks) only after they agree.
+- **On an existing PR.** `github_pr_edit` (labels, assignees, reviewers,
+  milestone) asks the person once, with a description of the change, on every
+  call; propose only what the repository's habit or the user's request
+  supports, and call it only after they agree
+  (`github-pull-requests` `Changing a pull request`).
 - **Reviewers only on request.** A review request notifies people (and
   `@copilot` uses AI credits); never infer or add one the user did not ask
   for. The PR's author cannot review it.
@@ -342,7 +344,7 @@ do not cover, such as `gh stack sync` or `gh stack checkout`.
 - **A branch created from an issue closes it regardless.** A PR opened from a
   `gh issue develop` branch lands in the issue's `closingIssuesReferences`
   with no keyword written anywhere. Check the layer's `closingIssues` with
-  `gh_pr_status` before merging a lower layer, or the issue closes while the
+  `github_pr_read` `view` before merging a lower layer, or the issue closes while the
   rest of the stack is still open.
 - Merging (`gh stack merge`) stays out of scope here, like every other merge;
   how a finished stack should land is the handoff in <MergeMessageHandoff>.
@@ -510,7 +512,7 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    `gh pr create --base <base> --title "..." --body-file <file>` or
    `gh pr edit` (never literal `\n`; a heredoc fed to `--body-file -` breaks
    when anything follows its terminator line). Preserve unspecified fields and
-   draft state. Metadata goes through `gh_pr_meta` there too (<Metadata>),
+   draft state. Metadata goes through `github_pr_edit` there too (<Metadata>),
    never through `gh pr` flags.
 8. Re-read the published PR's base, title, body and draft state, and the stack
    order when applicable (`git_publish` returns them per layer, with any
@@ -526,16 +528,18 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    (<MergeMessageHandoff>) after the report, never in the PR text. Do not
    merge.
 10. When CI or review feedback should be followed, read it with
-    `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
-    `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
-    failed jobs' errors, mergeability, closing issues and unresolved review
-    threads. Act on `waited.endedBy`:
-    - `complete` — read `checks.overall`; report unresolved threads.
-    - `failed` — read `failedLogs` (the `##[error]` lines first); a fix is a
-      new commit or a fixup (`git-commit`), then Steps 3 and 6 again.
-    - `timeout` — checks are still pending: call it again, do not sleep.
-    - `no_checks` — read `hints`: CI will not start (a conflict with the
-      base, no workflow, runs awaiting approval); it has not passed.
+    `github_pr_read` with `method: "checks"` (it waits for them) instead of
+    `sleep` + `gh pr checks` loops or `--watch`; `method: "view"` adds
+    mergeability, closing issues and unresolved review threads
+    (`github-pull-requests` `Waiting for checks`). Act on `waited.ended_by`:
+    - `settled` — read `checks.overall`; report unresolved threads.
+    - `failed` (with `fail_fast`), or `settled` with failures — read
+      `failed_logs` (the error lines first); a fix is a new commit or a
+      fixup (`git-commit`), then Steps 3 and 6 again.
+    - `timeout` with `checks.overall` pending — call it again, do not sleep.
+    - `timeout` with `checks.overall` `none` — read `hints`: CI will not
+      start (a conflict with the base, no workflow, runs awaiting approval);
+      it has not passed.
 
 </Steps>
 
@@ -636,8 +640,8 @@ the organisation's state, the caller's words.
   open PR — update it.
 - Do not silently exclude uncommitted work; warn that only pushed commits ship.
 - Do not request a review, change a milestone, or set metadata beyond the
-  repository's habit unless asked; do not apply `pending` metadata without the
-  user's agreement, or create labels or milestones to make a change valid.
+  repository's habit unless asked; do not edit an existing PR's metadata with
+  `github_pr_edit` without the user's agreement, or create labels or milestones to make a change valid.
 - Do not attach a file the user has not agreed to, and do not re-run
   `git_publish` to retry a failed upload: it appends every file again.
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
