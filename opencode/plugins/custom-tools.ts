@@ -2,9 +2,6 @@ import { readFileSync } from "fs"
 import { homedir } from "os"
 import { z } from "zod"
 import { isToolSpec, type OAuthAccess, type ToolContext, type ToolSpec } from "../lib/custom-tools/define"
-import * as gh from "../lib/custom-tools/gh"
-import * as ghIssue from "../lib/custom-tools/gh_issue"
-import * as ghProject from "../lib/custom-tools/gh_project"
 import * as git from "../lib/custom-tools/git"
 import * as webUi from "../lib/custom-tools/web_ui"
 import * as x from "../lib/custom-tools/x"
@@ -14,7 +11,7 @@ import * as x from "../lib/custom-tools/x"
  * (`server()`, 1.18.29+ object entrypoint) and OpenCode V2 (`setup()`).
  *
  * Tool IDs keep the old `tools/<file>.ts` naming (`<file>_<export>`, e.g.
- * git_secret_scan, gh_issue_create, x_search), so the per-tool
+ * git_secret_scan, git_commit, x_search), so the per-tool
  * permission keys in opencode.jsonc and the skills that call them are
  * unchanged. Do not reintroduce a `tools/` directory: V1 would register the
  * same IDs twice, and V2 no longer loads it.
@@ -25,9 +22,6 @@ import * as x from "../lib/custom-tools/x"
  */
 
 const modules: Record<string, Record<string, unknown>> = {
-  gh,
-  gh_issue: ghIssue,
-  gh_project: ghProject,
   git,
   web_ui: webUi,
   x,
@@ -88,9 +82,6 @@ type V2Context = {
   }
   tool: {
     transform(callback: (editor: { add(tool: Record<string, unknown>): void }) => void): Promise<unknown>
-  }
-  permission?: {
-    assert(input: { sessionID: string; action: string; resources: string[]; metadata?: Record<string, unknown>; message?: string }): Promise<void>
   }
 }
 
@@ -160,11 +151,6 @@ async function setup(ctx: V2Context) {
                 return undefined
               }
             },
-            // The host's gate, bound to the calling session: a tool that writes
-            // outside the worktree asserts through it (lib/custom-tools/github/gate.ts).
-            permission: ctx.permission
-              ? { assert: (input) => ctx.permission!.assert({ sessionID: context.sessionID, ...input }) }
-              : undefined,
           }
           return { content: await spec.execute(input, toolContext) }
         },

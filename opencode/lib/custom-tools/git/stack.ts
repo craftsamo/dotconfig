@@ -446,7 +446,7 @@ async function plan(cwd: string, opts: PlanOpts = {}) {
   for (const t of texts)
     for (const f of t.findings) warnings.push(`${t.branch} ${t.field}: "${f.match}" reads as ${f.rule} — ${f.hint}`)
 
-  // Metadata the publication sets, judged per layer as gh_pr_meta judges it.
+  // Metadata the publication sets, judged per layer.
   const meta: LayerMeta[] = []
   let metaInfo: Pick<Assessment, "environment"> | null = null
   const metaDigests: string[] = []
@@ -822,7 +822,7 @@ const prsArg = (when: string) =>
 
 export const publish_preview = tool({
   description:
-    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. With `prs` (the title and body per layer that submit will set) it shows that text, pins it in the token so publishing sends exactly what was shown, and reads it, with every commit subject and branch name, for working context the repository's reader cannot resolve (plan labels such as Phase 1, decision-log numbers, tool and agent names, local paths, billing state) — findings are tripwires to fix in the text, not a verdict. With `meta` (and `layerMeta` for one layer of a stack) it also judges the labels, assignees, review requests and milestone each PR will get, as gh_pr_meta does (harmless, approval with reasons, invalid, unchanged; `infer` adds your habitual assignee and labels). With `attachments` it checks each file submit would upload into a PR body (exists, image or video type, size, at most 50 per PR, gh 2.99.0 or later), pins its content in the token and says who can open the uploads (anyone, for a public repository). Show it to the user before publishing.",
+    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. With `prs` (the title and body per layer that submit will set) it shows that text, pins it in the token so publishing sends exactly what was shown, and reads it, with every commit subject and branch name, for working context the repository's reader cannot resolve (plan labels such as Phase 1, decision-log numbers, tool and agent names, local paths, billing state) — findings are tripwires to fix in the text, not a verdict. With `meta` (and `layerMeta` for one layer of a stack) it also judges the labels, assignees, review requests and milestone each PR will get (harmless, approval with reasons, invalid, unchanged; `infer` adds your habitual assignee and labels). With `attachments` it checks each file submit would upload into a PR body (exists, image or video type, size, at most 50 per PR, gh 2.99.0 or later), pins its content in the token and says who can open the uploads (anyone, for a public repository). Show it to the user before publishing.",
   args: {
     base: tool.schema.string().optional().describe("Plain branch only: the PR's base branch (default: its open PR's base, else the default branch)."),
     prs: prsArg("The title and body per layer branch that git_publish submit will set; shown, checked and pinned in the token. Omit for push, or for a submit that keeps each new PR's title at its first commit subject."),
@@ -885,7 +885,7 @@ async function verify(cwd: string, p: Awaited<ReturnType<typeof plan>>, before: 
     layers,
     nativeStack: native,
     ...(autoMergeDisabled.length ? { autoMergeDisabled } : {}),
-    ...(after ? {} : { prsUnread: "Could not re-read the PRs after publishing; check them with gh_pr_status." }),
+    ...(after ? {} : { prsUnread: "Could not re-read the PRs after publishing; check them with github_pr_read (method `checks`)." }),
   }
 }
 
@@ -902,7 +902,7 @@ async function applyMeta(cwd: string, p: Awaited<ReturnType<typeof plan>>, prNum
   const errors: string[] = []
   // The workflows, bots and rules judged were read at these commits; if one moved, judge again.
   if (!(await environmentUnchanged(p.repo!, p.metaShas, cwd)))
-    return { metadata: { applied, notApplied: "A branch the metadata judgment read moved during publishing; set it with gh_pr_meta, which judges again." } }
+    return { metadata: { applied, notApplied: "A branch the metadata judgment read moved during publishing; set it with github_pr_edit." } }
   for (const m of p.meta) {
     const todo = m.changes.filter((c) => c.status === "harmless" || c.status === "approval")
     if (!todo.length) continue

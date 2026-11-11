@@ -1,10 +1,11 @@
 import { afterEach, describe as suite, expect, test } from "bun:test"
+import type { Assessment, Judged } from "./pr-meta"
 import { load, skip } from "./testing/deps"
 import type { Fixture, GhRule } from "./testing/repo"
 
 const describe = suite.skipIf(skip)
-const { labelOnly, parseWorkflow, reacts } = await load(() => import("./pr-meta"))
-const { fixture, runWithFakeGh } = await load(() => import("./testing/repo"))
+const { applyChanges, assess, environmentUnchanged, labelOnly, parseWorkflow, prTarget, reacts } = await load(() => import("./pr-meta"))
+const { fixture, withFakeGh } = await load(() => import("./testing/repo"))
 
 const fixtures: Fixture[] = []
 afterEach(() => {
@@ -54,8 +55,10 @@ describe("workflow reading", () => {
   })
 })
 
-describe("gh_pr_meta", () => {
+describe("pr-meta engine", () => {
+  const REPO = "o/r"
   const DEFAULT_SHA = "a".repeat(40)
+  const MOVED_SHA = "b".repeat(40)
   const setup = (workflows: Record<string, string> = {}) => {
     const f = fixture()
     fixtures.push(f)
@@ -92,9 +95,7 @@ describe("gh_pr_meta", () => {
     { re: "^label list --repo o/r", out: '[{"name":"bug"},{"name":"Deploy"},{"name":"enhancement"},{"name":"needs,care"}]' },
     { re: "^pr edit 5 --repo o/r", out: "" },
   ]
-  const meta = (f: Fixture, args: any, r: GhRule[]) => runWithFakeGh(f, { module: "gh", name: "pr_meta", args: { prs: ["5"], ...args } }, r)
-  const apply = (f: Fixture, args: any, r: GhRule[]) => runWithFakeGh(f, { module: "gh", name: "pr_meta_apply", args: { prs: ["5"], ...args } }, r)
-  const onDefault = (name: string, text: string) => [
+  const onDefault = (name: string, text: string): GhRule[] => [
     { re: `^api repos/o/r/contents/\\.github/workflows\\?ref=${DEFAULT_SHA}`, out: JSON.stringify([{ type: "file", path: `.github/workflows/${name}` }]) },
     { re: `^api -H Accept: application/vnd\\.github\\.raw\\+json repos/o/r/contents/\\.github/workflows/${name.replace(".", "\\.")}`, out: text },
   ]
@@ -102,136 +103,265 @@ describe("gh_pr_meta", () => {
     "deploy.yml",
     "on:\n  pull_request_target:\n    types: [labeled]\njobs:\n  ship:\n    if: github.event.label.name == 'deploy'\n    runs-on: x\n",
   )
+  const mergedPrs = (count: number, make: (i: number) => Record<string, unknown>): GhRule => ({
+    re: "^pr list --repo o/r --state merged --author @me",
+    out: JSON.stringify(Array.from({ length: count }, (_, i) => ({ number: i + 1, title: "x", labels: [], assignees: [], milestone: null, ...make(i) }))),
+  })
 
-  test("applies a change nothing reacts to without asking", () => {
+  const assessPr = async (f: Fixture, request: Parameters<typeof assess>[0]["request"], infer = false) =>
+    assess({ repo: REPO, defaultBranch: "main", targets: [await prTarget(REPO, "5", f.dir)], request, infer, cwd: f.dir })
+  const judged = (f: Fixture, r: GhRule[], request: Parameters<typeof assess>[0]["request"], infer = false) => withFakeGh(f, r, () => assessPr(f, request, infer))
+  const changesOf = (a: Assessment) => a.targets[0].changes
+  const reasonsOf = (c: Judged) => c.reasons.join(" ")
+
+  test("judges a change nothing reacts to harmless, and applies it as one gh pr edit", async () => {
     const { f, head } = setup()
-    const res = meta(f, { labels: { add: ["bug"] }, assignees: { add: ["@me"] } }, rules(head))
-    expect(res.out.applied).toEqual([
-      {
-        pr: "#5",
-        changes: [
-          { kind: "label", op: "add", value: "bug", source: "request" },
-          { kind: "assignee", op: "add", value: "me", source: "request" },
-        ],
-      },
+    const { value, calls } = await withFakeGh(f, rules(head), async () => {
+      const a = await assessPr(f, { labels: { add: ["bug"] }, assignees: { add: ["@me"] } })
+      return { a, applied: await applyChanges(REPO, 5, changesOf(a), f.dir) }
+    })
+    expect(value.a.viewer).toBe("me")
+    expect(changesOf(value.a)).toEqual([
+      { kind: "label", op: "add", value: "bug", source: "request", status: "harmless", reasons: [] },
+      { kind: "assignee", op: "add", value: "me", source: "request", status: "harmless", reasons: [] },
     ])
-    expect(res.out.pending).toEqual([])
-    expect(res.out.token).toBeUndefined()
-    expect(res.calls).toContain("pr edit 5 --repo o/r --add-label=bug --add-assignee=me")
+    expect(value.applied.ok).toBe(true)
+    expect(calls.filter((c) => c.startsWith("pr edit"))).toEqual(["pr edit 5 --repo o/r --add-label=bug --add-assignee=me"])
   })
 
-  test("holds back a label a default-branch workflow runs on, whatever its case", () => {
+  test("holds back a label a default-branch workflow runs on, whatever its case", async () => {
     const { f, head } = setup()
-    const res = meta(f, { labels: { add: ["bug", "deploy"] } }, rules(head, deployOnTarget))
-    expect(res.out.applied[0].changes.map((c: any) => c.value)).toEqual(["bug"])
-    expect(res.out.pending[0].changes[0]).toMatchObject({ value: "Deploy" })
-    expect(res.out.pending[0].changes[0].reasons.join(" ")).toContain("deploy.yml")
-    expect(res.out.token).toMatch(/^[0-9a-f]{12}$/)
-    expect(res.calls.filter((c) => c.startsWith("pr edit"))).toEqual(["pr edit 5 --repo o/r --add-label=bug"])
+    const { value, calls } = await judged(f, rules(head, deployOnTarget), { labels: { add: ["bug", "deploy"] } })
+    const [bug, deploy] = changesOf(value)
+    expect(bug).toMatchObject({ value: "bug", status: "harmless" })
+    expect(deploy).toMatchObject({ value: "Deploy", status: "approval" })
+    expect(reasonsOf(deploy)).toContain("deploy.yml (main) runs on pull_request_target labeled")
+    expect(value.environment.workflowsDefault).toEqual([".github/workflows/deploy.yml"])
+    expect(value.digest).toMatch(/^[0-9a-f]{12}$/)
+    expect(calls.some((c) => c.startsWith("pr edit"))).toBe(false)
   })
 
-  test("stops trusting job conditions when a workflow_run workflow could chain", () => {
+  test("stops trusting job conditions when a workflow_run workflow could chain", async () => {
     const { f, head } = setup()
     const chained = [
       { re: `^api repos/o/r/contents/\\.github/workflows\\?ref=${DEFAULT_SHA}`, out: JSON.stringify([{ type: "file", path: ".github/workflows/deploy.yml" }, { type: "file", path: ".github/workflows/after.yml" }]) },
       deployOnTarget[1],
       { re: "^api -H Accept: application/vnd\\.github\\.raw\\+json repos/o/r/contents/\\.github/workflows/after\\.yml", out: "on:\n  workflow_run:\n    workflows: [deploy]\njobs:\n  t: {}\n" },
     ]
-    const res = meta(f, { labels: { add: ["bug"] } }, rules(head, chained))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.pending[0].changes[0].reasons.join(" ")).toContain("workflow_run")
+    const { value } = await judged(f, rules(head, chained), { labels: { add: ["bug"] } })
+    expect(value.environment.chained).toBe(true)
+    expect(changesOf(value)[0].status).toBe("approval")
+    expect(reasonsOf(changesOf(value)[0])).toContain("workflow_run")
   })
 
-  test("reads the PR head's own workflows and its base's for pull_request", () => {
+  test("reads the PR head's own workflows and its base's for pull_request", async () => {
     const { f, head } = setup({ "assign.yml": "on:\n  pull_request:\n    types: [assigned]\njobs:\n  t:\n    runs-on: x\n" })
-    const res = meta(f, { assignees: { add: ["@me"] } }, rules(head))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.pending[0].changes[0].reasons.join(" ")).toContain("assign.yml (the PR's head)")
+    const { value } = await judged(f, rules(head), { assignees: { add: ["@me"] } })
+    expect(changesOf(value)[0].status).toBe("approval")
+    expect(reasonsOf(changesOf(value)[0])).toContain("assign.yml (the PR's head)")
 
     const plain = setup()
     const baseHas = onDefault("milestone.yml", "on:\n  pull_request:\n    types: [milestoned]\njobs:\n  t: {}\n")
-    const onBase = meta(plain.f, { milestone: "v1" }, rules(plain.head, baseHas))
-    expect(onBase.out.pending[0].changes[0].reasons.join(" ")).toContain("milestone.yml (main) runs on pull_request milestoned")
+    const onBase = await judged(plain.f, rules(plain.head, baseHas), { milestone: "v1" })
+    expect(reasonsOf(changesOf(onBase.value)[0])).toContain("milestone.yml (main) runs on pull_request milestoned")
   })
 
-  test("asks before notifying people and refuses what does not exist or would be split", () => {
+  test("asks before notifying people and refuses what does not exist or would be split", async () => {
     const { f, head } = setup()
-    const res = meta(f, { reviewers: { add: ["alice", "author1"] }, labels: { add: ["nope"] }, milestone: "v2" }, rules(head))
-    expect(res.out.pending[0].changes).toEqual([expect.objectContaining({ kind: "reviewer", value: "alice", reasons: ["notifies alice"] })])
-    expect(res.out.invalid[0].changes.map((c: any) => c.value)).toEqual(["nope", "author1", "v2"])
-    expect(res.calls.some((c) => c.startsWith("pr edit"))).toBe(false)
-    expect(meta(f, { labels: { add: ["needs,care"] } }, rules(head)).error).toContain("comma")
+    const r = rules(head, [{ re: "^api repos/o/r/collaborators/ghost", out: "HTTP 404: Not Found", code: 1 }])
+    const { value, calls } = await judged(f, r, { reviewers: { add: ["alice", "ghost", "author1"] }, labels: { add: ["nope"] }, milestone: "v2" })
+    const changes = changesOf(value)
+    expect(changes.map((c) => [c.value, c.status])).toEqual([
+      ["nope", "invalid"],
+      ["alice", "approval"],
+      ["ghost", "invalid"],
+      ["author1", "invalid"],
+      ["v2", "invalid"],
+    ])
+    expect(changes[1]).toMatchObject({ kind: "reviewer", reasons: ["notifies alice"] })
+    expect(reasonsOf(changes[2])).toContain("ghost cannot review")
+    expect(reasonsOf(changes[3])).toContain("author cannot review")
+    expect(calls.some((c) => c.startsWith("pr edit"))).toBe(false)
+    await expect(judged(f, rules(head), { labels: { add: ["needs,care"] } })).rejects.toThrow("comma")
   })
 
-  test("treats unreadable webhooks as not harmless", () => {
+  test("treats unreadable webhooks as not harmless", async () => {
     const { f, head } = setup()
-    const res = meta(f, { labels: { add: ["bug"] } }, rules(head, [{ re: "^api --paginate --slurp repos/o/r/hooks", out: "HTTP 403", code: 1 }]))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.pending[0].changes[0].reasons[0]).toContain("webhooks")
+    const { value } = await judged(f, rules(head, [{ re: "^api --paginate --slurp repos/o/r/hooks", out: "HTTP 403", code: 1 }]), { labels: { add: ["bug"] } })
+    expect(value.environment.hooks).toBe("unreadable")
+    expect(changesOf(value)[0].status).toBe("approval")
+    expect(changesOf(value)[0].reasons[0]).toContain("webhooks")
   })
 
-  test("leaves a PR alone when it moved while being judged", () => {
-    const { f, head } = setup()
-    const moved = [{ re: "^pr view 5 --repo o/r --json number,state", out: JSON.stringify(pr(head)), times: 1 }]
-    const res = meta(f, { labels: { add: ["bug"] } }, rules(head, moved, { headRefOid: "b".repeat(40) }))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.moved).toEqual(["#5"])
-    expect(res.calls.some((c) => c.startsWith("pr edit"))).toBe(false)
-  })
-
-  test("applies pending changes only with a current token", () => {
-    const { f, head } = setup()
-    const r = rules(head, deployOnTarget)
-    const { token } = meta(f, { labels: { add: ["deploy"] } }, r).out
-    expect(apply(f, { labels: { add: ["deploy"] }, token: "000000000000" }, r).error).toContain("changed since gh_pr_meta")
-    const res = apply(f, { labels: { add: ["deploy"] }, token }, r)
-    expect(res.out.applied[0].changes).toEqual([{ kind: "label", op: "add", value: "Deploy", source: "request" }])
-    expect(res.calls).toContain("pr edit 5 --repo o/r --add-label=Deploy")
-    // A changed milestone changes the consequences, and so the token.
-    const ms = rules(head, [], { milestone: { title: "v0" } })
-    const before = meta(f, { milestone: "v1" }, rules(head, onDefault("m.yml", "on:\n  pull_request_target:\n    types: [milestoned]\njobs:\n  t: {}\n")))
-    const after = meta(f, { milestone: "v1" }, [...onDefault("m.yml", "on:\n  pull_request_target:\n    types: [milestoned, demilestoned]\njobs:\n  t: {}\n"), ...ms])
-    expect(before.out.token).not.toBe(after.out.token)
-  })
-
-  test("refuses an inferred label gh would split on its comma", () => {
-    const { f, head } = setup()
-    const merged = Array.from({ length: 5 }, (_, i) => ({ number: i + 1, title: "x", labels: [{ name: "needs,care" }], assignees: [], milestone: null }))
-    const res = meta(f, { infer: true }, rules(head, [{ re: "^pr list --repo o/r --state merged --author @me", out: JSON.stringify(merged) }]))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.invalid[0].changes[0]).toMatchObject({ value: "needs,care", source: "habit" })
-  })
-
-  test("asks when the head and the base hold different versions of one workflow", () => {
+  test("asks when the head and the base hold different versions of one workflow", async () => {
     const { f, head } = setup({ "ci.yml": "on: push\njobs:\n  t: {}\n" })
-    const res = meta(f, { labels: { add: ["bug"] } }, rules(head, onDefault("ci.yml", "on: [push]\njobs:\n  t: {}\n")))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.pending[0].changes[0].reasons.join(" ")).toContain("ci.yml differs between the PR's head and main")
+    const { value } = await judged(f, rules(head, onDefault("ci.yml", "on: [push]\njobs:\n  t: {}\n")), { labels: { add: ["bug"] } })
+    expect(changesOf(value)[0].status).toBe("approval")
+    expect(reasonsOf(changesOf(value)[0])).toContain("ci.yml differs between the PR's head and main")
   })
 
-  test("applies nothing when a webhook appears between judging and applying", () => {
+  test("marks changes the PR already has or lacks as unchanged", async () => {
     const { f, head } = setup()
-    const hook = JSON.stringify([[{ id: 9, active: true, events: ["pull_request"], config: { url: "https://ci.example.com/x" } }]])
-    const res = meta(f, { labels: { add: ["bug"] } }, rules(head, [{ re: "^api --paginate --slurp repos/o/r/hooks", out: "[[]]", times: 1 }, { re: "^api --paginate --slurp repos/o/r/hooks", out: hook }]))
-    expect(res.out.applied).toEqual([])
-    expect(res.out.moved).toEqual(["#5"])
-    expect(res.calls.some((c) => c.startsWith("pr edit"))).toBe(false)
+    const has = rules(head, [], { labels: [{ name: "bug" }], assignees: [{ login: "me" }], milestone: { title: "v1" } })
+    const { value } = await judged(f, has, { labels: { add: ["bug"], remove: ["enhancement"] }, assignees: { add: ["@me"] }, milestone: "v1" })
+    expect(changesOf(value).map((c) => [c.kind, c.value, c.status, c.reasons[0]])).toEqual([
+      ["label", "bug", "unchanged", "already labeled"],
+      ["label", "enhancement", "unchanged", "not labeled"],
+      ["assignee", "me", "unchanged", "already assigned"],
+      ["milestone", "v1", "unchanged", "milestone already set"],
+    ])
+    const bare = await judged(f, rules(head), { removeMilestone: true })
+    expect(changesOf(bare.value)).toMatchObject([{ kind: "milestone", op: "remove", status: "unchanged", reasons: ["no milestone"] }])
   })
 
-  test("infers your habitual assignee and labels from merged PRs", () => {
+  test("refuses an inferred label gh would split on its comma", async () => {
     const { f, head } = setup()
-    const merged = Array.from({ length: 6 }, (_, i) => ({
-      number: i + 1,
+    const { value } = await judged(f, rules(head, [mergedPrs(5, () => ({ labels: [{ name: "needs,care" }] }))]), {}, true)
+    expect(changesOf(value)).toHaveLength(1)
+    expect(changesOf(value)[0]).toMatchObject({ value: "needs,care", source: "habit", status: "invalid" })
+  })
+
+  test("infers your habitual assignee and labels from merged PRs", async () => {
+    const { f, head } = setup()
+    const merged = mergedPrs(6, (i) => ({
       title: i < 4 ? "feat: x" : "fix: y",
       labels: i < 4 ? [{ name: "enhancement" }] : [],
       assignees: i < 5 ? [{ login: "me" }] : [],
-      milestone: null,
     }))
-    const res = meta(f, { infer: true }, rules(head, [{ re: "^pr list --repo o/r --state merged --author @me", out: JSON.stringify(merged) }]))
-    expect(res.out.habits[0]).toMatchObject({ pr: "#5", sample: 6, selfAssigned: 5, labels: [{ name: "enhancement", count: 4, of: 6, scope: "all" }] })
-    expect(res.out.applied[0].changes).toEqual([
-      { kind: "assignee", op: "add", value: "me", source: "habit" },
-      { kind: "label", op: "add", value: "enhancement", source: "habit" },
+    const { value } = await judged(f, rules(head, [merged]), {}, true)
+    expect(value.targets[0].habits).toMatchObject({ sample: 6, selfAssigned: 5, labels: [{ name: "enhancement", count: 4, of: 6, scope: "all" }] })
+    expect(changesOf(value)).toEqual([
+      { kind: "assignee", op: "add", value: "me", source: "habit", status: "harmless", reasons: [] },
+      { kind: "label", op: "add", value: "enhancement", source: "habit", status: "harmless", reasons: [] },
     ])
+  })
+
+  test("infers a label from PRs of the same type when too few PRs overall carry it", async () => {
+    const { f, head } = setup()
+    const merged = mergedPrs(6, (i) => ({ title: i < 3 ? "feat(ui): x" : "fix: y", labels: i < 3 ? [{ name: "bug" }] : [] }))
+    const { value } = await judged(f, rules(head, [merged]), {}, true)
+    expect(value.targets[0].habits?.labels).toEqual([{ name: "bug", count: 3, of: 3, scope: "feat" }])
+    expect(changesOf(value).map((c) => [c.kind, c.value, c.source])).toEqual([["label", "bug", "habit"]])
+  })
+
+  test("stops when the merged PRs to infer from cannot be read", async () => {
+    const { f, head } = setup()
+    await expect(judged(f, rules(head, [{ re: "^pr list --repo o/r --state merged", out: "HTTP 500", code: 1 }]), {}, true)).rejects.toThrow("merged PRs")
+  })
+
+  test("changes the digest with the consequences a pending change rests on", async () => {
+    const { f, head } = setup()
+    const milestoned = (types: string) => onDefault("m.yml", `on:\n  pull_request_target:\n    types: [${types}]\njobs:\n  t: {}\n`)
+    const before = await judged(f, rules(head, milestoned("milestoned")), { milestone: "v1" })
+    expect((await judged(f, rules(head, milestoned("milestoned")), { milestone: "v1" })).value.digest).toBe(before.value.digest)
+    // A replaced milestone also fires demilestoned, and the PR's current milestone is part of what was approved.
+    const after = await judged(f, rules(head, milestoned("milestoned, demilestoned"), { milestone: { title: "v0" } }), { milestone: "v1" })
+    expect(after.value.digest).not.toBe(before.value.digest)
+    expect((await judged(f, rules(head, milestoned("milestoned")), { milestone: "v1", labels: { add: ["bug"] } })).value.digest).not.toBe(before.value.digest)
+  })
+
+  describe("environment re-check", () => {
+    const hook = JSON.stringify([[{ id: 9, active: true, events: ["pull_request"], config: { url: "https://ci.example.com/x" } }]])
+    const recheck = async (f: Fixture, r: GhRule[]) => {
+      const { value } = await withFakeGh(f, r, async () => {
+        const a = await assessPr(f, { labels: { add: ["bug"] } })
+        return { a, unchanged: await environmentUnchanged(REPO, a.shas, f.dir) }
+      })
+      return value
+    }
+
+    test("passes while branches, webhooks and rules read as they did", async () => {
+      const { f, head } = setup()
+      const res = await recheck(f, rules(head))
+      expect(Object.keys(res.a.shas).sort()).toEqual(["@hooks", "@rules:main", "main"])
+      expect(res.unchanged).toBe(true)
+    })
+
+    test("fails when a webhook appears between judging and applying", async () => {
+      const { f, head } = setup()
+      const res = await recheck(f, rules(head, [{ re: "^api --paginate --slurp repos/o/r/hooks", out: "[[]]", times: 1 }, { re: "^api --paginate --slurp repos/o/r/hooks", out: hook }]))
+      expect(changesOf(res.a)[0].status).toBe("harmless")
+      expect(res.unchanged).toBe(false)
+    })
+
+    test("fails when a ruleset mandating workflows appears between judging and applying", async () => {
+      const { f, head } = setup()
+      const mandate = { re: "^api --paginate --slurp repos/o/r/rules/branches/main", out: '[[{"type":"workflows"}]]' }
+      const res = await recheck(f, rules(head, [{ re: "^api --paginate --slurp repos/o/r/rules/branches/main", out: "[[]]", times: 1 }, mandate]))
+      expect(res.unchanged).toBe(false)
+    })
+
+    test("fails when the default branch moves between judging and applying", async () => {
+      const { f, head } = setup()
+      const res = await recheck(f, rules(head, [{ re: "^api repos/o/r/commits/main --jq", out: `${DEFAULT_SHA}\n`, times: 1 }, { re: "^api repos/o/r/commits/main --jq", out: `${MOVED_SHA}\n` }]))
+      expect(res.unchanged).toBe(false)
+    })
+
+    test("fails when a branch commit has become unreadable", async () => {
+      const { f, head } = setup()
+      const res = await recheck(f, rules(head, [{ re: "^api repos/o/r/commits/main --jq", out: `${DEFAULT_SHA}\n`, times: 1 }, { re: "^api repos/o/r/commits/main --jq", code: 1 }]))
+      expect(res.unchanged).toBe(false)
+    })
+  })
+
+  describe("prTarget", () => {
+    const read = (f: Fixture, r: GhRule[], n = "5") => withFakeGh(f, r, () => prTarget(REPO, n, f.dir)).then((res) => res.value)
+
+    test("reads what the PR carries", async () => {
+      const { f, head } = setup()
+      const extra = {
+        labels: [{ name: "bug" }],
+        assignees: [{ login: "me" }],
+        reviewRequests: [{ login: "alice" }, { slug: "core", organization: { login: "o" } }],
+        milestone: { title: "v1" },
+      }
+      expect(await read(f, rules(head, [], extra))).toEqual({
+        id: "#5",
+        number: 5,
+        headSha: head,
+        base: "main",
+        author: "author1",
+        labels: ["bug"],
+        assignees: ["me"],
+        reviewers: ["alice", "o/core"],
+        milestone: "v1",
+        typeHint: "feat: thing",
+      })
+    })
+
+    test("refuses a closed PR, a number that is not one, and a PR it cannot read", async () => {
+      const { f, head } = setup()
+      await expect(read(f, rules(head, [], { state: "MERGED" }))).rejects.toThrow("is MERGED")
+      await expect(read(f, rules(head), "5; rm")).rejects.toThrow("not a PR number")
+      await expect(read(f, [])).rejects.toThrow("Could not read PR #5")
+    })
+  })
+
+  describe("applyChanges", () => {
+    const change = (kind: Judged["kind"], op: Judged["op"], value: string): Judged => ({ kind, op, value, source: "request", status: "harmless", reasons: [] })
+
+    test("passes one flag per value, and clears a milestone without a value", async () => {
+      const { f, head } = setup()
+      const { value, calls } = await withFakeGh(f, rules(head), async () => [
+        await applyChanges(REPO, 5, [change("label", "remove", "bug"), change("reviewer", "add", "alice"), change("milestone", "add", "v1")], f.dir),
+        await applyChanges(REPO, 5, [change("assignee", "remove", "me"), change("milestone", "remove", "")], f.dir),
+        await applyChanges(REPO, 5, [], f.dir),
+      ])
+      expect(value.map((res) => res.ok)).toEqual([true, true, true])
+      expect(value[2]).toEqual({ ok: true, output: "" })
+      expect(calls.filter((c) => c.startsWith("pr edit"))).toEqual([
+        "pr edit 5 --repo o/r --remove-label=bug --add-reviewer=alice --milestone=v1",
+        "pr edit 5 --repo o/r --remove-assignee=me --remove-milestone",
+      ])
+    })
+
+    test("reports a failed edit with gh's output", async () => {
+      const { f, head } = setup()
+      const { value } = await withFakeGh(f, rules(head, [{ re: "^pr edit", out: "could not add label", code: 1 }]), () =>
+        applyChanges(REPO, 5, [change("label", "add", "bug")], f.dir),
+      )
+      expect(value.ok).toBe(false)
+      expect(value.output).toContain("could not add label")
+    })
   })
 })
