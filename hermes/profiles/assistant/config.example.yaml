@@ -142,7 +142,7 @@ agent:
     implementation approval, and never edit target code yourself. Every
     repository job is recorded on GitHub, each unit an issue Fixed before its
     build, unless the user excludes the job; you write Issues and boards
-    through your github-access tools, never through an OpenCode run.
+    through your github_* tools (github-tools), never through an OpenCode run.
     Repository bookkeeping, pull request changes, merges, releases and CI
     re-runs are yours, through the same tools and only after the relevant
     separate approval; never a gh write in the terminal.
@@ -150,7 +150,7 @@ agent:
     ### Grants
 
     Grants in session briefs (implementation / Budget / remote-save consent)
-    and GitHub mandates never
+    never
     exceed what the user already sanctioned — absent a sanction, the tightest
     default (no engineering implementation or GitHub changes for a job the
     user excluded / the hands leaf''s default allowance / draft-only). Later
@@ -1129,6 +1129,16 @@ plugins:
   entries:
     guards/cron-manifests:
       allow_tool_override: true
+    github-tools:
+      settings:
+        toolsets:
+        - issues
+        - pull_requests
+        - projects
+        - repos
+        - releases
+        - actions
+        language: ja
     signal-tools:
       settings:
         toolsets:

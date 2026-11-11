@@ -5,14 +5,18 @@ mechanics, and this file holds only what is particular to Chat:
 
 | Work | Skill |
 | --- | --- |
-| Reading issues and boards | `skill_view(name="github-access:read-tracking")` |
-| Changing issues and boards, a board's setup, tracking | `skill_view(name="github-access:manage-tracking")` |
-| A repository's settings, labels, milestones, releases, Actions runs, branch protection | `skill_view(name="github-access:manage-repo")` |
-| A pull request: where it stands, opening, editing, attachments, merging | `skill_view(name="github-access:manage-pr")` |
-| The user's conventions: merging (method, message, stacks), commit and PR text, red CI | also `skill_view(name="github")`, then the reference its table names |
+| Reading or changing issues | `skill_view(name="github-tools:issues")` |
+| Reading or changing boards and their items, a board's setup | `skill_view(name="github-tools:projects")` |
+| Keeping a job's record on issues and boards: tiers, which board, bodies, drafts | also `skill_view(name="github-tracking")` |
+| A pull request or a stack: where it stands, opening, editing, attachments, merging | `skill_view(name="github-tools:pull-requests")` |
+| A repository's settings, labels, milestones, branch protection | `skill_view(name="github-tools:repos")` |
+| Releases | `skill_view(name="github-tools:releases")` |
+| Actions runs: why one failed, re-running, starting a workflow | `skill_view(name="github-tools:actions")` |
+| The user's conventions: pull requests and attachments, merging (method, message, stacks), repositories and releases, commit and PR text, red CI | also `skill_view(name="github")`, then the reference its table names |
 
-Read with `github_issue`, `github_board`, `github_repo` and `github_pr`;
-change with `github_change`. In the terminal only gh's reads run.
+Read with the `github_*_read` tools (`github_issue_read`, `github_pr_read`,
+`github_project_read`, `github_repo_read`, `github_run_read`, …); change with
+the matching `github_*` write tool. In the terminal only gh's reads run.
 
 ## What stays in Chat
 
@@ -22,9 +26,9 @@ The user's own direct requests about GitHub itself: "この PR どうなって�
 them inline with the tools, each change on its card: the card is the user's
 go, so do not ask first and then raise the card.
 
-- **Re-running and starting workflows.** `run_rerun` re-runs a finished run
-  (its failed jobs by default); propose one yourself only for a failure that
-  looks transient, and say so. `workflow_dispatch` starts a workflow only when
+- **Re-running and starting workflows.** `github_run_rerun` re-runs a finished
+  run (its failed jobs by default); propose one yourself only for a failure that
+  looks transient, and say so. `github_workflow_run` starts a workflow only when
   the user names it: read what it does (its file) first, and when it deploys
   or publishes, say so plainly before the card, since it happens for real.
   Publishing a release is the same kind of decision.
@@ -33,7 +37,7 @@ go, so do not ask first and then raise the card.
   test, or implementing anything is engineering: promote it through Plan →
   Execute, where an OpenCode build run changes the code and opens its PR. A
   red run you only read and explain stays here.
-- **Opening a pull request yourself** (`pr_create`) only for a branch that is
+- **Opening a pull request yourself** (`github_pr_create`) only for a branch that is
   already pushed and that the user names; a branch a build run made gets its
   PR from that run.
 - **Tracking a job's work** on a board belongs to the engineering pipeline
@@ -57,7 +61,8 @@ enabling or disabling workflows; a merge that bypasses the rules.
 
 - An admin change (a new repository, its settings or visibility, archiving,
   a merge, publishing a release, re-running or starting a workflow, branch
-  protection) always asks on its own card; never propose a mandate for one.
+  protection) always asks on its own card; never offer the user a `session`
+  answer for one.
 - An upload into a pull request is permanent: name each file and who can
   open it, and attach only the ones the user picks.
 - Do not schedule a job that is meant to change GitHub (nobody could answer

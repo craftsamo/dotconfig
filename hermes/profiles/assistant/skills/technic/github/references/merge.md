@@ -1,15 +1,16 @@
 # Merging pull requests
 
-How to merge is the `pr_merge` mechanics in
-`skill_view(name="github-access:manage-pr")`. This adds what this user
+How to merge is the `github_pr_merge` mechanics in
+`skill_view(name="github-tools:pull-requests")`. This adds what this user
 expects of a merge: which method, which message, in which order, and how to
 read what went wrong. It applies only after the user said to merge that pull
 request; green CI never implies it.
 
 ## Before the card
 
-1. `github_pr` `view`: `mergeable`, the merge state, the base, the commit
-   count (`size.commits`), the checks, the review decision, and `stack`.
+1. `github_pr_read` `view`: `mergeable`, the merge state, the base, the commit
+   count (`size.commits`), the checks, the review decision, and `stack`. Keep
+   the head commit it shows: it is the `head_sha` of the merge.
 2. Wait for CI as [ci](ci.md) says: no pending check is not green.
 3. Count the commits of every pull request in a batch, the top one included,
    before presenting the plan: a miscount changes the method.
@@ -27,12 +28,13 @@ one merge follow "Stacks and chains" below.
   ` (#n)`, `body` = `""`. The history keeps its commits and the PR title is the
   one summary line. "Squash everything with the PR title" is the wrong
   reading.
-- **When the repository does not allow that method** (`github_repo` `view`
-  shows the merge settings; `pr_merge` refuses it), stop and tell the user.
+- **When the repository does not allow that method** (`github_repo_read`
+  `view` shows the merge settings; `github_pr_merge` refuses it), stop and
+  tell the user.
   Never fall back to another method on your own.
 - **Every message that lands is scanned first** for repo-external words, as
   [text-hygiene](text-hygiene.md) says:
-  - one commit: pass the cleaned body to `pr_merge` (main stays clean, the
+  - one commit: pass the cleaned body to `github_pr_merge` (main stays clean, the
     branch does not need a rewrite);
   - several commits: the branch's messages must be rewritten first, which
     is history surgery ([history-repair](history-repair.md)).
@@ -40,12 +42,14 @@ one merge follow "Stacks and chains" below.
 ## Stacks and chains
 
 - **Native stack or chain?** A chain is pull requests whose bases point at
-  each other; a native stack is what `github_pr` `view` shows as `stack`
+  each other; a native stack is what `github_pr_read` `view` shows as `stack`
   (null otherwise; merged members stay listed). Say "native stack" only after
   that check; never call a chain stacked.
 - **A stack whose layers serve one goal lands once, on one card, when it is
-  done.** Wait until every layer is green, then `pr_merge` on the top pull
-  request: it lands every open layer below it too, and its card lists them.
+  done.** Wait until every layer is green, name the layers to the user, then
+  `github_pr_merge` on the top pull request with `with_lower_layers: true`
+  (without it the call stops and lists them): it lands every open layer below
+  it too.
   Landing layer by layer would leave a half-built goal on main for as long as
   the rest takes. The number of layers does not change this.
 - **Its message names the goal and every layer.** A merge-commit merge of
@@ -65,9 +69,9 @@ one merge follow "Stacks and chains" below.
   body to paste: the page's title field starts as the top title with
   ` (#<top>)` and lands exactly as edited, so keep the number at its end.
 - **A lower part first** only when the user asks (another job needs that
-  base now): `pr_merge` on the highest layer to land, with the one-PR rules
-  above for one layer and the stack message for several. GitHub rebases the
-  layers above onto main itself: read the next one with `github_pr` `view`
+  base now): `github_pr_merge` on the highest layer to land, with the one-PR
+  rules above for one layer and the stack message for several. GitHub rebases
+  the layers above onto main itself: read the next one with `github_pr_read` `view`
   (its base is now the trunk, its commits are only its own, its additions
   match the original) and wait for its CI before its card.
 - **After each merge-commit merge, check where it forked**, in a fetched
@@ -86,8 +90,8 @@ one merge follow "Stacks and chains" below.
   record cannot tell). For future updates recommend "Update with rebase" (the
   arrow beside Update branch). A clean diff after such an update does not mean
   a clean commit list: read the commit count too.
-- **Blocked by rules:** when GitHub says `blocked`, read `github_repo`
-  `rules` to name what blocks it (a required check that cannot run, a
+- **Blocked by rules:** when GitHub says `blocked`, read `github_ruleset_read`
+  `list` to name what blocks it (a required check that cannot run, a
   review). Bypassing it is the user's own act in GitHub's page: say plainly
   that no CI would run on the merged commit.
 - **Building layered work:** the build run creates the stack from the start,
@@ -108,7 +112,7 @@ one merge follow "Stacks and chains" below.
   the same message: bottom-up with "Create a merge commit", or merge one and
   ask for a rebase of the rest before the next.
 - When the user reports a conflict after merging by hand, read the real state
-  first (`github_pr` `list` with state `all`, `git log origin/main`): it
+  first (`github_pr_read` `list` with state `all`, `git log origin/main`): it
   may already be resolved and merged.
 - Two kinds of merge commit exist; do not conflate them. The one a PR merge
   makes follows the repository's merge-commit settings (the PR title for a
@@ -127,7 +131,7 @@ Some merge screens (the mobile app's stack merge among them) build their own
 title and body and ignore the repository's settings. Ask or look at which
 surface made the message before changing any setting, and do not say a
 setting fixed it until the user confirms on that surface. The fix that works
-everywhere: merge with `pr_merge` and an explicit `subject` and `body`.
+everywhere: merge with `github_pr_merge` and an explicit `subject` and `body`.
 
 ## After the merges
 

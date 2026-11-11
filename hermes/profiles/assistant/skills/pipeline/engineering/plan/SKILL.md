@@ -134,7 +134,7 @@ leave install, gateway restarts and the cutover to the person.
    them as `approval`. The roadmap question also names where the job will be
    recorded on GitHub (the board, the parent issue and its units, or the one
    issue), as "Tracking" below says: read
-   `skill_view(name="github-access:manage-tracking")` first, so it names its
+   `skill_view(name="github-tracking")` first, so it names its
    real shape. Once the roadmap is approved, file it on GitHub before the
    first unit's plan is Fixed, as
    [GitHub boundaries](../execute/references/github-ops.md) "Starting" says.
@@ -150,7 +150,7 @@ A confirmed bug is not implementation approval.
 Work is planned in **execution units**. A unit is one goal that delivers on
 its own, told by what people can do once it lands; it is implemented by one
 PR or one native stack of PRs that lands in one merge, and on GitHub it is
-one issue (`github-access:read-tracking` "Parent and execution unit"). A job
+one issue (`github-tracking` "Parent and execution unit"). A job
 is one unit, or a roadmap of several.
 
 Inside a unit, Phase N is one reviewable layer: one PR, or one layer of the
@@ -211,7 +211,7 @@ use its alternate.
 A job on a repository the user owns or belongs to is recorded on GitHub as
 it is planned: the roadmap's approval files it (a parent issue with one
 sub-issue per unit, drafts for the work outside the code, on the board
-`github_board` `resolve` names for the repository, or the one issue of a
+`github_project_read` `view` names for the repository, or the one issue of a
 single-unit job), and each unit's issue is Fixed before its build. The user
 excludes a job from GitHub in their own words ("track this nowhere", "no
 issue for this"); record that in the log, and then no Issue or board changes

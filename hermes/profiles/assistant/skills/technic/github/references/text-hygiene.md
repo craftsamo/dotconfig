@@ -2,8 +2,8 @@
 
 Commit messages on main, PR titles and bodies (open and merged) are what
 someone with only the repository reads first. This applies whenever such text
-is written or lands: a merge's `subject` and `body`, a `pr_edit`, a
-`pr_create`, a build run's brief for its own commits.
+is written or lands: a merge's `subject` and `body`, a `github_pr_edit`, a
+`github_pr_create`, a build run's brief for its own commits.
 
 ## What must not be in it
 
@@ -16,7 +16,7 @@ paths, facts about this machine.
   (`git log --format=%B <base>..<head>`); how a dirty one is fixed depends on
   the method ([merge](merge.md)). After a run, grep every message that landed
   on main since the base: zero.
-- **PR text:** fix titles and bodies with `pr_edit` (merged ones are
+- **PR text:** fix titles and bodies with `github_pr_edit` (merged ones are
   editable), keeping the original text in the job directory so the rewrite
   can be diffed.
 - **Before saying "clean",** scan all four places (commit messages on main,
