@@ -21,9 +21,9 @@ and Hermes touches it for image generation and, on every profile, as a
 last-resort chat tier ahead of the OpenRouter tail (see "Codex" below).
 
 - **Opus 5.5 leads the judgment profiles** (`default`, `assistant`, `marketer`,
-  `video-creator`), **Fable 5.1 leads `creator` and `researcher`**, and
+  `video-creator`), **Fable 5.2 leads `creator` and `researcher`**, and
   **Sonnet 5.5 leads** `writer`, `image-creator` and `audio-creator` (`writer`
-  to spare the shared Claude weekly pool). An Opus-led chain takes **Fable 5.1
+  to spare the shared Claude weekly pool). An Opus-led chain takes **Fable 5.2
   as T2** (`default` is the exception, below), never another Opus: every Opus
   model draws on the same Opus weekly sub-cap, so an Opus T2 fails exactly
   when that cap is why T1 failed, while Fable draws on its own 50%-of-week
@@ -32,7 +32,7 @@ last-resort chat tier ahead of the OpenRouter tail (see "Codex" below).
   sub-cap: see "Console credit lanes".) **Sonnet 5.5 is the last Claude tier**
   of an Opus- or Fable-led chain: Anthropic meters Opus separately from "all
   other models", so Sonnet stays alive when the Opus cap is the reason T1
-  failed. A Sonnet-led chain takes Opus 5.5 as T2, then Fable 5.1 where it has
+  failed. A Sonnet-led chain takes Opus 5.5 as T2, then Fable 5.2 where it has
   one. `researcher` shares Fable's ceiling with `creator` and the Opus-led
   chains' T2, and its search round trips read a lot: a busy Creator week can
   spend it for both ([decision](./decisions/researcher-fable-assistant-astra.md)).
@@ -44,7 +44,7 @@ last-resort chat tier ahead of the OpenRouter tail (see "Codex" below).
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
 - **The Creator family splits by hand.** `video-creator` leads on Opus 5.5
-  and `creator` on Fable 5.1; `image-creator` and `audio-creator` lead on Sonnet 5.5, which
+  and `creator` on Fable 5.2; `image-creator` and `audio-creator` lead on Sonnet 5.5, which
   matches Opus on image and audio leaves at about 0.6x the tokens but is clearly
   behind on authored video (rule and reason:
   [decision](./decisions/creator-family-model-split.md)). All four keep
@@ -87,9 +87,9 @@ Provider facts:
 
 - **Anthropic native** — the subscription is one or more PKCE rows in the
   root `anthropic-oauth` credential pool, inherited read-only by every profile
-  (see "Authentication inheritance"). **Fable 5.1 is not in the
-  `hermes model` picker** (`/v1/models` lags the alias), so it is written
-  straight into `config.yaml`.
+  (see "Authentication inheritance"). **Fable is written straight into
+  `config.yaml`**: the `hermes model` picker's curated Anthropic list lags a
+  new Fable release.
 - **Codex** — **images, plus one last-resort chat tier**: GPT-6.1 Sol sits ahead
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
@@ -206,7 +206,7 @@ These facts govern the paired Claude tiers:
 5. **Some request shapes are refused per model.** Opus 5.5 and Fable thinking
    cannot be disabled (HTTP 400), so a thinking-off request omits `thinking`.
    Sonnet 5.5 has a real off (`thinking: {type: between_tools}` on
-   anthropic.com). Opus 5.5, Sonnet 5.5, Fable 5.1 and Mythos 5.1 reject forced
+   anthropic.com). Opus 5.5, Sonnet 5.5, Fable 5.2 and Mythos 5.1 reject forced
    `tool_choice`, so the leaked-invoke-markup recovery resends the ordinary
    request. The omissions and the recovery are mostly local patches in the Hermes checkout
    (check `scripts/check-local-patches.sh`), decided from

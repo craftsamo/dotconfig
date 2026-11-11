@@ -5,9 +5,9 @@ Owner doc: docs/models-auth.md "Models and fallback chains"
 
 ## Decision
 
-`researcher` leads on Fable 5.1 (Opus 5.5 as T2, Sonnet 5.5 as the last
+`researcher` leads on Fable 5.2 (Opus 5.5 as T2, Sonnet 5.5 as the last
 Claude tier, then GPT-6.1 Sol and the OpenRouter tail). `assistant` carries
-GPT-6 Astra as T3, between Fable 5.1 and Sonnet 5.5.
+GPT-6 Astra as T3, between Fable 5.2 and Sonnet 5.5.
 
 ## Why
 
