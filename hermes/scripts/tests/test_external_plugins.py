@@ -87,6 +87,7 @@ VALIDATOR_SPEC.loader.exec_module(validator)
 def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     required = {(name, needed) for name, entry in MANIFEST.items() for needed in entry.get("requires", ())}
     assert ("signal-tools", "signal-tools-guard") in required
+    assert ("github-tools", "github-tools-guard") in required
     config = tmp_path / "config.yaml"
     base = "skills:\n  create_dir: skills/learned\nplugins:\n  enabled:\n  - skill-topology\n"
     config.write_text(base + "  - signal-tools\n", encoding="utf-8")

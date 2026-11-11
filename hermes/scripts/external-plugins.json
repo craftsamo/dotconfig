@@ -1,4 +1,12 @@
 {
+  "github-tools": {
+    "repo": "craft-agent/github-tools",
+    "version": "0.12.0",
+    "commit": "f764a51d00a725d050c0a2532d7759a8b5804068",
+    "npm": "@craftsamo/github-tools",
+    "skills": ["issues", "pull-requests", "projects", "repos", "releases", "actions"],
+    "requires": ["github-tools-guard"]
+  },
   "signal-tools": {
     "repo": "craft-agent/signal-tools",
     "version": "0.3.1",
