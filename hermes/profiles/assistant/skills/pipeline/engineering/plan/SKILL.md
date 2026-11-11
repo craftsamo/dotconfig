@@ -191,7 +191,7 @@ Models are OpenCode's own defaults; name one only when you depart from it.
 Decide per `plan` or `design` turn: when its answer would be wrong if a fact
 outside the code were wrong (how the people who use it work, a business or
 legal rule, how an outside service really behaves), run it on
-`model=anthropic/claude-fable-5-1` `variant=high` and say why in one line
+`model=anthropic/claude-fable-5-2` `variant=high` and say why in one line
 when you report it. A turn whose question is technical (architecture,
 libraries, how to split a unit's layers, refactors, performance, bugs) keeps
 the default, and `build`, `debug` and `review` always do.

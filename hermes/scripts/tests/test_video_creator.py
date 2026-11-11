@@ -47,8 +47,8 @@ class VideoCreatorConfigTest(unittest.TestCase):
 
     def test_model_matches_creator_with_opus_lead(self) -> None:
         self.assertEqual(self.video["model"]["default"], "claude-opus-5-5")
-        self.assertEqual(self.video["fallback_providers"][0]["model"], "claude-fable-5-1")
-        self.assertEqual(self.creator["model"]["default"], "claude-fable-5-1")
+        self.assertEqual(self.video["fallback_providers"][0]["model"], "claude-fable-5-2")
+        self.assertEqual(self.creator["model"]["default"], "claude-fable-5-2")
         self.assertEqual(self.creator["fallback_providers"][0]["model"], "claude-opus-5-5")
 
         def without_model(entry: dict) -> dict:

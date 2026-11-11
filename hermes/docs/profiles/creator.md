@@ -108,7 +108,7 @@ capability.
 
 ### Model
 
-Creator leads on Fable 5.1 with Opus 5.5 as T2 ([models-auth.md](../models-auth.md)
+Creator leads on Fable 5.2 with Opus 5.5 as T2 ([models-auth.md](../models-auth.md)
 "The Creator family splits by hand"); the Fable lead is a trial, and Sonnet
 stays out because it trails on authored video
 ([decision](../decisions/creator-family-model-split.md)).

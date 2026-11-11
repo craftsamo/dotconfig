@@ -1,5 +1,5 @@
 model:
-  default: claude-fable-5-1
+  default: claude-fable-5-2
   provider: anthropic
   base_url: https://api.anthropic.com
 fallback_providers:
