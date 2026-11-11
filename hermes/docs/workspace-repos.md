@@ -58,7 +58,7 @@ launcher and cron run the same code.
 
 Discussions stay a count: there are too few to list. GitHub Projects boards
 and an issue's relations are not read here; the Assistant reads them with
-`github_board` and `github_issue` ([github-access.md](./github-access.md)).
+`github_project_read` and `github_issue_read` ([github-tools.md](./github-tools.md)).
 
 ## Everyday use
 

@@ -129,7 +129,7 @@ own code-grounded technical proposals and sequencing, which the Assistant agrees
 with the user ([opencode.md](./opencode.md)); Client approval chooses scope and
 important tradeoffs. A repository job's plan lives on GitHub (a parent issue
 and its execution units, or one issue) unless the Client excludes the job;
-the Assistant writes them through [github-access](./github-access.md) and
+the Assistant writes them through [github-tools](./github-tools.md) and
 OpenCode runs only read them ([decision](./decisions/issue-driven-engineering.md)).
 The private job record keeps the decision log and what is not for the
 repository's readers. OpenCode session IDs are resume handles, not the only
