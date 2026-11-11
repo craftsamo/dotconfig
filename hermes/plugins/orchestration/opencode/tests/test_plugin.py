@@ -278,43 +278,40 @@ def test_the_mandate_argument_is_refused_like_any_unknown_write_argument(fixture
     assert not hasattr(plugin, "ghwrite")
 
 
-def test_rules_have_no_mandate_and_deny_every_old_github_write_tool():
+def test_rules_have_no_mandate_and_deny_github_writes():
     import inspect
     assert "mandate" not in inspect.signature(policy.rules).parameters
     assert not hasattr(policy, "RUN_GH_WRITES")
     for kind in ("read-only", "write"):
         rules = policy.rules(kind, None, set())
-        for name in policy.PROJECT_WRITES:
+        for name in ("github_issue_edit", "github_project_item_edit", "github_foo_bar"):
             assert policy.decide(rules, name, "*") == "deny", (kind, name)
 
 
 def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_edit_a_build_may_ask_for():
-    for action in ("github_issue_edit", "github_project_item_edit", "gh_issue_update", "gh_project_item_set",
-                   "github_foo_bar"):
+    for action in ("github_issue_edit", "github_project_item_edit", "github_foo_bar"):
         assert policy.github_write(action), action
-    for action in ("github_issue_read", "github_pr_edit", "external_directory", "shell", "gh_pr_meta_apply", None):
+    for action in (*policy.GITHUB_TOOLS_READS, "github_pr_edit", "external_directory", "shell", None):
         assert not policy.github_write(action), action
-    assert all(policy.github_write(name) for name in policy.PROJECT_WRITES)
 
 
 def test_the_caller_can_reject_an_issue_or_board_write_but_never_approve_it(fixture):
     _, directory, _, fake = fixture
     fake.asks["issue"] = dict(action="github_issue_edit", resources=[ISSUE], metadata={"number": 12, "body": "tick"})
-    fake.asks["old"] = dict(action="gh_issue_update", resources=[ISSUE], metadata={"number": 12, "body": "tick"})
     fake.asks["pr"] = dict(action="github_pr_edit", resources=["octo/example#20"],
                            metadata={"arguments": {"pr": 20, "add_labels": ["bug"]}})
     fake.asks["shell"] = dict(action="shell", resources=["gh issue comment 12 --body hi"], save=[])
-    scripted(fake, "ask:issue", "ask:old", "ask:shell", "ask:pr", "finish")
+    scripted(fake, "ask:issue", "ask:shell", "ask:pr", "finish")
     paused = run("plan", directory)
     sid = paused["session_id"]
-    for sent in range(3):
+    for sent in range(2):
         assert paused["status"] == "waiting", paused
         item = paused["pending"][0]
         refused = request("reply", sid, request_id=item["id"], decision="once")
         assert "Issue or board write" in refused["error"], (item["action"], refused)
         assert len(fake.replies) == sent, "the refused once sent nothing"
         paused = request("reply", sid, request_id=item["id"], decision="reject")
-    assert [r[1]["decision"] for r in fake.replies] == ["reject"] * 3
+    assert [r[1]["decision"] for r in fake.replies] == ["reject"] * 2
     assert paused["status"] == "waiting" and paused["pending"][0]["action"] == "github_pr_edit", paused
     approved = request("reply", sid, request_id=paused["pending"][0]["id"], decision="once")
     assert approved["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, approved
@@ -2410,12 +2407,6 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
                             "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-            for tool in ("gh_issue_create", "gh_issue_update", "gh_issue_comment", "gh_issue_relate", "gh_issue_develop",
-                         "gh_project_create", "gh_project_link", "gh_project_field_ensure", "gh_project_view_ensure",
-                         "gh_project_item_add", "gh_project_item_set", "gh_project_item_promote"):
-                assert policy.decide(rules, tool, "*") == "deny", (kind, tool)
-            for tool in ("gh_issue_view", "gh_issue_list", "gh_project_resolve", "gh_project_item_list"):
-                assert policy.decide(rules, tool, "*") != "deny", (kind, tool)
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
@@ -2611,15 +2602,14 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
     for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish",
-                 "gh_pr_meta", "gh_pr_meta_apply"):
+    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish"):
         assert policy.decide(rules, tool, "*") == "deny", tool
     assert policy.decide(rules, "git_publish_preview", "*") != "deny", "previewing a publication only reads"
     write = policy.rules("write", None, {"main"})
     for tool in ("git_commit", "git_rebase", "git_stack"):
         assert policy.decide(write, tool, "*") != "deny", f"a build rewrites its own commits through {tool}"
     reviewer = [{"action": "*", "resource": "*", "effect": "deny"}] + write
-    for tool in ("git_stack", "git_publish", "gh_pr_meta", "gh_pr_meta_apply"):
+    for tool in ("git_stack", "git_publish"):
         assert policy.decide(reviewer, tool, "*") == "deny", f"a write run must not reopen a subagent's own {tool} deny"
 
 

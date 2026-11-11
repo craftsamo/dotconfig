@@ -489,7 +489,7 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads
   the gateway's own, possibly stale, values.
 - **A run never writes GitHub on the caller's `once`.** The ruleset denies
-  the whole `github_*` action and the old `gh_*` writes, reopens only
+  the whole `github_*` action, reopens only
   `github_*_read`, and asks only for a write run's `github_pr_edit`;
   `opencode_request` refuses `once` on any Issue or board write
   (`policy.github_write`), a shell `gh issue …` included. Widening the asks or

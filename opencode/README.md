@@ -36,7 +36,7 @@ plugin fails to load. The `opencode-v2` formula conflicts with the 1.x
 Custom tools live in `lib/custom-tools/<module>.ts` (or `<module>/index.ts`)
 and are registered by `plugins/custom-tools.ts`, which exports both a V1
 `server()` and a V2 `setup()`. Tool IDs keep the `<module>_<export>` form
-(`git_secret_scan`, `gh_pr_status`, `x_search`, ...), matching the permission
+(`git_secret_scan`, `web_ui_check`, `x_search`, ...), matching the permission
 actions in `opencode.jsonc`. Do not add a `tools/` directory: V1 would register
 the same IDs twice and V2 does not load it. Keep subdirectories out of
 `plugins/`; V2 loads each one as a plugin package. Child processes go through
@@ -65,29 +65,12 @@ task branch's own commits may be rewritten even once pushed (the result says
 when the push needs `--force-with-lease`), never the default branch, commits
 already on it or held by another remote branch (layers above in the same
 native stack excepted), or a branch GitHub protects against force pushes.
-`gh_pr_status` (`lib/custom-tools/gh.ts`) reads a PR's checks, failed-job logs
-and review threads and can wait for CI. `gh_pr_meta`
-(`lib/custom-tools/pr-meta.ts`) sets labels, assignees, review requests and a
-milestone, applying at once only what no workflow, merge bot, webhook or
-mandated ruleset reacts to and that notifies nobody else; `gh_pr_meta_apply`
-(asks) applies the rest against its token.
 
-The GitHub tools share `lib/custom-tools/github/` (GraphQL over `gh api
-graphql` with pagination, reference parsers, the repository context, board
-resolution on the explicit → linked → org → user route, one flat shape for
-project items, and an issue's kind as an Issue Type on an organization
-repository or a `type:*` label elsewhere). `gh_issue_*`
-(`lib/custom-tools/gh_issue/`) reads and writes issues: `view` and `list`
-read; `create`, `update`, `comment`, `relate` (parent, sub-issues, blocked
-by) and `develop` (a linked branch) write after checking the viewer's
-permission, report a repository the viewer does not own as foreign, close
-only with a reason and never delete. `gh_project_*`
-(`lib/custom-tools/gh_project/`) does the same for Projects v2 boards:
-`resolve` and `item_list` read; `create`, `link`, `field_ensure`,
-`view_ensure`, `item_add`, `item_set` (archive, never delete) and
-`item_promote` write to a board the viewer can update. The sub-issue, type
-and dependency flags need gh 2.94.0. The `gh-issues`, `gh-projects` and
-`approach-github-planning` skills carry the conventions.
+GitHub work (issues, Projects, PR status and metadata) goes through
+`@craftsamo/github-tools`, pinned in `opencode.jsonc` at the same release
+Hermes pins. `lib/custom-tools/pr-meta.ts` is not a tool: it is the metadata
+engine `git_publish_preview` and `git_publish` use to judge and apply a PR's
+labels, assignees, review requests and milestone.
 
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place

@@ -70,10 +70,6 @@ follows comes to you as a request.
   the words to change, when it names a Phase, a decision number, the tools
   or agents that did the work, a local path or this machine's or account's
   state.
-- **Metadata on an existing PR** is applied without asking when nothing
-  reacts to it; the rest arrives as a `gh_pr_meta_apply` request, to approve
-  against the reasons the build reported (a workflow, a merge bot, a webhook,
-  or the people it notifies).
 - **Pushes** (a rebased branch's
   `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch
@@ -88,7 +84,7 @@ follows comes to you as a request.
   attachments is refused `once` like an Issue write: `reject` it and change
   the PR yourself with your GitHub tools when it is wanted. One that still
   reaches you for an Issue or the board (any other
-  `github_*` write, `gh_issue_*`, `gh_project_*`, or a shell `gh issue
+  `github_*` write or a shell `gh issue
   create|edit|comment|reopen`): `once` is refused, so `reject` it with the
   reason and make the change yourself with your GitHub tools when it is
   wanted, from the run's `progress.md` and report. An Issue or board write

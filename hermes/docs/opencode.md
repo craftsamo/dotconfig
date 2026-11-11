@@ -128,8 +128,7 @@ caller can forget under a compaction, and the branch, the PR references and
 the record the Assistant mirrors all hang on this one value.
 
 **A run's GitHub writes.** The session ruleset denies the whole `github_*`
-action (the person's github-tools writes) and the older `gh_issue_*` and
-`gh_project_*` tools, and reopens only the `github_*_read` reads. A write run
+action (the person's github-tools writes), and reopens only the `github_*_read` reads. A write run
 also has `github_pr_edit` ask the caller, for its PR's labels, assignees,
 reviewers and milestone only, which the caller may answer `once`:
 `opencode_request` refuses `once` when the pending call's arguments
@@ -311,7 +310,7 @@ allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
 `worker`, `worker-deep`, `refactorer` and `general` subagents, and the
 `git_commit` / `git_stage_hunks` / `git_verify_commits` / `git_rebase` /
-`git_stack` / `git_publish` / `gh_pr_meta` / `gh_pr_meta_apply` tools,
+`git_stack` / `git_publish` tools,
 which write or run commands past the shell rules. A `write` run rewrites its task branch the way the person's
 OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
 because they refuse the default branch, shared commits and protected branches
@@ -334,9 +333,7 @@ tends to carry into them — Phase names, decision-log numbers, tool and agent
 names, local paths, account state — which the operating note of a write run
 names as excluded, since the repository's readers have none of it. The
 preview's findings are tripwires for the caller to judge, not a filter: the
-rule lives in the `git-pullrequest` skill. `gh_pr_meta` sets PR metadata nothing
-reacts to without asking and `gh_pr_meta_apply` asks for the rest, the same
-way. In a write run every
+rule lives in the `git-pullrequest` skill. In a write run every
 `gh stack` command but `view` asks too, since it rebases and force-pushes
 layers and takes flags before its subcommand; a read-only run is denied
 `gh stack` and both tools entirely, and merging or unstacking a stack always. A write
