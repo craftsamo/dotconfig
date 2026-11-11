@@ -8,7 +8,7 @@ fallback_providers:
     model: claude-opus-5-5
     base_url: https://api.anthropic.com
   - provider: anthropic
-    model: claude-fable-5-1
+    model: claude-fable-5-2
     base_url: https://api.anthropic.com
   - provider: xai-oauth
     model: grok-4.7
