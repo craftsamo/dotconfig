@@ -3,11 +3,9 @@ import { exec, tryGit } from "./exec"
 
 /**
  * Pull-request metadata — labels, assignees, review requests, a milestone —
+ * judged and applied for `git_publish_preview` and `git_publish`: a change is
  * applied without asking when nothing reacts to it, and only after approval
- * otherwise. A tool's permission is decided once per call, so the split is two
- * tools: `gh_pr_meta` (allow) applies the harmless changes and returns the rest
- * with a token; `gh_pr_meta_apply` (ask) applies those once the token still
- * matches what was judged.
+ * otherwise. This module is the engine only; it registers no tool.
  *
  * A change is harmless when no workflow runs on its activity type, no
  * label-driven merge bot is configured (labels only), no repository webhook
@@ -680,10 +678,6 @@ export async function applyChanges(repo: string, number: number, changes: Judged
   return { ok: res.ok, output: out(res) }
 }
 
-// ------------------------------------------------------------------ tools --
-
-const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
-
 export async function prTarget(repo: string, n: string, cwd: string): Promise<Target> {
   if (!/^\d+$/.test(n.trim())) throw new Error(`${n} is not a PR number.`)
   const pr = await ghJson(
@@ -705,139 +699,3 @@ export async function prTarget(repo: string, n: string, cwd: string): Promise<Ta
     typeHint: pr.title ?? null,
   }
 }
-
-/** The parts of a PR a judgment rests on, to compare right before applying. */
-const stateOf = (t: Target) => sha1([t.headSha, t.base, [...t.labels].sort(), [...t.assignees].sort(), [...t.reviewers].sort(), t.milestone])
-
-async function run(args: any, cwd: string) {
-  const repo = args.repo?.trim() || (await ghJson(["repo", "view", "--json", "nameWithOwner"], cwd))?.nameWithOwner
-  if (!repo || !REPO.test(repo)) throw new Error("Could not resolve the repository; pass `repo` as owner/name.")
-  const numbers: string[] = args.prs ?? []
-  if (!numbers.length) throw new Error("Pass the PR numbers in `prs`.")
-  const view = await ghJson(["repo", "view", repo, "--json", "defaultBranchRef"], cwd)
-  const defaultBranch = view?.defaultBranchRef?.name
-  if (!defaultBranch) throw new Error(`Could not read ${repo}'s default branch.`)
-  const targets: Target[] = []
-  for (const n of numbers) targets.push(await prTarget(repo, n, cwd))
-  const request: MetaRequest = {
-    labels: args.labels,
-    assignees: args.assignees,
-    reviewers: args.reviewers,
-    milestone: args.milestone,
-    removeMilestone: args.removeMilestone,
-  }
-  const assessment = await assess({ repo, defaultBranch, targets, request, infer: args.infer, cwd })
-  return { repo, targets, assessment }
-}
-
-/** Apply, per PR, only if nothing the judgment read has moved since; otherwise leave it for a new judgment. */
-async function applyWhereCurrent(repo: string, targets: Target[], assessment: Assessment, pick: (c: Judged) => boolean, cwd: string) {
-  const applied = []
-  const moved: string[] = []
-  const errors: string[] = []
-  for (const [i, t] of assessment.targets.entries()) {
-    const todo = t.changes.filter(pick)
-    if (!todo.length) continue
-    // Checked again before each PR: a webhook, rule or branch may move during a multi-PR run.
-    if (!(await environmentUnchanged(repo, assessment.shas, cwd)))
-      return { applied, moved: assessment.targets.slice(i).map((x) => x.id), errors, envMoved: true }
-    let now: Target | null = null
-    try {
-      now = await prTarget(repo, String(t.number), cwd)
-    } catch {}
-    if (!now || stateOf(now) !== stateOf(targets[i])) {
-      moved.push(t.id)
-      continue
-    }
-    const res = await applyChanges(repo, t.number!, todo, cwd)
-    if (res.ok) applied.push({ pr: t.id, changes: todo.map(({ kind, op, value, source }) => ({ kind, op, value, source })) })
-    else errors.push(`${t.id}: ${res.output}`)
-  }
-  return { applied, moved, errors, envMoved: false }
-}
-
-async function reread(repo: string, targets: Target[], cwd: string) {
-  const now = []
-  for (const t of targets) {
-    try {
-      const r = await prTarget(repo, String(t.number), cwd)
-      now.push({ pr: r.id, labels: r.labels, assignees: r.assignees, reviewers: r.reviewers, milestone: r.milestone })
-    } catch {
-      now.push({ pr: t.id, unread: true })
-    }
-  }
-  return now
-}
-
-const report = (targets: Assessment["targets"], pick: (c: Judged) => boolean) =>
-  targets.map((t) => ({ pr: t.id, changes: t.changes.filter(pick).map(({ kind, op, value, source, reasons }) => ({ kind, op, value, source, reasons })) })).filter((t) => t.changes.length)
-
-const movedNote = (r: { moved: string[]; envMoved: boolean }) =>
-  r.moved.length
-    ? { moved: r.moved, next: r.envMoved ? "A branch the judgment read moved before applying; nothing was applied. Run gh_pr_meta again." : "These PRs changed while being judged and were left alone; run gh_pr_meta again for them." }
-    : {}
-
-export const pr_meta = tool({
-  description:
-    "Add or remove labels, assignees, review requests and a milestone on one or more open PRs (a stack's layers too). Applies at once each change nothing reacts to — no workflow runs on its activity type (pull_request: the PR head's and its base's workflows; pull_request_target: the default branch's), no label-driven merge bot (labels), no repository webhook taking pull_request events, no ruleset-mandated workflow, nobody else notified — and returns the rest as `pending` with their reasons and a `token` for gh_pr_meta_apply, which asks. Unreadable or unparsable signals count as not harmless, and a PR or branch that moved while being judged is left alone. Labels, milestones, users and teams must exist; nothing is created; values with commas are refused; the PR's author cannot be its reviewer. `infer` adds what your merged PRs here habitually carry (yourself as assignee, labels on at least 60% of them, or of PRs of the same `type:`) and suggests a habitual milestone. Reviewers only when the user asked. Reports what changed, re-read from GitHub.",
-  args: {
-    prs: tool.schema.array(tool.schema.string()).describe("PR numbers."),
-    repo: tool.schema.string().optional().describe("owner/name (default: the current repository)."),
-    ...metaArgs,
-  },
-  async execute(args, context) {
-    const cwd = context.worktree
-    const { repo, targets, assessment } = await run(args, cwd)
-    const result = await applyWhereCurrent(repo, targets, assessment, (c) => c.status === "harmless", cwd)
-    const pending = report(assessment.targets, (c) => c.status === "approval")
-    return JSON.stringify(
-      {
-        repo,
-        applied: result.applied,
-        ...movedNote(result),
-        pending,
-        ...(pending.length && !result.moved.length
-          ? { token: assessment.digest, next: "Show the pending changes and their reasons to the user; apply them with gh_pr_meta_apply (same arguments and this token) once they agree." }
-          : {}),
-        invalid: report(assessment.targets, (c) => c.status === "invalid"),
-        unchanged: report(assessment.targets, (c) => c.status === "unchanged"),
-        habits: assessment.targets.filter((t) => t.habits).map((t) => ({ pr: t.id, ...t.habits })),
-        environment: assessment.environment,
-        now: await reread(repo, targets, cwd),
-        ...(result.errors.length ? { errors: result.errors } : {}),
-      },
-      null,
-      2,
-    )
-  },
-})
-
-export const pr_meta_apply = tool({
-  description:
-    "Apply the metadata changes gh_pr_meta returned as `pending`, after the user agreed. Pass the same arguments and its `token`: it judges again and refuses if anything the judgment rested on changed (a commit of the head or a base, a workflow, a bot config, a webhook, a ruleset, the pending changes and their reasons). Applies every remaining valid change, then re-reads the PRs.",
-  args: {
-    prs: tool.schema.array(tool.schema.string()).describe("PR numbers, as given to gh_pr_meta."),
-    repo: tool.schema.string().optional().describe("owner/name, as given to gh_pr_meta."),
-    token: tool.schema.string().describe("The token gh_pr_meta returned."),
-    ...metaArgs,
-  },
-  async execute(args, context) {
-    const cwd = context.worktree
-    const { repo, targets, assessment } = await run(args, cwd)
-    if (assessment.digest !== args.token.trim())
-      throw new Error("What the judgment rested on changed since gh_pr_meta (a commit, workflow, bot config, webhook, ruleset or the pending changes); run gh_pr_meta again and show the new result.")
-    const result = await applyWhereCurrent(repo, targets, assessment, (c) => c.status === "approval" || c.status === "harmless", cwd)
-    return JSON.stringify(
-      {
-        repo,
-        applied: result.applied,
-        ...movedNote(result),
-        invalid: report(assessment.targets, (c) => c.status === "invalid"),
-        now: await reread(repo, targets, cwd),
-        ...(result.errors.length ? { errors: result.errors } : {}),
-      },
-      null,
-      2,
-    )
-  },
-})
