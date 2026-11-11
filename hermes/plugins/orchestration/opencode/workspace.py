@@ -17,17 +17,16 @@ this process holds the gateway's secrets.
 from __future__ import annotations
 
 import contextlib
-import importlib.util
+import json
 import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,99}\Z")
 BASES = ("default", "head")
 FETCH_TIMEOUT = 60
-GITHUB_ACCESS = Path(__file__).resolve().parents[2] / "github-access"
+GH_TIMEOUT = 40
 GITHUB_ORIGIN = re.compile(r"(?:https?://(?:[^@/]+@)?|ssh://git@|git@)github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?\Z",
                            re.I)
 SESSION_PAGES = 5
@@ -39,6 +38,8 @@ MERGED_QUERY = (
 # What locating git, its config and an ssh agent for a fetch needs; nothing else passes.
 ENV_NAMES = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "SSH_AUTH_SOCK"}
 ENV_PREFIXES = ("LC_", "XDG_")
+# Where gh keeps its login, when the person moved it; a path, not a secret.
+GH_ENV_NAMES = ("GH_CONFIG_DIR",)
 SAFE_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 
 
@@ -204,18 +205,64 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
     return result
 
 
-def _load(name, path):
-    if name not in sys.modules:
-        spec = importlib.util.spec_from_file_location(name, path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
-    return sys.modules[name]
+def gh_env():
+    """git_env() plus the settings gh locates its login by: where its config lives, and no prompts."""
+    env = git_env()
+    env.update({name: os.environ[name] for name in GH_ENV_NAMES if name in os.environ})
+    env.update(GH_PROMPT_DISABLED="1", GH_NO_UPDATE_NOTIFIER="1")
+    return env
+
+
+def graphql(query, variables):
+    """`data` of one GraphQL request through the user's own `gh` login, the variables typed as sent on stdin.
+    GitHub answers a name that does not exist with null at its path and a NOT_FOUND error: that `data` is
+    returned, so the caller says what is missing. Any other error raises with GitHub's messages."""
+    try:
+        proc = subprocess.run(["gh", "api", "graphql", "--input", "-"], input=json.dumps(
+            {"query": query, "variables": variables}), capture_output=True, text=True, timeout=GH_TIMEOUT,
+            env=gh_env())
+    except subprocess.TimeoutExpired:
+        raise ValueError(f"gh did not answer within {GH_TIMEOUT}s") from None
+    except OSError as exc:
+        raise ValueError(f"gh could not run: {exc.strerror or exc}") from None
+    try:
+        body = json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    errors = [e for e in body.get("errors") or [] if isinstance(e, dict)]
+    if errors and "data" in body and all(e.get("type") == "NOT_FOUND" for e in errors):
+        return body["data"] or {}
+    if errors or proc.returncode or "data" not in body:
+        detail = "; ".join(str(e.get("message", e)) for e in errors) or \
+            (proc.stderr or proc.stdout or "").strip()[-200:] or f"exit {proc.returncode}"
+        raise ValueError(f"GitHub refused the request: {detail}"[:200])
+    return body["data"] or {}
+
+
+def stack(pull):
+    """The native stack a pull request is in (None when it is in none): its number, base, this
+    pull request's position (1 sits on the base) and every layer, bottom first."""
+    found, entry = pull.get("stack"), pull.get("stackEntry")
+    if not found or not entry:
+        return None
+    layers = sorted(({"position": e["position"], "number": e["pullRequest"]["number"],
+                      "title": e["pullRequest"].get("title") or "", "state": e["pullRequest"]["state"].lower(),
+                      "draft": bool(e["pullRequest"].get("isDraft")), "head_sha": e["pullRequest"].get("headRefOid"),
+                      "mergeable": (e["pullRequest"].get("mergeable") or "").lower(),
+                      "repo": (e["pullRequest"].get("repository") or {}).get("nameWithOwner"),
+                      "head": e["pullRequest"].get("headRefName"),
+                      "head_repo": (e["pullRequest"].get("headRepository") or {}).get("nameWithOwner")}
+                     for e in (found.get("entries") or {}).get("nodes") or [] if e and e.get("pullRequest")),
+                    key=lambda layer: layer["position"])
+    return {"number": found["number"], "size": found["size"], "base": found["baseRefName"],
+            "position": entry["position"], "layers": layers}
 
 
 def merged_pulls(source, branch):
-    """The merged pull requests of origin's GitHub repository whose head branch is `branch`, read through
-    github-access: number, head commit, whether from a fork, and native stack. Empty without a GitHub origin.
+    """The merged pull requests of origin's GitHub repository whose head branch is `branch`, read with
+    `gh`: number, head commit, whether from a fork, and native stack. Empty without a GitHub origin.
     Raises when GitHub cannot be read."""
     try:
         match = GITHUB_ORIGIN.fullmatch(_run(source, "remote", "get-url", "origin"))
@@ -223,14 +270,13 @@ def merged_pulls(source, branch):
         return []
     if not match:
         return []
-    reads = _load("hermes_github_access_pr_reads", GITHUB_ACCESS / "access_pr.py")
     # The repository's own pull request connection, not `search`: its index trails a fresh merge.
-    data = reads.access.lookup(MERGED_QUERY, {"owner": match.group(1), "name": match.group(2), "branch": branch})
+    data = graphql(MERGED_QUERY, {"owner": match.group(1), "name": match.group(2), "branch": branch})
     if not data.get("repository"):
         raise ValueError(f"{match.group(1)}/{match.group(2)} not found or not visible to the viewer")
     nodes = (data["repository"].get("pullRequests") or {}).get("nodes") or []
     return [{"number": node["number"], "head_sha": node["headRefOid"], "fork": bool(node.get("isCrossRepository")),
-             "stack": reads.stack(node)} for node in nodes if node and node.get("headRefName") == branch]
+             "stack": stack(node)} for node in nodes if node and node.get("headRefName") == branch]
 
 
 def _succeeds(source, *args):

@@ -269,179 +269,100 @@ def test_a_build_without_an_issue_needs_the_clients_reason(fixture, tmp_path):
     assert "untracked_reason" not in fake.sessions[sid]["metadata"]["hermes"], "an issue replaces the reason"
 
 
-class FakeGitHubAccess:
-    """github-access's planner and mandate store as ghwrite reaches them: the plan is the
-    change itself, and the mandate answers what the test says."""
-
-    def __init__(self, in_force=("m12345678",), fits=None, refuse=None):
-        self.in_force, self.fits_reason, self.refuse = list(in_force), fits, refuse
-        self.planned, self.checked = [], []
-
-    def plan(self, args):
-        if self.refuse:
-            raise ValueError(self.refuse)
-        self.planned.append(args)
-        return {"steps": [{"change": c, "class": "routine", "targets": []} for c in args["changes"]],
-                "targets": [], "tier": "shared", "classes": ["routine"]}
-
-    def active(self, home):
-        return [{"id": m, "classes": ["routine"]} for m in self.in_force]
-
-    def still_fits(self, home, mandate_id, planned):
-        self.checked.append((mandate_id, planned))
-        if mandate_id not in self.in_force:
-            return f"mandate {mandate_id} is no longer in force"
-        return self.fits_reason
+def test_the_mandate_argument_is_refused_like_any_unknown_write_argument(fixture):
+    _, directory, _, fake = fixture
+    refused = run("build", directory, approval="Client: build it", mandate="m12345678")
+    assert "Unexpected arguments" in refused["error"], refused
+    assert not fake.prompts, "the refused build sent nothing"
+    assert "mandate" not in plugin.WRITE_ARGS and "mandate" not in plugin._run_properties({"policy": "write"})
+    assert not hasattr(plugin, "ghwrite")
 
 
-def with_github_access(monkeypatch, **kwargs):
-    fake = FakeGitHubAccess(**kwargs)
-    monkeypatch.setattr(plugin.ghwrite, "modules", lambda: (fake, fake))
-    return fake
+def test_rules_have_no_mandate_and_deny_every_old_github_write_tool():
+    import inspect
+    assert "mandate" not in inspect.signature(policy.rules).parameters
+    assert not hasattr(policy, "RUN_GH_WRITES")
+    for kind in ("read-only", "write"):
+        rules = policy.rules(kind, None, set())
+        for name in policy.PROJECT_WRITES:
+            assert policy.decide(rules, name, "*") == "deny", (kind, name)
 
 
-def mandated_build(fixture, monkeypatch, tmp_path, **kwargs):
-    """A plan bound to an issue, moved to its worktree, ready for a build under a mandate."""
-    home, directory, _, fake = fixture
-    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
-    with_root(home, tmp_path / "wt")
-    access = with_github_access(monkeypatch, **kwargs)
-    sid = run("plan", directory, issue=ISSUE)["session_id"]
-    fake.directory = session("workspace", sid, base="head")["directory"]
-    return sid, access
+def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_edit_a_build_may_ask_for():
+    for action in ("github_issue_edit", "github_project_item_edit", "gh_issue_update", "gh_project_item_set",
+                   "github_foo_bar"):
+        assert policy.github_write(action), action
+    for action in ("github_issue_read", "github_pr_edit", "external_directory", "shell", "gh_pr_meta_apply", None):
+        assert not policy.github_write(action), action
+    assert all(policy.github_write(name) for name in policy.PROJECT_WRITES)
 
 
-def test_a_build_under_a_mandate_writes_its_own_issues_state_without_the_caller(fixture, monkeypatch, tmp_path):
-    home, directory, _, fake = fixture
-    sid, access = mandated_build(fixture, monkeypatch, tmp_path)
-    fake.asks["tick"] = dict(action="gh_issue_update", resources=[ISSUE],
-                             metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "- [x] layer 1 #20"})
-    fake.asks["status"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
-                               metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
-                                         "content_type": "Issue", "fields": {"Status": "In Progress"}, "clear": []})
-    fake.scripts[sid] = ["ask:tick", "ask:status", "finish"]
-    built = run("build", session_id=sid, approval="Client: build it", mandate="m12345678")
-    assert built["status"] == "completed", built
-    assert fake.sessions[sid]["metadata"]["hermes"]["mandate"] == "m12345678"
-    note = fake.entries[sid]["hermes.note"]
-    assert "Your issue's execution state is yours to keep" in note and plugin.ISSUE_NOTE[False] not in note
-    assert [r[1] for r in fake.replies] == [{"decision": "once", "message": "inside mandate m12345678"}] * 2
-    assert access.planned == [{"changes": [{"op": "issue_edit", "issue": ISSUE, "body": "- [x] layer 1 #20"}]},
-                              {"changes": [{"op": "item_set", "item": "PVTI_1", "fields": {"Status": "In Progress"}}]}]
-    assert [m for m, _ in access.checked] == ["m12345678", "m12345678"], "every write is checked at the write"
-    rules = fake.sessions[sid]["permissions"]
-    for name in plugin.policy.RUN_GH_WRITES:
-        assert policy.decide(rules, name, "*") == "ask", name
-    for name in ("gh_issue_create", "gh_issue_comment", "gh_issue_develop", "gh_project_item_promote",
-                 "gh_project_create"):
-        assert policy.decide(rules, name, "*") == "deny", name
-    forked = session("fork", sid)["session_id"]
-    assert fake.sessions[forked]["metadata"]["hermes"]["mandate"] == "m12345678", "a fork inherits the mandate"
-    assert run("plan", session_id=forked)["status"] == "completed"
-    assert fake.sessions[forked]["metadata"]["hermes"]["mandate"] == "m12345678", "a read-only turn keeps it"
-    # A status read that meets the run's own write answers it too, and reports the run going on.
-    fake.active.add(sid)
-    fake.ask(sid, **fake.asks["tick"])
-    seen = session("status", sid)
-    assert seen["status"] == "running" and "pending" not in seen, seen
-    assert fake.replies[-1][1] == {"decision": "once", "message": "inside mandate m12345678"}
-    fake.active.discard(sid)
-
-
-def test_a_write_outside_the_mandate_or_the_runs_issue_is_rejected_or_left_to_the_caller(fixture, monkeypatch, tmp_path):
-    home, directory, _, fake = fixture
-    sid, access = mandated_build(fixture, monkeypatch, tmp_path, fits="octo/other is outside the mandate")
-    fake.asks["other"] = dict(action="gh_issue_update", resources=["octo/example#13"],
-                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 13, "body": "x"})
-    fake.asks["close"] = dict(action="gh_issue_update", resources=[ISSUE],
-                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "state": "closed",
-                                        "reason": "completed"})
-    fake.asks["archive"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
-                                metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
-                                          "fields": {"Status": "Done"}, "clear": [], "archived": True})
-    fake.asks["done"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
-                             metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
-                                       "fields": {"Status": "Done"}, "clear": []})
-    fake.asks["unfit"] = dict(action="gh_issue_update", resources=[ISSUE],
-                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "tick"})
-    fake.asks["comment"] = dict(action="gh_issue_comment", resources=[ISSUE],
-                                metadata={"op": "issue_comment", "repo": "octo/example", "number": 12, "body": "hi"})
-    fake.scripts[sid] = ["ask:other", "ask:close", "ask:archive", "ask:done", "ask:unfit", "ask:comment", "finish"]
-    paused = run("build", session_id=sid, approval="Client: build it", mandate="m12345678")
-    assert paused["status"] == "waiting", paused
-    reasons = [r[1] for r in fake.replies]
-    assert all(r["decision"] == "reject" for r in reasons) and len(reasons) == 5
-    assert "is not the run's issue" in reasons[0]["message"]
-    assert "only its issue's body, not reason, state" in reasons[1]["message"]
-    assert "moves only its issue's Status" in reasons[2]["message"]
-    assert "Status to In Progress only, not 'Done'" in reasons[3]["message"]
-    assert reasons[4]["message"] == "octo/other is outside the mandate"
-    assert access.planned == [{"changes": [{"op": "issue_edit", "issue": ISSUE, "body": "tick"}]}], \
-        "only a write of the run's own state reaches the planner"
-    item = paused["pending"][0]
-    assert item["action"] == "gh_issue_comment" and item["metadata"]["op"] == "issue_comment"
-    refused = request("reply", sid, request_id=item["id"], decision="once")
-    assert "Issue or board write outside the run's mandate" in refused["error"]
-    assert len(fake.replies) == 5, "the refused once sent nothing"
-    done = request("reply", sid, request_id=item["id"], decision="reject", reason="the Assistant comments")
-    assert done["status"] == "completed"
-    # The same for an Issue write through the shell, which asks without issue_approval.
+def test_the_caller_can_reject_an_issue_or_board_write_but_never_approve_it(fixture):
+    _, directory, _, fake = fixture
+    fake.asks["issue"] = dict(action="github_issue_edit", resources=[ISSUE], metadata={"number": 12, "body": "tick"})
+    fake.asks["old"] = dict(action="gh_issue_update", resources=[ISSUE], metadata={"number": 12, "body": "tick"})
+    fake.asks["pr"] = dict(action="github_pr_edit", resources=["octo/example#20"],
+                           metadata={"arguments": {"pr": 20, "add_labels": ["bug"]}})
     fake.asks["shell"] = dict(action="shell", resources=["gh issue comment 12 --body hi"], save=[])
-    fake.scripts[sid] = ["ask:shell", "finish"]
-    paused = run("build", session_id=sid, approval="Client: build it")
-    assert paused["status"] == "waiting" and paused["pending"][0]["action"] == "shell"
-    assert "Issue or board write" in request("reply", sid, request_id=paused["pending"][0]["id"], decision="once")["error"]
-    assert request("reply", sid, request_id=paused["pending"][0]["id"], decision="reject")["status"] == "completed"
+    scripted(fake, "ask:issue", "ask:old", "ask:shell", "ask:pr", "finish")
+    paused = run("plan", directory)
+    sid = paused["session_id"]
+    for sent in range(3):
+        assert paused["status"] == "waiting", paused
+        item = paused["pending"][0]
+        refused = request("reply", sid, request_id=item["id"], decision="once")
+        assert "Issue or board write" in refused["error"], (item["action"], refused)
+        assert len(fake.replies) == sent, "the refused once sent nothing"
+        paused = request("reply", sid, request_id=item["id"], decision="reject")
+    assert [r[1]["decision"] for r in fake.replies] == ["reject"] * 3
+    assert paused["status"] == "waiting" and paused["pending"][0]["action"] == "github_pr_edit", paused
+    approved = request("reply", sid, request_id=paused["pending"][0]["id"], decision="once")
+    assert approved["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, approved
 
 
-def test_the_mandate_argument_is_checked_and_a_run_without_one_writes_nothing(fixture, monkeypatch, tmp_path):
-    home, directory, _, fake = fixture
-    sid, access = mandated_build(fixture, monkeypatch, tmp_path)
-    for bad, message in (("nope", "id of a GitHub mandate"), ("m00000000", "not in force"), (True, "id of a GitHub")):
-        assert message in run("build", session_id=sid, approval="Client: build it", mandate=bad)["error"], bad
-    assert "mandate goes with issue" in run("build", directory, untracked_reason="no issue", approval="Client: go",
-                                            mandate="m12345678")["error"]
-    fake.asks["tick"] = dict(action="gh_issue_update", resources=[ISSUE],
-                             metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "tick"})
-    fake.scripts[sid] = ["ask:tick", "finish"]
-    built = run("build", session_id=sid, approval="Client: build it")
-    assert built["status"] == "completed", built
-    assert policy.decide(fake.sessions[sid]["permissions"], "gh_issue_update", "*") == "deny", \
-        "without a mandate the ruleset never raises the request"
-    assert [r[1] for r in fake.replies] == [{"decision": "reject",
-                                            "message": "the session is bound to no mandate; the Assistant writes the issue"}]
-    assert not access.planned
-    fake.sessions[sid]["metadata"]["hermes"]["mandate"] = "m00000000"
-    fake.scripts[sid] = ["finish"]
-    lapsed = run("build", session_id=sid, approval="Client: build it")
-    assert lapsed["status"] == "completed" and lapsed["mandate_dropped"] == "m00000000", lapsed
-    assert "no longer in force" in lapsed["note"]
-    assert "mandate" not in fake.sessions[sid]["metadata"]["hermes"], "a stored mandate that lapsed is dropped"
-    assert policy.decide(fake.sessions[sid]["permissions"], "gh_issue_update", "*") == "deny"
-    assert plugin.ISSUE_NOTE[False] in fake.entries[sid]["hermes.note"]
+def test_pr_edit_beyond_metadata_is_true_for_anything_but_labels_assignees_reviewers_and_milestone():
+    def edit(arguments="missing"):
+        metadata = {} if arguments == "missing" else {"arguments": arguments}
+        return {"action": "github_pr_edit", "metadata": metadata}
+
+    for arguments in ({"pr": 20, "repo": "octo/example", "add_labels": ["bug"], "remove_milestone": True},
+                      {"pr": 20, "add_reviewers": ["a"], "remove_reviewers": [], "milestone": "v1", "title": None},
+                      {}):
+        assert not policy.pr_edit_beyond_metadata(edit(arguments)), arguments
+    for arguments in ({"pr": 20, "title": "x"}, {"body": "x"}, {"append_body": "x"}, {"base": "main"},
+                      {"add_closes": [12]}, {"remove_closes": [12]}, {"attachments": ["/tmp/a.png"]},
+                      {"add_labels": ["bug"], "unknown": 1}, "missing", None, "text", ["add_labels"]):
+        assert policy.pr_edit_beyond_metadata(edit(arguments)), arguments
+    assert policy.pr_edit_beyond_metadata({"action": "github_pr_edit"})
+    assert policy.pr_edit_beyond_metadata({"action": "github_pr_edit", "metadata": "text"})
+    for item in ({"action": "github_pr_comment", "metadata": {"arguments": {"body": "x"}}}, {"action": None}, {}):
+        assert not policy.pr_edit_beyond_metadata(item), item
 
 
-def test_ghwrite_names_every_github_write_the_policy_knows():
-    assert (plugin.ghwrite.GITHUB_ACCESS / "mandate.py").is_file() and (plugin.ghwrite.GITHUB_ACCESS / "changes.py").is_file()
-    # The changes ghwrite rebuilds are the real planner's shapes: its key check accepts them.
-    changes, _ = plugin.ghwrite.modules()
-    meta = {"issue": ISSUE, "mandate": "m12345678"}
-    for request in (
-            {"kind": "permission", "action": "gh_issue_update",
-             "metadata": {"op": "issue_edit", "repo": "Octo/Example", "number": 12, "appendBody": "- [ ] more"}},
-            {"kind": "permission", "action": "gh_project_item_set",
-             "metadata": {"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": "Octo/Example#12",
-                          "fields": {"Status": "in progress"}}}):
-        change, why = plugin.ghwrite.change_for(request, meta)
-        assert change and why is None, request
-        assert changes._check(dict(change)) == change
-    assert plugin.ghwrite.change_for({"kind": "permission", "action": "gh_issue_update",
-                                      "metadata": {"op": "issue_edit", "repo": "octo/example", "number": 12,
-                                                   "title": "renamed"}}, meta)[0] is None, "a title is not state"
-    assert set(plugin.ghwrite.GH_WRITES) == {n for n in policy.PROJECT_WRITES if n.startswith("gh_")}
-    assert set(plugin.ghwrite.RUN_GH_WRITES) == set(policy.RUN_GH_WRITES) < set(plugin.ghwrite.GH_WRITES)
-    person = {"kind": "permission", "action": "external_directory"}
-    assert not plugin.ghwrite.ours(person) and not plugin.ghwrite.github_write(person)
+@pytest.mark.parametrize("arguments, once_ok", [
+    ({"pr": 20, "add_labels": ["bug"]}, True),
+    ({"pr": 20, "title": "New title"}, False),
+    ({"pr": 20, "add_labels": ["bug"], "add_closes": [12]}, False),
+    ({"pr": 20, "base": "release"}, False),
+    ({"pr": 20, "attachments": ["/tmp/shot.png"]}, False),
+    (None, False),
+])
+def test_the_caller_approves_a_pr_edit_once_only_when_it_carries_pr_metadata(fixture, arguments, once_ok):
+    _, directory, _, fake = fixture
+    metadata = {} if arguments is None else {"arguments": arguments}
+    fake.asks["pr"] = dict(action="github_pr_edit", resources=["octo/example#20"], metadata=metadata)
+    scripted(fake, "ask:pr", "finish")
+    paused = run("plan", directory)
+    sid, item = paused["session_id"], paused["pending"][0]
+    assert item["action"] == "github_pr_edit", paused
+    reply = request("reply", sid, request_id=item["id"], decision="once")
+    if once_ok:
+        assert reply["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, reply
+        return
+    assert "labels, assignees, reviewers and milestone" in reply["error"], reply
+    assert not fake.replies, "the refused once sent nothing"
+    rejected = request("reply", sid, request_id=item["id"], decision="reject")
+    assert fake.replies[-1][1]["decision"] == "reject", rejected
 
 
 def test_write_run_needs_approval_and_a_task_branch(fixture):
@@ -1475,55 +1396,100 @@ def layer_node(position, number, branch):
         "headRepository": {"nameWithOwner": "o/r"}, "repository": {"nameWithOwner": "o/r"}}}
 
 
-def answer_graphql(monkeypatch, data):
-    """github-access's GraphQL transport, answering `data`; returns the requests it was asked."""
-    asked = []
-    reads = plugin.workspace._load("hermes_github_access_pr_reads",
-                                   plugin.workspace.GITHUB_ACCESS / "access_pr.py")
+class FakeGh:
+    """A `gh` on PATH that answers a GraphQL request with a prepared body and exit status, and keeps
+    what it was sent (stdin) and the environment it ran with."""
 
-    def lookup(query, variables=None):
-        asked.append((query, variables))
-        return data
-    monkeypatch.setattr(reads.access, "lookup", lookup)
-    return asked
+    def __init__(self, tmp_path, monkeypatch, body, status=0, stderr=""):
+        self.bin, self.sent, self.environment = tmp_path / "ghbin", tmp_path / "gh-sent", tmp_path / "gh-env"
+        self.bin.mkdir()
+        answer = tmp_path / "gh-answer"
+        answer.write_text(json.dumps(body))
+        script = self.bin / "gh"
+        script.write_text(f"#!/bin/sh\necho \"$@\" >> '{self.sent}.args'\ncat > '{self.sent}'\nenv > '{self.environment}'\n"
+                          f"cat '{answer}'\necho '{stderr}' >&2\nexit {status}\n")
+        script.chmod(0o755)
+        monkeypatch.setenv("PATH", f"{self.bin}{os.pathsep}{os.environ['PATH']}")
+
+    def request(self):
+        return json.loads(self.sent.read_text())
 
 
 @pytest.mark.parametrize("url, repo", [
     ("git@github.com:o/r.git", ("o", "r")), ("https://github.com/o/r", ("o", "r")),
     ("https://tok@github.com/o/r.git", ("o", "r")), ("ssh://git@github.com/o/r.git", ("o", "r"))])
-def test_merged_pulls_reads_the_origin_repository_connection_through_github_access(fixture, monkeypatch, url, repo):
+def test_merged_pulls_reads_the_origin_repository_connection_with_gh(fixture, tmp_path, monkeypatch, url, repo):
     _, directory, _, _ = fixture
     git(directory, "remote", "add", "origin", url)
     stack = {"number": 9, "size": 2, "baseRefName": "main",
              "entries": {"nodes": [layer_node(1, 4, "task/a"), layer_node(2, 5, "task/b")]}}
-    asked = answer_graphql(monkeypatch, {"repository": {"pullRequests": {"nodes": [
+    gh = FakeGh(tmp_path, monkeypatch, {"data": {"repository": {"pullRequests": {"nodes": [
         {"number": 4, "headRefName": "task/a", "headRefOid": "sha4", "isCrossRepository": False, "stack": stack,
          "stackEntry": {"position": 1}},
         {"number": 6, "headRefName": "task/a", "headRefOid": "sha6", "isCrossRepository": True, "stack": None,
          "stackEntry": None},
-        {"number": 5, "headRefName": "task/a-other", "headRefOid": "sha5", "isCrossRepository": False}]}}})
+        {"number": 5, "headRefName": "task/a-other", "headRefOid": "sha5", "isCrossRepository": False}]}}}})
     found = plugin.workspace.merged_pulls(directory, "task/a")
     assert [(p["number"], p["head_sha"], p["fork"]) for p in found] == [(4, "sha4", False), (6, "sha6", True)]
     assert [(l["number"], l["head"], l["state"], l["head_sha"], l["head_repo"], l["repo"])
             for l in found[0]["stack"]["layers"]] == [(4, "task/a", "merged", "sha4", "o/r", "o/r"),
                                                       (5, "task/b", "merged", "sha5", "o/r", "o/r")]
     assert found[1]["stack"] is None
-    [(query, variables)] = asked
-    assert variables == {"owner": repo[0], "name": repo[1], "branch": "task/a"}
-    assert "pullRequests(headRefName:$branch,states:MERGED" in query and "search" not in query
+    sent = gh.request()
+    assert sent["variables"] == {"owner": repo[0], "name": repo[1], "branch": "task/a"}
+    assert "pullRequests(headRefName:$branch,states:MERGED" in sent["query"] and "search" not in sent["query"]
+    assert Path(f"{gh.sent}.args").read_text().split() == ["api", "graphql", "--input", "-"]
 
 
-def test_merged_pulls_raises_for_a_repository_it_cannot_see(fixture, monkeypatch):
+def test_merged_pulls_runs_gh_with_the_minimal_environment(fixture, tmp_path, monkeypatch):
     _, directory, _, _ = fixture
     git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
-    answer_graphql(monkeypatch, {"repository": None})
+    monkeypatch.setenv("HERMES_TEST_GATEWAY_SECRET", "leak")
+    monkeypatch.setenv("GH_TOKEN", "leak")
+    monkeypatch.setenv("GH_CONFIG_DIR", str(tmp_path / "gh-config"))
+    gh = FakeGh(tmp_path, monkeypatch, {"data": {"repository": {"pullRequests": {"nodes": []}}}})
+    assert plugin.workspace.merged_pulls(directory, "task/a") == []
+    seen = gh.environment.read_text()
+    assert "leak" not in seen and "HERMES_TEST_GATEWAY_SECRET" not in seen
+    assert f"GH_CONFIG_DIR={tmp_path / 'gh-config'}" in seen and "GH_PROMPT_DISABLED=1" in seen
+    assert f"HOME={os.environ['HOME']}" in seen
+
+
+def test_merged_pulls_raises_for_a_repository_it_cannot_see(fixture, tmp_path, monkeypatch):
+    _, directory, _, _ = fixture
+    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
+    FakeGh(tmp_path, monkeypatch, {"data": {"repository": None}, "errors": [
+        {"type": "NOT_FOUND", "path": ["repository"], "message": "Could not resolve to a Repository"}]}, status=1)
     with pytest.raises(ValueError, match="not found or not visible"):
+        plugin.workspace.merged_pulls(directory, "task/a")
+
+
+@pytest.mark.parametrize("body, status, message", [
+    ({"errors": [{"type": "FORBIDDEN", "message": "Resource not accessible"}]}, 1, "Resource not accessible"),
+    ({"data": {"repository": None}, "errors": [{"type": "NOT_FOUND", "message": "gone"},
+                                                {"type": "RATE_LIMITED", "message": "slow down"}]}, 0,
+     "slow down"),
+    ({"message": "Bad credentials"}, 1, "gh auth|exit 1|login"),
+    ({}, 0, "GitHub refused the request")])
+def test_merged_pulls_raises_when_gh_fails(fixture, tmp_path, monkeypatch, body, status, message):
+    _, directory, _, _ = fixture
+    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
+    FakeGh(tmp_path, monkeypatch, body, status=status, stderr="To get started with GitHub CLI, run: gh auth login")
+    with pytest.raises(ValueError, match=message):
+        plugin.workspace.merged_pulls(directory, "task/a")
+
+
+def test_merged_pulls_raises_when_gh_is_missing(fixture, monkeypatch):
+    _, directory, _, _ = fixture
+    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
+    monkeypatch.setattr(plugin.workspace, "gh_env", lambda: {"PATH": "/nonexistent"})
+    with pytest.raises(ValueError, match="gh could not run"):
         plugin.workspace.merged_pulls(directory, "task/a")
 
 
 def test_merged_pulls_reads_nothing_without_a_github_origin(fixture, tmp_path, monkeypatch):
     _, directory, _, _ = fixture
-    monkeypatch.setattr(plugin.workspace, "_load", lambda name, path: pytest.fail("no GitHub read expected"))
+    monkeypatch.setattr(plugin.workspace, "graphql", lambda query, variables: pytest.fail("no GitHub read expected"))
     assert plugin.workspace.merged_pulls(directory, "task/a") == []
     add_origin(directory, tmp_path)
     assert plugin.workspace.merged_pulls(directory, "task/a") == []
@@ -2773,7 +2739,8 @@ def test_roles_become_tools(fixture, monkeypatch):
                                   "opencode_preflight"}
     build = context.tools["opencode_run_build"]["schema"]["parameters"]
     plan = context.tools["opencode_run_plan"]["schema"]["parameters"]
-    assert {"approval", "issue_approval", "untracked_reason", "mandate"} <= set(build["properties"])
+    assert {"approval", "issue_approval", "untracked_reason"} <= set(build["properties"])
+    assert "mandate" not in build["properties"]
     assert not ({"approval", "untracked_reason"} & set(plan["properties"]))
     assert "issue" in build["properties"] and "issue" in plan["properties"]
     assert build["required"] == ["message"] and build["additionalProperties"] is False
