@@ -57,8 +57,6 @@ EXPECTED = {
     "google-access": {"sheets": {"assistant"}, "run-apps-script": {"assistant"}},
     "stripe-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
     "cloudflare-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
-    "github-access": {"read-tracking": {"assistant"}, "manage-tracking": {"assistant"}, "manage-repo": {"assistant"},
-                      "manage-pr": {"assistant"}},
     "workspace/workspace-drafts": {"inventory": {"assistant"}},
     "workspace/workspace-registry": {"manage": {"assistant"}},
     "messaging/discord-access": {

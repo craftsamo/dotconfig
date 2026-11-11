@@ -16,7 +16,7 @@ take it first. A mandate and the head are MAC'd under the store's ``mac_kind`` (
 ``<mac_kind>-head``), so one store's files never verify as another's.
 
 Shared by the plugins that keep mandates (each loads this file by path as ``hermes_mandate_store``;
-it is not a plugin and has no manifest). Contract: docs/decisions/github-mandates.md.
+it is not a plugin and has no manifest). Contract: docs/access-common.md (mandates).
 """
 
 from __future__ import annotations
@@ -51,10 +51,10 @@ _LOCKS: dict[str, threading.Lock] = {}
 class Store(NamedTuple):
     """How one plugin keeps its mandates."""
 
-    state: str          # directory name under the profile home, e.g. "github-access"
-    key_prefix: str     # Keychain item name prefix, e.g. "GITHUB_MANDATE_KEY_"
-    scope: str          # Keychain scope, e.g. "github-access"
-    mac_kind: str       # what a mandate is MAC'd as, e.g. "github-mandate"; the head adds "-head"
+    state: str          # directory name under the profile home, e.g. "cloudflare-access"
+    key_prefix: str     # Keychain item name prefix, e.g. "CLOUDFLARE_MANDATE_KEY_"
+    scope: str          # Keychain scope, e.g. "cloudflare-access"
+    mac_kind: str       # what a mandate is MAC'd as, e.g. "cloudflare-mandate"; the head adds "-head"
     key_note: str       # the description stored with the key
     error: type         # raised for storage problems
     max_days: int = 30  # the longest a mandate may run; the plugin's terms are held to it
