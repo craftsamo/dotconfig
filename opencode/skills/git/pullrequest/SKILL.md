@@ -168,8 +168,8 @@ branch name, title or body (<Audience>).
   from a fork (stacks cannot span a fork and its upstream), the remote is not
   github.com, or `git_publish` returns `stacksUnavailable`. A plain PR still
   publishes through <Publishing>, and can join a stack later.
-- A unit in `approach-github-planning` follows its own `<BranchTopology>`,
-  which already decides the stack.
+- A unit in `approach-github-delivery` follows its own `<Branches>`, which
+  already decides the stack.
 
 </StackDecision>
 
@@ -590,8 +590,7 @@ within 72. Summary 2–4 sentences, Changes one level deep. Neither merged PRs
 nor the branch's commit bodies set the length; anything long that is only
 supporting material goes into `<details>`.
 
-GitHub renders PR bodies, so use its forms. They follow `gh-issues`
-`<Notation>`; this is how they apply to a PR:
+GitHub renders PR bodies, so use its forms:
 
 | To show | Write |
 | --- | --- |
