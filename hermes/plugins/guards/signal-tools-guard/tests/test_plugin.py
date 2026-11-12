@@ -92,6 +92,7 @@ def test_other_tools_are_untouched(monkeypatch):
     "cat ~/.local/state/signal-tools/default/mirror.sqlite",
     "tail ~/Library/Logs/io.github.craft-agent.signal-tools/default.log",
     "launchctl print gui/501/io.github.craft-agent.signal-tools.default",
+    "~/Library/Application\\ Support/io.github.craft-agent.signal-tools/signal-tools-sync-default node x.js",
     "echo $SIGNAL_TOOLS_STATE_DIR",
     "ls ~/.local/state/hermes-signal",
     "ls ~/.local/share/signal-cli",
@@ -267,6 +268,16 @@ def test_file_tools_block_the_state_root_by_real_path(monkeypatch, isolated):
         assert blocked(gate("read_file", path=str(path))), path
     assert blocked(gate("write_file", path=str(link / "new.txt"), content="x"))
     assert gate("read_file", path=str(isolated / "state-dir-notes.txt")) is None
+
+
+def test_file_tools_block_the_service_launcher_by_real_path(isolated):
+    launchers = isolated / "Library" / "Application Support" / "io.github.craft-agent.signal-tools"
+    launchers.mkdir(parents=True)
+    (launchers / "signal-tools-sync-default").write_text("#!/bin/sh\nexec \"$@\"\n")
+    link = isolated / "launchers"       # no pattern names it: only its real path does
+    link.symlink_to(launchers)
+    assert blocked(gate("write_file", path=str(link / "signal-tools-sync-default"), content="x"))
+    assert blocked(gate("read_file", path=str(link)))
     assert gate("read_file", path=str(isolated)) is None
 
 
