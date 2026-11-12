@@ -43,7 +43,7 @@
     // its tool ID with the repositories or boards it touches and a description
     // of the change, so the github_* rule below asks. Hermes pins the same
     // release (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/github-tools@0.12.0", "options": { "toolsets": "all", "language": "ja" } },
+    { "package": "@craftsamo/github-tools@0.13.0", "options": { "toolsets": "all", "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
