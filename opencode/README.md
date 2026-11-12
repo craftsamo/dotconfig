@@ -52,9 +52,7 @@ skills supply conventions over the package's mechanics skills: `git-repo`,
 Publication runs through `git_push_read` `preview`, then `git_push_send`,
 `github_pr_create` or `github_pr_edit`, and `github_stack_link` for native
 stacks. PR attachments and metadata belong to github-tools, not local git
-helpers. The push preview checks branch names and commit subjects against
-`git-tools/published-text.json` at the repository root, linked to
-`~/.config/git-tools/published-text.json`.
+helpers.
 Rewrites follow the package's check (`git_commit_read` `amend`): a task
 branch's own commits may be rewritten even once pushed (the result says when
 the push needs `--force-with-lease`), never the default branch, commits already
