@@ -1,0 +1,31 @@
+[
+  {
+    "rule": "plan-label",
+    "pattern": "\\b[Pp]hase[-_ ]?\\d+(?:\\.\\d+)?\\b|\\b[Ss]tep\\s*\\d+\\.\\d+\\b|フェーズ\\s*\\d+|段\\s*[A-Z]\\b|\\d+\\s*層目|\\b[Ll]ayer\\s+\\d+\\s+of\\s+\\d+\\b",
+    "flags": "u",
+    "hint": "A plan label names where the work was planned, not what it does; a layer's place in a stack is its base and the linked PRs."
+  },
+  {
+    "rule": "working-record",
+    "pattern": "決定\\s*#\\s*\\d+|\\bdecisions?\\s*#\\s*\\d+|\\b(?:decisions|progress)\\.md\\b",
+    "flags": "iu",
+    "hint": "A decision-log or task-record number means nothing to the repository's reader: restate the decision, or link the Issue that holds it."
+  },
+  {
+    "rule": "tooling",
+    "pattern": "\\bgit_[a-z_]+\\b|\\bgh_pr_[a-z_]+\\b|\\bgithub_[a-z]+_[a-z_]+\\b|\\bOpenCode\\b|\\bHermes\\b",
+    "hint": "Say what was checked, not what checked it: the agents, tools and harness that built the work are not part of the repository (unless the repository is about them)."
+  },
+  {
+    "rule": "build-machine",
+    "pattern": "/Users/[^\\s)）」]+|/home/[^\\s)）」]+|(?:^|[\\s(（「`])~/[^\\s)）」`]*",
+    "flags": "u",
+    "hint": "A local path or the machine's state belongs to this run, not to the repository."
+  },
+  {
+    "rule": "organisation",
+    "pattern": "\\bbilling\\s+(?:is|was|has been)?\\s*(?:suspended|disabled|paused|stopped|off)\\b|\\bout of credits\\b|支払い(?:の)?停止|課金(?:の)?停止",
+    "flags": "iu",
+    "hint": "Billing, plan and account state live outside the repository; a check that did not run is reported without that reason."
+  }
+]

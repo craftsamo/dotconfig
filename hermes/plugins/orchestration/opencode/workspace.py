@@ -2,16 +2,17 @@
 
 A plan runs read-only on the default checkout. Once the Client approves, the
 session moves into a fresh worktree on a new branch, so the build continues the
-same conversation where it may edit. Once that work has landed on the default
-branch, `cleanup` moves the caller's sessions back to the main checkout and removes
-the worktree and the task branches that landed. The plugin does this itself, in plain
-Git and the service's `move` route: a session can also move itself (`session_move`
-asks no permission), so the repository the session may work in is fixed here and
-checked on every turn (see `__init__._prepare`).
-
-Git runs with a minimal environment and without hooks: the repository's own
-hooks (a tracked `core.hooksPath`, say) are code its commits can change, and
-this process holds the gateway's secrets.
+same conversation where it may edit. Once that work has landed or been
+abandoned, `cleanup` moves the caller's sessions back to the main checkout and removes
+the worktree, and its branch once it has landed. The worktree itself is made and removed
+by the git-tools command line (the package whose layout and landed-branch proof
+OpenCode's own worktree strategy shares), started with a minimal environment, never the
+gateway's: the package passes git an allowlisted environment, so a repository's hooks
+(which run on fetch, removal and branch deletion as they would for the person's own
+command, and already in the run's commits) never see the gateway's secrets. Session
+binding, the move, the commit identity and the rollback stay here: a session can also
+move itself (`session_move` asks no permission), so the repository the session may work
+in is fixed here and checked on every turn (see `__init__._prepare`).
 """
 
 from __future__ import annotations
@@ -21,32 +22,127 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import signal
 import subprocess
 
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,99}\Z")
 BASES = ("default", "head")
 FETCH_TIMEOUT = 60
-GH_TIMEOUT = 40
-GITHUB_ORIGIN = re.compile(r"(?:https?://(?:[^@/]+@)?|ssh://git@|git@)github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?\Z",
-                           re.I)
+# The command line fetches, then removes or reads GitHub; its own limits sit inside this one.
+CLI_TIMEOUT = FETCH_TIMEOUT + 60
 SESSION_PAGES = 5
-MERGED_QUERY = (
-    "query($owner:String!,$name:String!,$branch:String!){repository(owner:$owner,name:$name){"
-    "pullRequests(headRefName:$branch,states:MERGED,first:20){nodes{number headRefName headRefOid "
-    "isCrossRepository stack{number size baseRefName entries(first:100){nodes{position pullRequest{number state "
-    "headRefOid headRefName headRepository{nameWithOwner} repository{nameWithOwner}}}}} stackEntry{position}}}}}")
 # What locating git, its config and an ssh agent for a fetch needs; nothing else passes.
 ENV_NAMES = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "SSH_AUTH_SOCK"}
 ENV_PREFIXES = ("LC_", "XDG_")
 # Where gh keeps its login, when the person moved it; a path, not a secret.
 GH_ENV_NAMES = ("GH_CONFIG_DIR",)
 SAFE_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
+# The git-tools plugin as `scripts/external-plugins.py` installs it: <hermes home>/plugins/<name>/dist/cli.js.
+GIT_TOOLS_PLUGIN = "git-tools"
+GIT_TOOLS_CLI = Path("dist") / "cli.js"
+GIT_TOOLS_TOOLSET = "worktree"
+NOT_INSTALLED = "the git-tools plugin is not installed (run scripts/external-plugins.py install)"
+KEPT_BECAUSE = {
+    "not_landed": "its work has not landed on the default branch (no merged pull request from it has its tip as "
+                  "head, and it is not in the remote default branch)",
+    "checked_out": "it is checked out in another worktree",
+    "default_branch": "it is the default branch",
+    "delete_failed": "git could not delete it",
+}
 
 
 def git_env():
     env = {k: v for k, v in os.environ.items() if k in ENV_NAMES or k.startswith(ENV_PREFIXES)}
     env["GIT_TERMINAL_PROMPT"] = "0"
     return env
+
+
+def gh_env():
+    """git_env() plus the settings gh locates its login by: where its config lives, and no prompts."""
+    env = git_env()
+    env.update({name: os.environ[name] for name in GH_ENV_NAMES if name in os.environ})
+    env.update(GH_PROMPT_DISABLED="1", GH_NO_UPDATE_NOTIFIER="1")
+    return env
+
+
+def _node():
+    """Hermes' own node when it has installed one, else the one on the minimal PATH."""
+    try:
+        from hermes_constants import find_node_executable
+        found = find_node_executable("node")
+    except Exception:
+        found = None
+    return found or shutil.which("node", path=gh_env().get("PATH"))
+
+
+def _plugin_homes():
+    homes = []
+    try:
+        from hermes_constants import get_default_hermes_root, get_hermes_home
+        homes += [get_hermes_home(), get_default_hermes_root()]
+    except Exception:
+        pass
+    return [*homes, Path("~/.hermes").expanduser()]
+
+
+def default_cli():
+    """`[node, <hermes home>/plugins/git-tools/dist/cli.js]`, looked for now: a profile's own home first, then
+    the root's. Raises ValueError when node or the installed plugin is missing."""
+    node = _node()
+    if not node:
+        raise ValueError("git-tools needs node, which was not found; install Node.js 24 or later")
+    for home in _plugin_homes():
+        cli = Path(home) / "plugins" / GIT_TOOLS_PLUGIN / GIT_TOOLS_CLI
+        if cli.is_file():
+            return [node, str(cli)]
+    raise ValueError(NOT_INSTALLED)
+
+
+def _stop(process):
+    """End the command line and whatever it started, which share its process group."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGKILL)
+    process.communicate()
+
+
+def git_tools(tool_id, args, cwd, settings):
+    """The `result` of one git-tools tool, run through its command line in `cwd` with the arguments as JSON
+    on stdin and `opencode.worktree_root` as its worktree root. The command line runs with gh_env() alone:
+    it hands git an allowlisted environment of its own, so nothing else of the gateway's reaches a hook.
+    Raises ValueError with the tool's code and message when it fails."""
+    command = settings.get("git_tools_cli") or default_cli()
+    argv = [*command, "run", tool_id, "--cwd", str(cwd), "--toolsets", GIT_TOOLS_TOOLSET,
+            "--worktree-root", settings["worktree_root"]]
+    try:
+        process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   text=True, env=gh_env(), start_new_session=True)
+    except FileNotFoundError:
+        raise ValueError(NOT_INSTALLED) from None
+    except OSError as exc:
+        raise ValueError(f"git-tools could not run: {exc.strerror or exc}") from None
+    try:
+        stdout, stderr = process.communicate(json.dumps(args), timeout=CLI_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _stop(process)
+        raise ValueError(f"git-tools {tool_id} did not finish within {CLI_TIMEOUT}s") from None
+    except BaseException:
+        _stop(process)
+        raise
+    try:
+        body = json.loads(stdout)
+    except ValueError:
+        body = None
+    if process.returncode or not isinstance(body, dict) or "result" not in body:
+        error = body.get("error") if isinstance(body, dict) else None
+        if isinstance(error, dict):
+            detail = f"{error.get('code')}: {error.get('message')}"
+        else:
+            detail = (stderr or stdout).strip() or f"exit {process.returncode}"
+        raise ValueError(f"git-tools {tool_id} failed: {detail[:200]}")
+    if not isinstance(body["result"], dict):
+        raise ValueError(f"git-tools {tool_id} answered with no result")
+    return body["result"]
 
 
 def _run(directory, *args, timeout=30):
@@ -88,17 +184,6 @@ def branch_name(value, source, policy):
     return value
 
 
-def repository_name(source, repo):
-    """The repository's name on its origin remote (dotconfig for the live checkout), else its
-    main checkout's directory name. OpenCode's worktree strategy
-    (opencode/lib/worktrees/strategy.ts) names it the same way."""
-    proc = subprocess.run(["git", *SAFE_GIT, "-C", str(source), "remote", "get-url", "origin"], capture_output=True,
-                          text=True, timeout=30, env=git_env())
-    url = proc.stdout.strip().rstrip("/") if proc.returncode == 0 else ""
-    name = re.split(r"[/:]", url)[-1].removesuffix(".git") if url else ""
-    return name or Path(repo).parent.name
-
-
 def commit_identity():
     """The gateway's own commit name and email, or None when it has none.
 
@@ -118,28 +203,6 @@ def set_identity(source, target, identity):
     _run(target, "config", "--worktree", "user.email", identity[1])
 
 
-def target_path(root, name, branch):
-    """<root>/<repository name>/<branch with / as ->."""
-    return Path(root) / name / branch.replace("/", "-")
-
-
-def _start(source, base, policy):
-    """The commit the branch starts from, and whether a fetch succeeded."""
-    if base == "head":
-        return "HEAD", None
-    if "origin" not in _run(source, "remote").splitlines():
-        raise ValueError("there is no remote to start from; pass base=head to start from the current commit")
-    fetched = True
-    try:
-        _run(source, "fetch", "--quiet", "origin", timeout=FETCH_TIMEOUT)
-    except Exception:
-        fetched = False
-    ref = policy.default_ref(source)
-    if not ref:
-        raise ValueError("the remote default branch is unknown here; pass base=head to start from the current commit")
-    return ref, fetched
-
-
 def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
     """Create the worktree, move the idle session into it and rebind it. Returns the new place."""
     if sid in turn.active():
@@ -157,16 +220,19 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
     if meta.get("branch") != policy.branch(source, False)[0]:
         raise ValueError("Worktree branch changed; start a new session after inspection")
     branch = branch_name(args["branch"] if "branch" in args else default_branch(meta, issue_ref), source, policy)
+    if base == "default" and "origin" not in _run(source, "remote").splitlines():
+        raise ValueError("there is no remote to start from; pass base=head to start from the current commit")
     root = Path(settings["worktree_root"]).resolve()
-    target = target_path(root, repository_name(source, repo), branch)
-    if target.exists():
-        raise ValueError(f"{target} already exists")
-    start, fetched = _start(source, base, policy)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    created = False
+    # The command line lays the worktree out under the root, cuts the branch (fetching origin first) and
+    # checks it out without hooks; it refuses a directory or a branch that already exists.
+    added = git_tools("git_worktree_add", {"branch": branch, **({"from": "HEAD"} if base == "head" else {})},
+                      source, settings)
+    if not isinstance(added.get("directory"), str):
+        raise ValueError("git-tools did not say where the worktree is")
+    target = Path(added["directory"])
     try:
-        _run(source, "worktree", "add", "--no-track", "-b", branch, str(target), start)
-        created = True
+        if not added.get("new_branch"):
+            raise ValueError(f"branch {branch} already exists; choose a new name")
         identity = commit_identity()
         if identity:
             set_identity(source, target, identity)
@@ -188,103 +254,22 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
             sid=sid)
     except Exception:
         # Best effort: the move may have landed, so the session is not left half-bound.
-        if created:
-            with contextlib.suppress(Exception):
-                turn.call("post", "/api/session/{sid}/move", {"directory": source}, sid=sid)
-            with contextlib.suppress(Exception):
-                _run(source, "worktree", "remove", "--force", str(target))
+        with contextlib.suppress(Exception):
+            turn.call("post", "/api/session/{sid}/move", {"directory": source}, sid=sid)
+        with contextlib.suppress(Exception):
+            _run(source, "worktree", "remove", "--force", str(target))
+        if added.get("new_branch"):
             with contextlib.suppress(Exception):
                 _run(source, "branch", "-D", branch)
         raise
-    result = {"session_id": sid, "directory": str(target), "branch": branch, "base": start, "moved_from": source,
+    result = {"session_id": sid, "directory": str(target), "branch": branch,
+              "base": (added.get("base") or {}).get("ref"), "moved_from": source,
               **({"issue": meta["issue"]} if meta.get("issue") else {})}
     if identity:
         result["commit_identity"] = f"{identity[0]} <{identity[1]}>"
-    if fetched is False:
-        result["warning"] = f"fetching origin failed: {start} is as of the last fetch"
+    if added.get("warnings"):
+        result["warning"] = "; ".join(map(str, added["warnings"]))
     return result
-
-
-def gh_env():
-    """git_env() plus the settings gh locates its login by: where its config lives, and no prompts."""
-    env = git_env()
-    env.update({name: os.environ[name] for name in GH_ENV_NAMES if name in os.environ})
-    env.update(GH_PROMPT_DISABLED="1", GH_NO_UPDATE_NOTIFIER="1")
-    return env
-
-
-def graphql(query, variables):
-    """`data` of one GraphQL request through the user's own `gh` login, the variables typed as sent on stdin.
-    GitHub answers a name that does not exist with null at its path and a NOT_FOUND error: that `data` is
-    returned, so the caller says what is missing. Any other error raises with GitHub's messages."""
-    try:
-        proc = subprocess.run(["gh", "api", "graphql", "--input", "-"], input=json.dumps(
-            {"query": query, "variables": variables}), capture_output=True, text=True, timeout=GH_TIMEOUT,
-            env=gh_env())
-    except subprocess.TimeoutExpired:
-        raise ValueError(f"gh did not answer within {GH_TIMEOUT}s") from None
-    except OSError as exc:
-        raise ValueError(f"gh could not run: {exc.strerror or exc}") from None
-    try:
-        body = json.loads(proc.stdout or "{}")
-    except json.JSONDecodeError:
-        body = {}
-    if not isinstance(body, dict):
-        body = {}
-    errors = [e for e in body.get("errors") or [] if isinstance(e, dict)]
-    if errors and "data" in body and all(e.get("type") == "NOT_FOUND" for e in errors):
-        return body["data"] or {}
-    if errors or proc.returncode or "data" not in body:
-        detail = "; ".join(str(e.get("message", e)) for e in errors) or \
-            (proc.stderr or proc.stdout or "").strip()[-200:] or f"exit {proc.returncode}"
-        raise ValueError(f"GitHub refused the request: {detail}"[:200])
-    return body["data"] or {}
-
-
-def stack(pull):
-    """The native stack a pull request is in (None when it is in none): its number, base, this
-    pull request's position (1 sits on the base) and every layer, bottom first."""
-    found, entry = pull.get("stack"), pull.get("stackEntry")
-    if not found or not entry:
-        return None
-    layers = sorted(({"position": e["position"], "number": e["pullRequest"]["number"],
-                      "title": e["pullRequest"].get("title") or "", "state": e["pullRequest"]["state"].lower(),
-                      "draft": bool(e["pullRequest"].get("isDraft")), "head_sha": e["pullRequest"].get("headRefOid"),
-                      "mergeable": (e["pullRequest"].get("mergeable") or "").lower(),
-                      "repo": (e["pullRequest"].get("repository") or {}).get("nameWithOwner"),
-                      "head": e["pullRequest"].get("headRefName"),
-                      "head_repo": (e["pullRequest"].get("headRepository") or {}).get("nameWithOwner")}
-                     for e in (found.get("entries") or {}).get("nodes") or [] if e and e.get("pullRequest")),
-                    key=lambda layer: layer["position"])
-    return {"number": found["number"], "size": found["size"], "base": found["baseRefName"],
-            "position": entry["position"], "layers": layers}
-
-
-def merged_pulls(source, branch):
-    """The merged pull requests of origin's GitHub repository whose head branch is `branch`, read with
-    `gh`: number, head commit, whether from a fork, and native stack. Empty without a GitHub origin.
-    Raises when GitHub cannot be read."""
-    try:
-        match = GITHUB_ORIGIN.fullmatch(_run(source, "remote", "get-url", "origin"))
-    except ValueError:
-        return []
-    if not match:
-        return []
-    # The repository's own pull request connection, not `search`: its index trails a fresh merge.
-    data = graphql(MERGED_QUERY, {"owner": match.group(1), "name": match.group(2), "branch": branch})
-    if not data.get("repository"):
-        raise ValueError(f"{match.group(1)}/{match.group(2)} not found or not visible to the viewer")
-    nodes = (data["repository"].get("pullRequests") or {}).get("nodes") or []
-    return [{"number": node["number"], "head_sha": node["headRefOid"], "fork": bool(node.get("isCrossRepository")),
-             "stack": stack(node)} for node in nodes if node and node.get("headRefName") == branch]
-
-
-def _succeeds(source, *args):
-    try:
-        _run(source, *args)
-    except ValueError:
-        return False
-    return True
 
 
 def _worktrees(source):
@@ -303,10 +288,6 @@ def _worktrees(source):
     return found
 
 
-def _on_default(source, tip, default):
-    return bool(default) and _succeeds(source, "merge-base", "--is-ancestor", tip, default)
-
-
 def _sessions_in(directory, policy, turn):
     """The sessions the service files under this worktree, from any profile or person."""
     found, cursor = [], None
@@ -318,6 +299,17 @@ def _sessions_in(directory, policy, turn):
         if not cursor:
             return found
     raise ValueError("too many sessions in this worktree to move them all back")
+
+
+def _worktree_remains(main, worktree, policy):
+    """Whether the worktree is still on disk and still listed by the repository (`main` is its main checkout).
+    When git cannot list them, a directory that is still there counts as remaining."""
+    if not Path(worktree).exists():
+        return False
+    try:
+        return any(policy.same_dir(entry["path"], worktree) for entry in _worktrees(main))
+    except (ValueError, subprocess.SubprocessError):
+        return True
 
 
 def _checked(meta, worktree, policy):
@@ -336,9 +328,11 @@ def _checked(meta, worktree, policy):
 
 
 def cleanup(*, sid, info, meta, owner, settings, policy, turn):
-    """Once the worktree's branch has landed on the default branch, move the caller's sessions in it back to
-    the main checkout, remove the worktree and delete the task branches that landed. Refuses, moving and
-    removing nothing, when the work has not landed or the worktree holds anything that is not safely gone."""
+    """Move the caller's sessions in the worktree back to the main checkout and remove the worktree through
+    git-tools, never forced: it goes only when it is clean, in no operation and holds no commit that no ref
+    holds. Its branch is deleted only once it has landed (in the remote default branch, or as the head of a
+    merged pull request of this repository) and kept, with the reason, otherwise. Refuses, moving and removing
+    nothing, while a session runs, the binding or the worktree is not as `workspace` left it, or it has changes."""
     if sid in turn.active():
         raise ValueError("Clean up a session's worktree when it is idle, not while it runs")
     worktree = policy.worktree(turn.directory_of(info))
@@ -365,30 +359,6 @@ def cleanup(*, sid, info, meta, owner, settings, policy, turn):
     protected = {*protected, *policy.PROTECTED_BRANCHES, *([default.removeprefix("origin/")] if default else [])}
     if branch in protected:
         raise ValueError(f"{branch} is a protected or default branch; its worktree is not cleaned up here")
-
-    warnings = []
-    if "origin" in _run(main, "remote").splitlines():
-        try:
-            _run(main, "fetch", "--quiet", "--prune", "origin", timeout=FETCH_TIMEOUT)
-        except Exception:
-            warnings.append("fetching origin failed: the landed check is as of the last fetch")
-        default = policy.default_ref(main)
-    tip = _run(main, "rev-parse", "--verify", "refs/heads/" + branch)
-    try:
-        pulls, unread = merged_pulls(main, branch), None
-    except Exception as exc:
-        pulls, unread = [], str(exc)[:200]
-    own = next((p for p in pulls if not p["fork"] and p["head_sha"] == tip), None)
-    if not own and not _on_default(main, tip, default):
-        why = [f"GitHub could not be read: {unread}"] if unread else []
-        if any(not p["fork"] for p in pulls):
-            why.append("a pull request from this branch was merged at another commit, so commits came after the merge")
-        elif not unread:
-            why.append(f"it is not in {default} and no merged pull request from it was found" if default
-                       else "the default branch is unknown here and no merged pull request from it was found")
-        raise ValueError(f"the work has not landed on the default branch yet; nothing was moved or removed ({'; '.join(why)})")
-    if unread:
-        warnings.append(f"GitHub could not be read ({unread}): stacked layers were not considered")
 
     sessions = _sessions_in(worktree, policy, turn)
     if sid not in [item.get("id") for item in sessions]:
@@ -420,55 +390,29 @@ def cleanup(*, sid, info, meta, owner, settings, policy, turn):
         put_back()
         raise
 
+    deleted, failure = [], None
     try:
-        _run(main, "worktree", "remove", worktree)
+        removed = git_tools("git_worktree_remove", {"directory": worktree}, main, settings)
     except ValueError as exc:
-        put_back()
-        raise ValueError(f"{exc}; nothing was removed and the sessions are back in the worktree, so cleanup can be "
-                         "retried") from None
-    if Path(worktree).parent != root:
-        with contextlib.suppress(OSError):
-            Path(worktree).parent.rmdir()
-
-    deleted, kept = [], []
-
-    def delete(name, expected):
-        """Delete the branch only if it still points at the commit the landed check read."""
-        try:
-            _run(main, "update-ref", "-d", "refs/heads/" + name, expected)
-        except ValueError as exc:
-            try:
-                now = _run(main, "rev-parse", "--verify", "refs/heads/" + name)
-            except ValueError:
-                now = expected
-            kept.append({"branch": name, "reason": "it moved after the landed check" if now != expected else str(exc)})
-        else:
-            deleted.append(name)
-
-    delete(branch, tip)
-    checked_out = {entry["branch"]: entry["path"] for entry in _worktrees(main) if entry["branch"]}
-    for layer in ((own or {}).get("stack") or {}).get("layers") or []:
-        name = layer.get("head")
-        if (layer.get("number") == own["number"] or name == branch or not isinstance(name, str)
-                or not BRANCH.fullmatch(name) or ".." in name or name.endswith((".lock", "/", "."))
-                or not layer.get("head_repo") or str(layer["head_repo"]).lower() != str(layer.get("repo")).lower()):
-            continue
-        try:
-            layer_tip = _run(main, "rev-parse", "--verify", "refs/heads/" + name)
-        except ValueError:
-            continue
-        if name in protected:
-            kept.append({"branch": name, "reason": "a protected or default branch"})
-        elif name in checked_out:
-            kept.append({"branch": name, "reason": f"checked out in {checked_out[name]}"})
-        elif _on_default(main, layer_tip, default) or (layer.get("state") == "merged"
-                                                       and layer.get("head_sha") == layer_tip):
-            delete(name, layer_tip)
-        else:
-            kept.append({"branch": name, "reason": "its work has not landed on the default branch"})
-
+        # The package removes the directory before its landed check, fetch and branch deletion, so a
+        # failure may come after the removal: the sessions then stay in the main checkout.
+        if _worktree_remains(main, worktree, policy):
+            put_back()
+            raise ValueError(f"{exc}; nothing was removed and the sessions are back in the worktree, so cleanup "
+                             "can be retried") from None
+        failure = exc
+    if failure:
+        kept = [{"branch": branch, "reason": f"unknown: git_worktree_remove failed after removal: {failure}"}]
+    else:
+        deleted = [branch] if removed.get("branch_deleted") is True else []
+        code = removed.get("kept_because")
+        kept = [] if deleted else [{"branch": branch, "reason": KEPT_BECAUSE.get(code, code) or "it was not deleted"}]
     result = {"session_id": sid, "removed": worktree, "moved_to": main, "moved_sessions": [i["id"] for i in moved],
               "left_behind": len(sessions) - len(mine), "branches_deleted": deleted, "branches_kept": kept}
-    if warnings:
-        result["warning"] = "; ".join(warnings)
+    if failure:
+        result["warning"] = (f"The worktree was removed, but git_worktree_remove failed afterwards ({failure}), so "
+                             f"whether branch {branch} was deleted is unknown and it may remain; the sessions stay "
+                             "in the main checkout. Check with git_repo_read (status and the branch list).")
+    elif removed.get("warnings"):
+        result["warning"] = "; ".join(map(str, removed["warnings"]))
     return result

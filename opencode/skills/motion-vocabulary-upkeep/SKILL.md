@@ -110,7 +110,7 @@ Read these before editing; they are the contract the audit enforces.
 7. Review the change for descriptive-only names, seekable video builds,
    supplied art, accuracy of Japanese typesetting terms and, for web rows,
    correct web APIs, fallbacks and reduced-motion forms.
-8. Commit one concern at a time with the git-commit workflow: aliases, new
+8. Commit one concern at a time with the `commit` skill: aliases, new
    rows, a new area with its router row, web rows, audit or test changes.
    Credit the source in the commit body (names adopted, descriptions our
    own). The vocabulary's own files never cite sources. New files reach

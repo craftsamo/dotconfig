@@ -56,6 +56,17 @@ class GithubRouting(unittest.TestCase):
             self.assertIn(name, ops)
         self.assertIn("never for a branch a build run made", ops)
 
+    def test_chat_routes_git_requests_to_the_skills(self):
+        kernel = flat(ROOT / "chat/SKILL.md")
+        self.assertIn("`references/git.md`", kernel)
+        reference = flat(ROOT / "chat/references/git.md")
+        for name in ("repo", "worktree"):
+            self.assertIn(f'skill_view(name="git-tools:{name}")', reference)
+        for name in ("`git_repo_read`", "`git_worktree_read`", "`git_worktree_remove`",
+                     "`opencode_session cleanup`", "`git pull --ff-only`"):
+            self.assertIn(name, reference)
+        self.assertIn("Commits, rebases and pushes on target repositories are OpenCode's", reference)
+
     def test_every_technic_reference_the_pipeline_names_exists(self):
         named = set()
         for path in ROOT.rglob("*.md"):

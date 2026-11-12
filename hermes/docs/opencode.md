@@ -129,12 +129,15 @@ the record the Assistant mirrors all hang on this one value.
 
 **A run's GitHub writes.** The session ruleset denies the whole `github_*`
 action (the person's github-tools writes), and reopens only the `github_*_read` reads. A write run
-also has `github_pr_edit` ask the caller, for its PR's labels, assignees,
-reviewers and milestone only, which the caller may answer `once`:
-`opencode_request` refuses `once` when the pending call's arguments
+also asks the caller to open its PR (`github_pr_create`), link its stack
+(`github_stack_link`) and set its PR's labels, assignees, reviewers and
+milestone only (`github_pr_edit`), which the caller may answer `once`.
+A PR create with board arguments (`project`/`fields`) is refused `once`, and so is
+any of the three raised by a subagent session (`policy.pr_ask_from_child`).
+For a PR edit, `opencode_request` refuses `once` when the pending call's arguments
 (`metadata.arguments`) carry anything else (a title, body, base, closing issues,
 attachments) or cannot be read (`policy.pr_edit_beyond_metadata`), since the
-rest of a PR is the Assistant's through its own tools. Nothing else is
+rest of an existing PR is the Assistant's through its own tools. Nothing else is
 asked: a run never writes Issues or boards, and an Issue or board write that
 still reaches the caller, through a tool or the shell (`gh issue …`), can
 only be rejected: `opencode_request` refuses `once` on it (`policy.github_write`),
@@ -155,44 +158,52 @@ context, and each turn re-sends agent, model, permissions and metadata and
 verifies the service applied them before the prompt. A plan is read-only and
 runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
-session a worktree of its own: the plugin fetches and runs
-`git worktree add --no-track -b <branch>` (`task/issue-N` for a session bound
-to an issue unless the caller names the branch) from the fetched remote default branch
-(`base=head` starts from the current commit) under `opencode.worktree_root` as
-`<root>/<repository name on origin, else the main checkout's directory
-name>/<branch with / as ->`, moves the session there with the service's `move`
+session a worktree of its own through the [git-tools](git-tools.md) command
+line (`node
+<plugin>/dist/cli.js run git_worktree_add`, the installed `git-tools` plugin and
+Hermes' node; `opencode.git_tools_cli` replaces that command): it fetches and
+cuts a new branch (`task/issue-N` for a session bound to an issue unless the
+caller names the branch) without an upstream from the fetched remote default
+branch (`base=head` starts from the current commit), under
+`opencode.worktree_root` as `<root>/<repository name on origin, else the main
+checkout's directory name>/<branch with / as ->`, with no hooks run on the
+checkout. The plugin then moves the session there with the service's `move`
 route at the real path (a symlinked spelling makes the service file it outside
 its project and diffs go empty), rebinds
 `metadata.hermes.branch` and renames the session; if the move or the rebinding
-fails it moves the session back and removes the worktree and branch. Git runs
-without hooks and with a minimal environment, since a tracked `core.hooksPath` is
-code a write run can change and this process holds the gateway's secrets. The
-service's own worktree route is not used: `workspace` creates, binds and rolls
-back the worktree in one step it can verify. OpenCode's worktree strategy
-(`opencode/lib/worktrees/strategy.ts`, used by the TUI and `git_worktree`) keeps
-the same layout and base, so change the two together; a run's ruleset denies
-`git_worktree`, leaving `workspace` the only way a run gets a worktree. A
+fails it moves the session back and removes the worktree and branch with git
+directly, forced and without hooks. The command line is started with the
+minimal environment (git's own, gh's login location and no prompts), never the
+gateway's, and the package passes git an allowlisted environment of its own, so a
+repository's hooks, which run on fetch, removal and branch deletion as for the
+person's own command (and already in a run's commits), never see the gateway's
+secrets; never widen that environment. The service's own worktree route is not
+used: `workspace` creates, binds and rolls back the worktree in one step it can
+verify. OpenCode's worktree strategy (`git-tools.worktrees`, used by the TUI
+and `git_worktree_add`) is the same package and layout; a run's ruleset denies
+`git_worktree_add` and `git_worktree_remove`, leaving `workspace` the only way
+a run gets a worktree. A
 fork prunes nothing and shares the parent's worktree; give it its own with
 `workspace` as well.
 
-**Cleanup after the merge.** `opencode_session cleanup` is the inverse, and
-the only way such a worktree goes away (the run's `git_worktree` stays
-denied). It changes nothing unless the session is idle, nothing else runs in
-the worktree, the binding still holds, the worktree is clean and lies under
-`opencode.worktree_root`, and the task branch has landed: an ancestor of the
-fetched default branch, or the head commit of a merged, non-fork pull request
-of that branch, read with `gh` itself (a squash merge leaves no
-ancestry, and a name alone could match an older branch). It then moves the
+**Cleanup.** `opencode_session cleanup` is the inverse, and the only way such a
+worktree goes away (the run's `git_worktree_remove` stays denied). It changes nothing
+unless the session is idle, nothing else runs in the worktree, the binding
+still holds, the worktree is unlocked, clean (no changed or untracked path) and
+under `opencode.worktree_root`, and its branch is no default or protected one. It then moves the
 caller's sessions in the worktree back to the main checkout and rebinds their
-branch, so their history stays readable, removes the worktree without
-`--force` and deletes the task branch, plus any layer of the same merged
-stack that landed by the same rule and is checked out nowhere, each only if
-it still points at the tip that was checked. A locked worktree is refused up
-front. Sessions bound to someone else stay where they are and are counted; a
-failed move or removal puts the moved sessions back, so the call can be
-retried. The landed rule is the one
-`opencode/lib/worktrees/strategy.ts` uses for `git_worktree remove`; change
-the two together.
+branch, so their history stays readable, and removes the worktree through
+`git_worktree_remove`, never forced: the package also refuses an operation in
+progress and commits that no branch, remote branch or tag holds. It deletes the task
+branch only once it has landed, an ancestor of origin's default branch after a
+fetch, or the head commit of a merged pull request of the same repository read
+with `gh` (a squash merge leaves no ancestry, and a name alone could match an older
+branch); an unlanded branch stays, with the reason in `branches_kept`, and
+lower layers of a stack are left as they are. Sessions bound to someone else
+stay where they are and are counted; a refused or failed removal that left the
+worktree in place puts the moved sessions back, so the call can be retried. A
+failure after the worktree is gone leaves them in the main checkout and reports
+the branch as kept with an `unknown` reason, to check with `git_repo_read`.
 
 **Commit identity.** The shared service keeps its starter's environment, never
 the gateway's, so a run would commit as the person's global identity. When the
@@ -273,16 +284,18 @@ directory, where credentials live, or above it. A write run keeps the ask:
 the same action gates its shell's working directory and its edits outside the
 worktree, so a read root would let it change the live checkout unasked;
 OpenCode's read-only reference clones under its data `repos/` readable),
-secrets unreadable, pushes, shell history rewrites, branch moves
+secrets unreadable, shell history rewrites, branch moves
 (`gh pr checkout` and the person's `gh` aliases included), package downloaders
 (`npm exec`, `pnpm dlx`; `pnpm exec` runs only installed tools and is left to
 the person's agent rules), anything naming `deploy`, `publish`, `secret`,
 `--remote` or `--prod` (a project's task runner can reach those past every other
-rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (force and protected-branch
-pushes, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
+rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (every shell push,
+`gh stack push`, `submit` and `sync` included, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
 aliases and extensions, edits under `.git/`, the Signal tools `signal_*` with
 their reads, the github-tools writes `github_*` but its read tools,
-and in a write run `github_pr_edit` for a PR's labels, assignees, reviewers and milestone as an ask), and last the person's own denies
+and in a write run asks for `github_pr_create`, `github_stack_link` and
+`github_pr_edit` for a PR's labels, assignees, reviewers and milestone only,
+with board arguments refused), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or
 `secret get`. OpenCode checks each command as written, environment prefixes,
 wrappers (`env`, `sh -c`, `xargs`), options before git's subcommand, tabs and
@@ -308,35 +321,38 @@ worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
-`worker`, `worker-deep`, `refactorer` and `general` subagents, and the
-`git_commit` / `git_stage_hunks` / `git_verify_commits` / `git_rebase` /
-`git_stack` / `git_publish` tools,
-which write or run commands past the shell rules. A `write` run rewrites its task branch the way the person's
-OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
-because they refuse the default branch, shared commits and protected branches
-themselves, and the result leaves the machine only through a push. Every force
-spelling stays denied except the task branch's own lease push, re-opened as an
-ask by its exact text (`git push --force-with-lease origin
-HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
-`policy.lease_pushes`): a full destination, which push config cannot remap.
+`worker`, `worker-deep`, `refactorer` and `general` subagents, and the whole
+`git_*` action, reopening only the named reads: `git_repo_read`,
+`git_commit_read`, `git_rebase_read`, `git_worktree_read` and `git_push_read`.
+Every run denies `git_worktree_add` and `git_worktree_remove`:
+the caller owns its workspace. A `write` run leaves the other git tools to
+the person's global rules: `git_push_send` and `git_commit_verify` ask;
+staging, committing, amending and rebasing do not. A session ask would reopen
+a read-only subagent's own deny. The tools refuse the default branch, shared
+commits and protected branches themselves, and the result leaves the machine
+only through a push, and a push leaves the machine only through
+`git_push_send`: every run is denied a shell push in any spelling (options,
+environment prefixes, wrappers and `sh -c` included, a lease push too;
+`policy.PUSH_DENY_SHELL`), since it would carry nothing the caller can check
+against the `git_push_read` preview.
 A build prefers a native stack for a PR whose work splits into reviewable
-layers, and publishes every PR, plain or stacked, through three tools:
-`git_stack` (split, add, rebase; local branches only) runs without asking like
-`git_rebase`, `git_publish_preview` only reads and is open to every run, and
-`git_publish` (push, submit, link) asks through
-the person's global rules (a session rule would reopen the deny a read-only
-subagent sets itself) and publishes only the exact state the preview's token
-pinned, metadata it judged and the PR titles and bodies included: the words
-the caller approved are the words published, and the preview reads them
-(with each commit subject and branch name) for the working context a run
-tends to carry into them — Phase names, decision-log numbers, tool and agent
-names, local paths, account state — which the operating note of a write run
-names as excluded, since the repository's readers have none of it. The
-preview's findings are tripwires for the caller to judge, not a filter: the
-rule lives in the `git-pullrequest` skill. In a write run every
-`gh stack` command but `view` asks too, since it rebases and force-pushes
-layers and takes flags before its subcommand; a read-only run is denied
-`gh stack` and both tools entirely, and merging or unstacking a stack always. A write
+layers. Publication starts with `git_push_read` (method `preview`): for each
+branch it reports the push kind (`create`, `fast_forward`, `force`), commits
+the remote lacks, what a force drops, refusals, the secret scan and
+published-text findings over branch names and commit subjects, plus `send`,
+the exact arguments. The build reports that preview and the PR titles and
+bodies before pushing. `git_push_send` pushes exactly that `send`, leased,
+and asks the caller; then `github_pr_create` opens each layer with its title,
+body, base and metadata, and `github_stack_link` links a native stack's PR
+numbers bottom to top, each asking the caller. The caller checks the push
+against its preview and reads the whole PR text for someone with only the
+repository: no Phase names, decision-log numbers, tool or agent names, local
+paths or account state. The preview's findings are tripwires to judge, not a
+filter: the rule lives in the `pullrequest` skill. In a write run every
+`gh stack` command but `view` asks, since it rebases layers and takes flags
+before its subcommand; `push`, `submit` and `sync` push, so every run is denied
+them, a read-only run is denied `gh stack` entirely, and merging or unstacking a
+stack always. A write
 run needs the user's quoted `approval`, a named non-default task branch, and a
 worktree no other session is running in (a person's included). The approval is
 the caller's record, kept as `metadata.hermes.approval` (the latest build's,
