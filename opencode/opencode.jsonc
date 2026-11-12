@@ -44,6 +44,13 @@
     // of the change, so the github_* rule below asks. Hermes pins the same
     // release (hermes/scripts/external-plugins.json).
     { "package": "@craftsamo/github-tools@0.13.0", "options": { "toolsets": "all", "language": "ja" } },
+    // Git repositories, commits, rebases, worktrees and pushes (craft-agent/git-tools).
+    // Reads never ask; every write asserts its tool ID, so the rules below decide.
+    // Its git-tools.worktrees strategy replaces OpenCode's default and uses
+    // ~/Worktrees. Published-text rules live at ~/.config/git-tools/published-text.json,
+    // linked from this repo's git-tools/. Hermes pins the same release
+    // (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/git-tools@0.2.0", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees", "published_text_rules": "~/.config/git-tools/published-text.json" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
@@ -287,7 +294,7 @@
     "max_lines": 1000,
     "max_bytes": 36864,
   },
-  // New worktrees: plugins/worktrees.ts places them at
+  // New worktrees: git-tools' git-tools.worktrees strategy places them at
   // ~/Worktrees/<repository>/<branch> on a new branch from the fetched remote
   // default branch, like the Hermes workspace; this parent is what OpenCode
   // suggests (and creates) before calling it.
@@ -328,30 +335,16 @@
           "resource": "~/Worktrees/*",
           "effect": "allow"
         },
+        // Git: reads only.
         {
-          "action": "git_commit",
+          "action": "git_*",
           "resource": "*",
           "effect": "deny"
         },
         {
-          "action": "git_worktree",
+          "action": "git_*_read",
           "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_rebase",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_stack",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_publish",
-          "resource": "*",
-          "effect": "deny"
+          "effect": "allow"
         },
         // Signal: reads only.
         {
@@ -420,6 +413,7 @@
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
+        { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -446,6 +440,7 @@
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
+        { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -472,30 +467,16 @@
           "resource": "*",
           "effect": "deny"
         },
+        // Git: reads only.
         {
-          "action": "git_commit",
+          "action": "git_*",
           "resource": "*",
           "effect": "deny"
         },
         {
-          "action": "git_worktree",
+          "action": "git_*_read",
           "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_rebase",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_stack",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "git_publish",
-          "resource": "*",
-          "effect": "deny"
+          "effect": "allow"
         },
         // GitHub: reads only.
         {
@@ -1335,7 +1316,7 @@
       "resource": "git config*",
       "effect": "ask"
     },
-    // Every shell `git commit` asks: commits go through git_commit, which lints
+    // Every shell `git commit` asks: commits go through git_commit_create, which lints
     // and scans for secrets first. The flags below stay ask in ANY position, so
     // a later broader allow cannot reopen them.
     {
@@ -1683,8 +1664,8 @@
     },
     // gh stack (github/gh-stack) pushes, rebases, retargets PR bases, merges
     // and unstacks past the git rules, and takes flags before its verb: all
-    // of it asks but viewing. git_stack / git_publish are the checked
-    // path; these commands stay as the fallback.
+    // of it asks but viewing. git_rebase_split / git_push_send /
+    // github_stack_link are the checked path; these commands stay as the fallback.
     {
       "action": "shell",
       "resource": "gh stack *",
@@ -2346,6 +2327,13 @@
       "resource": "github-*",
       "effect": "allow"
     },
+    // git-tools' skills (git-repo, git-commit, …): how to use its tools;
+    // the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "git-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2380,97 +2368,79 @@
       "resource": "morning",
       "effect": "deny"
     },
-    // Custom git workflow tools (lib/custom-tools/git/) — read/index only,
-    // except git_commit (staged changes only; no --no-verify), git_rebase
-    // (current task branch, no editor), git_worktree (never discards changes;
-    // deletes landed branches only) and git_verify_commits (runs a given
-    // command: ask). git_commit's amend/fixup and git_rebase rewrite only a
-    // task branch's own commits: never the default branch, commits on it or on
-    // another remote branch, or a branch GitHub protects (git/rewrite.ts).
-    // No push/merge, except git_publish (pushes and opens PRs of a native
-    // stack, only as a git_publish_preview pinned it: ask). git_stack moves
-    // local stack branches only; git_publish_preview only reads. Plan,
-    // Explore, Review and Debug deny the writing ones.
+    // Git tools (@craftsamo/git-tools): reads never ask; writes assert their
+    // tool ID. Everything under git_* asks unless allowed below, so a write
+    // added by a later release asks too.
     {
-      "action": "git_commit",
+      "action": "git_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // These refuse to rewrite the default branch, shared or protected
+    // commits, and never force a worktree removal. Their result leaves the
+    // machine only through a push, which asks.
+    {
+      "action": "git_commit_stage",
       "resource": "*",
       "effect": "allow"
     },
     {
-      "action": "git_rebase",
+      "action": "git_commit_create",
       "resource": "*",
       "effect": "allow"
     },
     {
-      "action": "git_worktree",
+      "action": "git_commit_amend",
       "resource": "*",
       "effect": "allow"
     },
     {
-      "action": "git_stack",
+      "action": "git_rebase_start",
       "resource": "*",
       "effect": "allow"
     },
     {
-      "action": "git_publish_preview",
+      "action": "git_rebase_resume",
       "resource": "*",
       "effect": "allow"
     },
     {
-      "action": "git_publish",
+      "action": "git_rebase_split",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "git_worktree_add",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "git_worktree_remove",
+      "resource": "*",
+      "effect": "allow"
+    },
+    // Arbitrary commands at each commit and pushes still ask on their own.
+    {
+      "action": "git_commit_verify",
       "resource": "*",
       "effect": "ask"
     },
     {
-      "action": "git_state",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_conflicts",
-      "resource": "*",
-      "effect": "allow"
-    },
-    // Runs an arbitrary command at each commit, outside the shell rules: ask.
-    {
-      "action": "git_verify_commits",
+      "action": "git_push_send",
       "resource": "*",
       "effect": "ask"
     },
+    // Built-in creation asks nothing; removal can force-discard files.
+    // Worktrees go through git_worktree_add / git_worktree_remove instead.
     {
-      "action": "git_secret_scan",
+      "action": "opencode_worktree_create",
       "resource": "*",
-      "effect": "allow"
+      "effect": "deny"
     },
     {
-      "action": "git_stage_hunks",
+      "action": "opencode_worktree_remove",
       "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_provenance",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_related_scan",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_history_digest",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_amend_check",
-      "resource": "*",
-      "effect": "allow"
-    },
-    {
-      "action": "git_commit_lint",
-      "resource": "*",
-      "effect": "allow"
+      "effect": "deny"
     },
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     {

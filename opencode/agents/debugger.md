@@ -15,8 +15,7 @@ permissions:
   - { action: read, resource: "*/.env.*", effect: deny }
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
-  - { action: git_provenance, resource: "*", effect: allow }
-  - { action: git_state, resource: "*", effect: allow }
+  - { action: "git_*_read", resource: "*", effect: allow }
   - { action: "github_*_read", resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
@@ -249,7 +248,11 @@ Protocol:
 3. For a regression, isolate the delta before deep-diving the symptom: what
    changed since the last known-good state. Read the history of the failing code
    and of its inputs — configuration, dependencies and lock files, data, and
-   environment (`git log`, `git blame`, `git_provenance`, all read-only). If
+   environment (`git log`, `git blame`, `git_repo_read` method `origin`, all
+   read-only). Through `execute`, use `origin` with a commit `sha`, blame by
+   `file` + `lines`, or pickaxe by `token` / `regex`; it returns git history,
+   not PRs or Issues (read those with `github_pr_read` / `github_issue_read`).
+   Use `git_repo_read` method `status` for repository state. If
    commit-level isolation is needed, recommend a `git bisect` with good/bad refs
    — never run it, since checkout mutates the tree.
 4. Understand the whole relevant surface before you narrow. Do not scope to the

@@ -14,8 +14,8 @@ permissions:
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
   - { action: execute, resource: "*", effect: allow }
-  - { action: git_provenance, resource: "*", effect: allow }
-  - { action: git_state, resource: "*", effect: allow }
+  - { action: "git_*_read", resource: "*", effect: allow }
+  - { action: "github_*_read", resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
@@ -83,8 +83,11 @@ Rules:
 - Count lines, list directories, or preview files with Read and Glob (Read on
   a directory lists it; its line numbers give the length). `wc`, `ls`, `head`,
   and `find` are denied.
-- Use `git_provenance` to trace a change back to its commit, PR, and Issue. It is
-  only callable through `execute` (Code Mode); use `execute` for nothing else.
+- Use `git_repo_read` method `origin` through `execute` (Code Mode) for git
+  history: a commit by `sha`, blame by `file` + `lines`, or pickaxe by `token` /
+  `regex`. It returns history, not PRs or Issues; read those with `github_pr_read`
+  / `github_issue_read`. Use `git_repo_read` method `status` for repository state.
+  Use `execute` only for these read tools.
 - Search iteratively. Start broad, then narrow based on evidence.
 - Read enough surrounding context to avoid misleading conclusions.
 - Distinguish confirmed facts from inferences.
