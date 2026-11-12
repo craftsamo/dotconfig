@@ -26,7 +26,7 @@ allowlist) or a question the agent would put to a person.
 `kind`, `id`, whether a subagent asked, and its action and resources or its
 fields and options. A shell request names every simple command of a chain as
 its own resource, and the one that needs you is often the last (`kill`,
-`rm`, `git push`): judge them all before answering. A notification shortens
+`rm`, `git reset`): judge them all before answering. A notification shortens
 them; where it says `complete: false`, read the request with `list` first.
 
 `opencode_request(action="reply", session_id, replies=[{request_id, …}, …])`
@@ -57,31 +57,32 @@ A build may edit files in its worktree and run routine commands; its tools
 refuse the default branch, shared commits and protected branches, and what
 follows comes to you as a request.
 
-- **Publishing a PR**, plain or stacked, arrives as a `git_publish` request
-  (push, submit or link). The request carries only a preview token: approve
-  it against the `git_publish_preview` the build reported (the base, each
-  layer, its commits, its PR, whether it is force-pushed, and under `text`
-  the PR titles and bodies a submit will set, with what they trip), and ask
-  for that preview first if it did not; the metadata it judged (labels,
-  assignees, review requests, a milestone) is set with that approval. The
-  titles and bodies are pinned in the token, so what you read is what is
-  published. The preview only flags what trips a pattern; you read the whole
-  text as someone who has only the repository, and reject the request, with
-  the words to change, when it names a Phase, a decision number, the tools
-  or agents that did the work, a local path or this machine's or account's
-  state.
-- **Pushes** (a rebased branch's
-  `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
-  `git_publish` and `gh stack push` included), shell history rewrites, branch
-  moves, package downloaders (`npm exec`, `pnpm dlx`), anything naming
-  `deploy`, `publish`, `secret`, `--remote` or `--prod` and per-command git
-  configuration (`git -c`) come back to you as requests, also behind a
-  prefix or a wrapper such as `env` or `sh -c`.
+- **Publishing a PR**, plain or stacked, starts with a `git_push_send` request
+  carrying the branches, their commit and the remote commit each expects.
+  Approve `once` only against the `git_push_read` preview the build reported:
+  the same branches and commits, force pushes and what they drop, and the
+  secret-scan and published-text findings. Ask for the preview first if it
+  did not report one. Each PR then arrives as `github_pr_create` (title,
+  body, base, labels, assignees, reviewers, milestone, closing issues). Read
+  the whole title and body as someone who has only the repository, and reject
+  the request, with the words to change, when it names a Phase, a decision
+  number, the tools or agents that did the work, a local path or this
+  machine's or account's state. The plugin refuses `once` on a create that
+  also puts the PR on a board (`project`/`fields`). A stack's layers are
+  linked by `github_stack_link`: approve once its PRs are the ones just
+  opened, bottom to top.
+- Shell history rewrites, branch moves, package downloaders (`npm exec`,
+  `pnpm dlx`), anything naming `deploy`, `publish`, `secret`, `--remote` or
+  `--prod` and per-command git configuration (`git -c`) come back to you as
+  requests, also behind a prefix or a wrapper such as `env` or `sh -c`. A push
+  is not among them: it arrives only as `git_push_send` (above).
 - **The run's GitHub writes** are denied by the ruleset, except a build's
-  `github_pr_edit` (a PR's labels, assignees, reviewers and milestone only),
+  `github_pr_create` and `github_stack_link` (as above), and `github_pr_edit`
+  (a PR's labels, assignees, reviewers and milestone only),
   which arrives as a request you may approve `once` against the reasons the
   build reported; one that also carries a title, body, base, closing issues or
-  attachments is refused `once` like an Issue write: `reject` it and change
+  attachments, or one raised by a subagent (`subagent: true`), is refused `once`
+  like an Issue write: `reject` it and change
   the PR yourself with your GitHub tools when it is wanted. One that still
   reaches you for an Issue or the board (any other
   `github_*` write or a shell `gh issue
@@ -90,7 +91,8 @@ follows comes to you as a request.
   wanted, from the run's `progress.md` and report. An Issue or board write
   runs on your own card, never on your approval of a run.
 - **Denied outright**, however spelled, and never yours to approve: every
-  other force push, protected-branch pushes, merges, `gh api`, Project
+  push from the shell (a lease push and `gh stack push`, `submit` and `sync`
+  included: nothing in it could be checked against a preview), merges, `gh api`, Project
   writes through the shell, git config and remote rewrites, `gh` aliases
   and extensions, edits under `.git/` or the global git and gh config, and
   secret reads. A read-only run is denied the requests above as well.

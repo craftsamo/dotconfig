@@ -10,7 +10,7 @@ description: >-
   land the stack). Layers on any approach-* scenario skill. Planning the work
   (the shape, the bodies, filing, changing a plan) is the github-planning
   skill's; opening or updating a PR, even a stack layer, is
-  git-pullrequest's. Not for a one-off PR with no issue behind it.
+  pullrequest's. Not for a one-off PR with no issue behind it.
 author: CraftSamo
 license: MIT
 ---
@@ -88,21 +88,22 @@ line.
 
 <Branches>
 
-A unit executes as one **native GitHub stack** (`gh stack`, through
-`git_stack` / `git_publish` as `git-pullrequest` `<StackedPRs>` describes)
-whose trunk is always the default branch.
+A unit executes as one **native GitHub stack** (local layer branches shaped
+by `git_rebase_*`, PRs joined by `github_stack_link`, as `pullrequest`
+`<StackedPRs>` describes) whose trunk is always the default branch.
 
 - **Parents have no branch**, and units have no merge-vehicle branch: the
   stack's layers land on the default branch directly, together, when the
   unit is done (`<Landing>`).
 - **One unit = one stack; one layer = one PR**: `main ← l1 ← l2 ← …`, every
   layer branch named after the unit (`<number>-<slug>/l1`, `/l2`, …).
-  Start with `git_worktree { action: "create", branch: "<number>-<slug>/l1" }`;
-  after its first commit, `git_stack split` with no cuts makes it the stack's
-  bottom.
+  Start with `git_worktree_add { branch: "<number>-<slug>/l1" }`; a lone
+  branch is already a stack of one layer, so it is the stack's bottom once it
+  has its first commit.
 - **Grow the stack, do not pre-build it.** Add a layer only when about to
-  implement it (`git_stack add`, to the top). Inserting or reordering is
-  `gh stack modify`, TUI-only; unwritten layers stay outline text.
+  implement it (`git_rebase_split` `add`, to the top). Inserting or
+  reordering is `gh stack modify`, TUI-only; unwritten layers stay outline
+  text.
 - **A multi-layer unit takes NO linked development branch.**
   `github_issue_develop` puts the branch among the issue's closing references
   without a keyword, so the first layer to merge would close the unit while
@@ -114,8 +115,8 @@ whose trunk is always the default branch.
 
 <Layers>
 
-Each layer is opened through `git-pullrequest`; its body is the slice's spec
-in that skill's `<BodyStructure>`:
+Each layer is opened through the `pullrequest` skill; its body is the slice's
+spec in that skill's `<BodyStructure>`:
 
 - `Refs #<unit>` on an intermediate layer, `Closes #<unit>` on the
   completing one (normally the top; move it when another layer is appended),
@@ -125,8 +126,8 @@ in that skill's `<BodyStructure>`:
   list. No `## Dependencies` (the stack encodes them) and no `## Research`.
 - When a layer's PR opens, `github_issue_edit` the unit's outline: tick the
   line and end it `— #<PR>`.
-- After changing a lower layer: `git_stack rebase`, `git_publish_preview`,
-  `git_publish push`.
+- After changing a lower layer: `git_rebase_start`, `git_push_read` `preview`,
+  `git_push_send`.
 - A discovery beyond the unit's scope is not absorbed in the current layer:
   add it to the unit's `## Open decisions` (how to build it) or comment on
   the parent (what to build), and keep the layer on scope. Work the goal
@@ -144,7 +145,7 @@ commit that names only the top layer.
 
 - **One merge, one message.** A merge commit titled with the unit's goal and
   ` (#<top PR>)`, its body listing every layer bottom-up as
-  `- #<n> <PR title>`: the landing plan of `git-pullrequest`
+  `- #<n> <PR title>`: the landing plan of `pullrequest`
   `<MergeMessageHandoff>`.
 - **Hand it over; land only when asked.** Give the landing plan when the
   completing layer is published; the merge runs only on an explicit request.

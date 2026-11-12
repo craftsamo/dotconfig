@@ -55,21 +55,6 @@ export async function run(argv: string[], options: ExecOptions = {}): Promise<st
   return res.stdout
 }
 
-export const runGit = (argv: string[], cwd?: string) => run(["git", ...argv], { cwd })
-
-export async function tryGit(argv: string[], cwd?: string): Promise<{ ok: boolean; stdout: string; code: number }> {
-  const { ok, stdout, code } = await exec(["git", ...argv], { cwd })
-  return { ok, stdout, code }
-}
-
-export const runGh = (argv: string[], cwd?: string) => run(["gh", ...argv], { cwd })
-
-/** `gh` output parsed as JSON; empty output is null. */
-export async function runGhJson(argv: string[], cwd?: string): Promise<any> {
-  const out = (await runGh(argv, cwd)).trim()
-  return out ? JSON.parse(out) : null
-}
-
 /** Whether a program is on PATH. */
 export const which = (name: string) => Bun.which(name, { PATH: process.env.PATH }) !== null
 

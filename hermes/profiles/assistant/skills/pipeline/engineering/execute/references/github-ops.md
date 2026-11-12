@@ -129,10 +129,13 @@ approved and before the first unit's build:
 **OpenCode reads; every Issue and board write is yours.** The run's `issue`
 argument (`owner/repo#N`) names the issue it works on: the run reads it with
 its own tools, and the build is told which issue its completing PR closes.
-OpenCode only reads GitHub, and may set a PR's metadata through
-`github_pr_edit`, which you approve `once` when it fits: labels, assignees,
-reviewers and milestone only, and the plugin refuses `once` on a call that
-carries a title, body, base, closing issue or attachment
+OpenCode reads GitHub, opens its PRs and links its stack (`github_pr_create`,
+`github_stack_link`), and may set a PR's metadata through `github_pr_edit`,
+each of which you approve `once` when it fits: the push against its preview,
+the text for a reader with only the repository, never a board. Metadata is
+labels, assignees, reviewers and milestone only; the plugin refuses `once`
+on a PR edit that carries a title, body, base, closing issue or attachment,
+or a PR create with board arguments (`project`/`fields`)
 (`skill_view(name="opencode:answer")`). Everything else on GitHub is yours,
 mirrored from the unit's `progress.md` and the run's report once you have
 read them: the issue's layers ticked as their PRs open, its Status, the
@@ -153,7 +156,7 @@ Establish GitHub repositories with approved owner, visibility and history
 through `github_repo_create` (`skill_view(name="github-tools:repos")`,
 always on its own card): `template` for a starter, or an empty repository for
 an approved scratch or history-preserving path (the history is pushed into
-it). Clone through `ghq`, not an unregistered local `git init`; preserve
+it). Clone through `ghq`, never `git init`; preserve
 `upstream` when lineage is requested.
 Register/link with the `workspace_registry` actions `repo_set` then `link_repo` using
 the approved Group.
@@ -180,3 +183,7 @@ evidence to hand back, never its commands (a build run cannot load your
 skills, and the method is its own). Close the unit's
 issue and move the board as the table above says, never for a job the user
 excluded.
+
+A person's own landed task worktree is removed with `git_worktree_remove`
+(`skill_view(name="git-tools:worktree")`), never a terminal write. OpenCode
+session worktrees still go through `opencode_session cleanup`, not that tool.

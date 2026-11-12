@@ -451,7 +451,9 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   and a write run's outside edits, so in a write run they would let it change
   the live checkout unasked. A read root never holds the home directory, where
   credentials live. Anything the caller must never approve is a `deny`, not an
-  `ask`.
+  `ask`: a push leaves the machine only through `git_push_send`, which the
+  caller checks against the `git_push_read` preview, so every shell push
+  (`gh stack push|submit|sync` too) is denied and never re-opened as an ask.
 - **Reach OpenCode only through `api.py`** (`opencode api`, output to files,
   minimal environment): a piped reply is cut off at a buffer boundary with exit
   status zero, `--param` silently drops query parameters (queries go in the
@@ -490,9 +492,10 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   the gateway's own, possibly stale, values.
 - **A run never writes GitHub on the caller's `once`.** The ruleset denies
   the whole `github_*` action, reopens only
-  `github_*_read`, and asks only for a write run's `github_pr_edit`;
-  `opencode_request` refuses `once` on any Issue or board write
-  (`policy.github_write`), a shell `gh issue …` included. Widening the asks or
+  `github_*_read`, and asks only for a write run's `github_pr_edit`,
+  `github_pr_create` and `github_stack_link`; `opencode_request` refuses `once`
+  on any Issue or board write (`policy.github_write`), a PR create with
+  `project`/`fields` or a shell `gh issue …` included. Widening the asks or
   approving one reopens card-less GitHub writes
   ([decision](docs/decisions/github-tools-plugin.md)).
 - **The caller's own model is refused unless the role allows it
@@ -510,17 +513,22 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   `metadata.hermes.repo` and the per-turn check in `_prepare` detect a stray
   session at its next turn; the only sanctioned moves are
   `opencode_session workspace` and its inverse `cleanup`. Never ask an OpenCode run to move itself, keep
-  the service's own worktree route unused and `git_worktree` denied in the
-  ruleset (`workspace` creates, binds and rolls back in one step), and keep
-  `workspace.py`'s git calls hook-free with the minimal environment: a tracked
-  `core.hooksPath` is repository-controlled code and this process holds the
-  gateway's secrets. Its layout (`<root>/<origin repository name>/<branch>`)
-  and `cleanup`'s rule for a landed branch match OpenCode's worktree strategy
-  in `opencode/lib/worktrees/`; change both together. `cleanup` never forces
-  a removal or deletes a branch it has not proven landed: a squash-merged
-  branch is proven only by a merged PR whose head is its tip, read from the
-  repository's pull requests (search trails a fresh merge), and the branch is
-  deleted only if it still points at that tip.
+  the service's own worktree route unused and `git_worktree_add` and
+  `git_worktree_remove` denied in the
+  ruleset (`workspace` creates, binds and rolls back in one step). `workspace`
+  and `cleanup` create and remove worktrees only through the git-tools command
+  line, started with the minimal environment (`workspace.gh_env()`), never the
+  gateway's: the package passes git an allowlisted environment, so a
+  repository's hooks, which run on fetch, removal and branch deletion as for the
+  person's own command (as they already do in the run's commits), never see the
+  gateway's secrets. Never widen that environment, and never pass `GIT_CONFIG_*`
+  (the package drops it). The layout and the landed-branch proof are the
+  package's, shared with OpenCode's `git-tools.worktrees` strategy. `cleanup`
+  never forces a removal, and the package deletes the branch only once it has
+  landed (ancestry, or a merged same-repository PR whose head is its tip);
+  an unlanded branch is kept with the reason, and lower stack layers are left
+  alone. The rollback in `create` removes only what that call made, with
+  `_run`'s hook-free git.
 
 ## Candidates and cutover
 
@@ -589,9 +597,11 @@ Commands: [README "Commands"](README.md#commands).
   ([card shape](docs/access-common.md#card-shape)). A third-party plugin
   keeps its own card when that card shows what the call carries and pins it;
   a dotconfig guard then refuses its writes where no person can answer
-  (`guards/signal-tools-guard`, `guards/github-tools-guard`;
+  (`guards/signal-tools-guard`, `guards/github-tools-guard`,
+  `guards/git-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
-  [GitHub](docs/decisions/github-tools-plugin.md)).
+  [GitHub](docs/decisions/github-tools-plugin.md),
+  [Git](docs/decisions/git-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
   orders, Telegram and WhatsApp text sends,

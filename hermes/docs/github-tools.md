@@ -62,9 +62,11 @@ There are no mandates: a write never runs without a card.
 
 ## Runs
 
-An OpenCode run the Assistant drives only reads GitHub (`github_*_read`), plus
-a write run's `github_pr_edit` for its PR's labels, assignees, reviewers and
-milestone only, which asks the caller. Every other `github_*` write is denied
+An OpenCode run the Assistant drives reads GitHub (`github_*_read`); a write
+run also asks the caller to open its PR (`github_pr_create`), link its stack
+(`github_stack_link`) and set its PR's labels, assignees, reviewers and
+milestone only (`github_pr_edit`). A create with board arguments
+(`project`/`fields`) is refused `once`. Every other `github_*` write is denied
 in the run, and the caller can only reject an Issue or board write, or a
 `github_pr_edit` that carries anything beyond those four (title, body, base,
 closing issues, attachments), never approve it. The Assistant reads the

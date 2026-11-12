@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import urllib.parse
 
 import pytest
@@ -138,7 +139,7 @@ def test_plan_then_build_switches_agent_model_and_ruleset_on_one_session(fixture
     assert now["agent"] == "build"
     assert now["model"] == {"providerID": "openai", "id": "gpt-6.1-sol", "variant": "medium"}
     assert {"action": "edit", "resource": "*", "effect": "deny"} not in now["permissions"]
-    assert policy.decide(now["permissions"], "shell", "git push origin topic") == "ask"
+    assert policy.decide(now["permissions"], "shell", "git push origin topic") == "deny"
     assert {"action": "shell", "resource": "gh issue comment *", "effect": "ask"} not in now["permissions"], \
         "an Issue grant lifts the Issue-write asks"
     assert fake.prompts[-1] == (sid, MESSAGE), "the approval is the caller's record, not prompt text"
@@ -288,10 +289,11 @@ def test_rules_have_no_mandate_and_deny_github_writes():
             assert policy.decide(rules, name, "*") == "deny", (kind, name)
 
 
-def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_edit_a_build_may_ask_for():
-    for action in ("github_issue_edit", "github_project_item_edit", "github_foo_bar"):
+def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_tools_a_build_may_ask_for():
+    for action in ("github_issue_create", "github_issue_edit", "github_project_item_edit", "github_foo_bar"):
         assert policy.github_write(action), action
-    for action in (*policy.GITHUB_TOOLS_READS, "github_pr_edit", "external_directory", "shell", None):
+    for action in (*policy.GITHUB_TOOLS_READS, "github_pr_edit", "github_pr_create", "github_stack_link",
+                   "external_directory", "shell", None):
         assert not policy.github_write(action), action
 
 
@@ -360,6 +362,92 @@ def test_the_caller_approves_a_pr_edit_once_only_when_it_carries_pr_metadata(fix
     assert not fake.replies, "the refused once sent nothing"
     rejected = request("reply", sid, request_id=item["id"], decision="reject")
     assert fake.replies[-1][1]["decision"] == "reject", rejected
+
+
+def test_pr_create_beyond_pr_is_true_for_a_board_or_arguments_that_cannot_be_read():
+    def create(arguments="missing"):
+        metadata = {} if arguments == "missing" else {"arguments": arguments}
+        return {"action": "github_pr_create", "metadata": metadata}
+
+    for arguments in ({"title": "x", "body": "y", "labels": ["bug"], "base": "main", "draft": True},
+                      {"title": "x", "project": None, "fields": None}, {}):
+        assert not policy.pr_create_beyond_pr(create(arguments)), arguments
+    for arguments in ({"title": "x", "project": "Roadmap"}, {"title": "x", "fields": {"Status": "Todo"}},
+                      {"project": 3, "fields": {}}, "missing", None, "text", ["title"]):
+        assert policy.pr_create_beyond_pr(create(arguments)), arguments
+    assert policy.pr_create_beyond_pr({"action": "github_pr_create"})
+    assert policy.pr_create_beyond_pr({"action": "github_pr_create", "metadata": "text"})
+    for item in ({"action": "github_pr_edit", "metadata": {"arguments": {"project": "Roadmap"}}}, {"action": None}, {}):
+        assert not policy.pr_create_beyond_pr(item), item
+
+
+@pytest.mark.parametrize("action, arguments, once_ok", [
+    ("github_pr_create", {"title": "Add x", "body": "Why", "labels": ["bug"]}, True),
+    ("github_pr_create", {"title": "Add x", "project": "Roadmap"}, False),
+    ("github_pr_create", {"title": "Add x", "fields": {"Status": "Todo"}}, False),
+    ("github_pr_create", None, False),
+    ("github_stack_link", {"prs": [20, 21]}, True),
+    ("github_issue_create", {"title": "Add x"}, False),
+])
+def test_the_caller_approves_a_pr_create_and_a_stack_link_once_but_never_a_board_or_issue_write(
+        fixture, action, arguments, once_ok):
+    _, directory, _, fake = fixture
+    metadata = {} if arguments is None else {"arguments": arguments}
+    fake.asks["pr"] = dict(action=action, resources=["octo/example"], metadata=metadata)
+    scripted(fake, "ask:pr", "finish")
+    paused = run("plan", directory)
+    sid, item = paused["session_id"], paused["pending"][0]
+    assert item["action"] == action, paused
+    reply = request("reply", sid, request_id=item["id"], decision="once")
+    if once_ok:
+        assert reply["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, reply
+        return
+    assert "board" in reply["error"], reply
+    assert not fake.replies, "the refused once sent nothing"
+    rejected = request("reply", sid, request_id=item["id"], decision="reject")
+    assert fake.replies[-1][1]["decision"] == "reject", rejected
+
+
+def test_pr_ask_from_child_is_true_for_a_pr_ask_the_runs_own_session_did_not_raise():
+    for action in policy.RUN_GITHUB_TOOLS_ASKS:
+        assert not policy.pr_ask_from_child({"action": action, "session_id": "ses_1"}, "ses_1"), action
+        assert policy.pr_ask_from_child({"action": action, "session_id": "ses_1child"}, "ses_1"), action
+        assert policy.pr_ask_from_child({"action": action}, "ses_1"), "fails closed without a session id"
+        assert policy.pr_ask_from_child({"action": action, "session_id": None}, "ses_1"), action
+    for item in ({"action": "external_directory", "session_id": "ses_1child"}, {"action": None}, {}):
+        assert not policy.pr_ask_from_child(item, "ses_1"), item
+
+
+@pytest.mark.parametrize("action", policy.RUN_GITHUB_TOOLS_ASKS)
+def test_the_caller_never_approves_a_pr_ask_a_subagent_raised_but_may_reject_it(fixture, action):
+    _, directory, _, fake = fixture
+    arguments = {"pr": 20, "add_labels": ["bug"]} if action == "github_pr_edit" else {"title": "Add x"}
+    scripted(fake, "ask-permission", "finish")
+    paused = run("plan", directory)
+    sid = paused["session_id"]
+    fake.requests.clear()
+    child = fake.ask(fake.child(sid), action=action, resources=["octo/example"], metadata={"arguments": arguments})
+    own = fake.ask(sid, action=action, resources=["octo/example"], metadata={"arguments": arguments})
+    pending = {p["id"]: p for p in request("list", sid)["pending"]}
+    assert pending[child["id"]]["subagent"] is True and pending[own["id"]]["subagent"] is False
+    refused = request("reply", sid, request_id=child["id"], decision="once")
+    assert "came from a subagent" in refused["error"] and action in refused["error"], refused
+    assert not fake.replies, "the refused once sent nothing"
+    rejected = request("reply", sid, request_id=child["id"], decision="reject")
+    assert fake.replies[-1] == (child["id"], {"decision": "reject"}), rejected
+    approved = request("reply", sid, request_id=own["id"], decision="once")
+    assert "error" not in approved and fake.replies[-1] == (own["id"], {"decision": "once"}), approved
+
+
+def test_a_pr_ask_whose_session_cannot_be_read_is_refused_once_but_may_be_rejected():
+    item = {"kind": "permission", "id": "per_1x", "action": "github_pr_create",
+            "metadata": {"arguments": {"title": "Add x"}}}
+    once = {"request_id": "per_1x", "decision": "once"}
+    with pytest.raises(ValueError, match="came from a subagent"):
+        plugin._reply_plan([item], once, "ses_1")
+    plan = plugin._reply_plan([item], {**once, "decision": "reject"}, "ses_1")
+    assert plan[-1] == {"decision": "reject"}
+    assert plugin._reply_plan([{**item, "session_id": "ses_1"}], once, "ses_1")[-1] == {"decision": "once"}
 
 
 def test_write_run_needs_approval_and_a_task_branch(fixture):
@@ -829,8 +917,140 @@ def test_preflight_rejects_bad_arguments(fixture):
     assert "absolute" in json.loads(plugin.opencode_preflight({"directory": "relative"}))["error"]
 
 
+# A stand-in for the git-tools command line (`node cli.js run <tool> --cwd … --toolsets … --worktree-root …`):
+# the same arguments, JSON on stdin and `{"result": …}` or `{"error": …}` on stdout, over the test's real git
+# repositories. It records each call's argv, arguments and environment in cli-calls.jsonl, and answers the tool
+# named in refuse.json with that error.
+FAKE_GIT_TOOLS = r'''
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+argv = sys.argv[1:]
+args = json.loads(sys.stdin.read() or "{}")
+with open(HERE / "cli-calls.jsonl", "a") as log:
+    log.write(json.dumps({"argv": argv, "args": args, "env": dict(os.environ)}) + "\n")
+
+
+class Refused(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def option(name):
+    return argv[argv.index(name) + 1]
+
+
+def git(cwd, *a, check=True):
+    proc = subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True)
+    if check and proc.returncode:
+        raise Refused("git_error", f"git {a[0]} failed (exit {proc.returncode}): {proc.stderr.strip()}")
+    return proc
+
+
+def has_origin(cwd):
+    return git(cwd, "remote", "get-url", "origin", check=False).returncode == 0
+
+
+def default_ref(cwd):
+    for ref in ("origin/main", "origin/master"):
+        if git(cwd, "rev-parse", "--verify", "--quiet", ref + "^{commit}", check=False).returncode == 0:
+            return ref
+    return None
+
+
+def repository(cwd):
+    url = git(cwd, "remote", "get-url", "origin", check=False)
+    name = re.split(r"[/:]", url.stdout.strip().rstrip("/"))[-1].removesuffix(".git") if url.returncode == 0 else ""
+    return name or Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()).parent.name
+
+
+def add():
+    cwd, branch, root = option("--cwd"), args["branch"], Path(option("--worktree-root"))
+    target = root / repository(cwd) / branch.replace("/", "-")
+    if target.exists():
+        raise Refused("invalid_argument", f"{target} already exists; pick another branch name")
+    new = git(cwd, "show-ref", "--verify", "--quiet", "refs/heads/" + branch, check=False).returncode != 0
+    fetched, warnings, base = None, [], None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if new:
+        if has_origin(cwd):
+            fetched = git(cwd, "fetch", "--quiet", "origin", check=False).returncode == 0
+        ref = args.get("from") or (default_ref(cwd) if has_origin(cwd) else "HEAD")
+        if ref is None:
+            raise Refused("invalid_argument", "origin's default branch is unknown here; pass from.")
+        sha = git(cwd, "rev-parse", "--verify", ref + "^{commit}").stdout.strip()
+        base = {"ref": ref, "sha": sha}
+        if fetched is False:
+            warnings.append(f"fetching origin failed: {ref} is as of the last fetch")
+        git(cwd, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--no-track", "-b", branch, str(target), sha)
+    else:
+        git(cwd, "-c", "core.hooksPath=/dev/null", "worktree", "add", str(target), branch)
+    return {"directory": str(target.resolve()), "branch": branch, "new_branch": new, "base": base,
+            "fetched": fetched, "warnings": warnings}
+
+
+def remove():
+    cwd, directory, root = option("--cwd"), Path(args["directory"]), Path(option("--worktree-root"))
+    if git(directory, "status", "--porcelain", "--untracked-files=normal").stdout.strip():
+        raise Refused("dirty_tree", f"{directory} has modified or untracked files")
+    branch = git(directory, "symbolic-ref", "--short", "HEAD").stdout.strip()
+    tip = git(directory, "rev-parse", "HEAD").stdout.strip()
+    warnings = []
+    if has_origin(cwd) and git(cwd, "fetch", "--quiet", "origin", check=False).returncode:
+        warnings.append("fetching origin failed: the default branch is as of the last fetch")
+    git(cwd, "worktree", "remove", str(directory))
+    if (HERE / "fail-after-removal").exists():
+        raise Refused("git_error", "git fetch timed out after the worktree was removed")
+    if directory.parent != root:
+        try:
+            directory.parent.rmdir()
+        except OSError:
+            pass
+    ref = default_ref(cwd)
+    landed = bool(ref) and git(cwd, "merge-base", "--is-ancestor", tip, ref, check=False).returncode == 0
+    if landed:
+        git(cwd, "branch", "-D", branch)
+    return {"directory": str(directory), "branch": branch, "pruned": False, "branch_deleted": landed,
+            "landed": {"by": "ancestry", "into": ref} if landed else None,
+            "kept_because": None if landed else "not_landed", "warnings": warnings}
+
+
+try:
+    tool = argv[1]
+    refusal = HERE / "refuse.json"
+    if refusal.exists() and json.loads(refusal.read_text())["tool"] == tool:
+        raise Refused(*json.loads(refusal.read_text())["error"])
+    print(json.dumps({"result": {"git_worktree_add": add, "git_worktree_remove": remove}[tool]()}))
+except Refused as exc:
+    print(json.dumps({"error": {"code": exc.code, "message": str(exc)}}))
+    sys.exit(1)
+'''
+
+
+def install_fake_cli(directory):
+    """Write the stand-in into `directory`; the command that runs it."""
+    script = directory / "fake-git-tools.py"
+    script.write_text(FAKE_GIT_TOOLS)
+    return [sys.executable, str(script)]
+
+
+def cli_calls(home):
+    log = home.parent / "cli-calls.jsonl"
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+
+def cli_refuses(home, tool, code, message):
+    (home.parent / "refuse.json").write_text(json.dumps({"tool": tool, "error": [code, message]}))
+
+
+def cli_fails_after_removal(home):
+    (home.parent / "fail-after-removal").write_text("")
+
+
 def with_root(home, root):
-    configure(home, f"  worktree_root: {root}\n")
+    configure(home, f"  worktree_root: {root}\n  git_tools_cli: {json.dumps(install_fake_cli(home.parent))}\n")
 
 
 def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, tmp_path):
@@ -943,22 +1163,86 @@ def test_workspace_starts_from_the_remote_default_branch_and_refuses_when_it_can
     assert out["base"] == "origin/main" and "last fetch" in out["warning"]
 
 
-def test_workspace_runs_no_repository_hook_and_leaks_no_secret(fixture, tmp_path, monkeypatch):
+PASSED_BY_THE_INTERPRETER = {"__CF_USER_TEXT_ENCODING", "LC_CTYPE"}
+
+
+def assert_minimal_cli_call(call, root, cwd, tool):
+    """The command line got the worktree toolset and root, and nothing of the gateway's environment:
+    `gh_env()` alone, with no GIT_CONFIG_* (the package drops it)."""
+    assert call["argv"][:2] == ["run", tool]
+    assert call["argv"][call["argv"].index("--cwd") + 1] == str(cwd)
+    assert call["argv"][call["argv"].index("--toolsets") + 1] == "worktree"
+    assert call["argv"][call["argv"].index("--worktree-root") + 1] == str(root)
+    env = set(call["env"])
+    assert env - PASSED_BY_THE_INTERPRETER <= set(plugin.workspace.gh_env())
+    assert not {name for name in env if name.startswith(("GIT_CONFIG", "GATEWAY_", "HERMES_", "GH_TOKEN", "GITHUB_"))}
+    assert call["env"]["GIT_TERMINAL_PROMPT"] == "0" and call["env"]["GH_PROMPT_DISABLED"] == "1"
+
+
+def test_workspace_runs_the_git_tools_command_line_with_the_minimal_environment(fixture, tmp_path, monkeypatch):
     home, directory, _, fake = fixture
     with_root(home, tmp_path / "wt")
-    leak = tmp_path / "leak.txt"
-    hooks = directory / ".git" / "hooks"
-    (hooks / "post-checkout").write_text(f"#!/bin/sh\nenv > '{leak}'\n")
-    (hooks / "post-checkout").chmod(0o755)
     monkeypatch.setenv("GATEWAY_BOT_TOKEN", "do-not-leak")
+    monkeypatch.setenv("HERMES_TEST_SECRET", "do-not-leak")
+    monkeypatch.setenv("GH_TOKEN", "do-not-leak")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.hooksPath")  # inert without GIT_CONFIG_COUNT; must not travel
+    monkeypatch.setenv("GH_CONFIG_DIR", str(tmp_path / "gh-config"))
     sid = run("plan", directory)["session_id"]
     assert session("workspace", sid, branch="task/a", base="head")["branch"] == "task/a"
-    assert not leak.exists(), "the post-checkout hook must not run"
-    assert "GATEWAY_BOT_TOKEN" not in workspace_env()
+    [call] = cli_calls(home)
+    assert_minimal_cli_call(call, tmp_path / "wt", directory, "git_worktree_add")
+    assert call["args"] == {"branch": "task/a", "from": "HEAD"}
+    assert call["env"]["GH_CONFIG_DIR"] == str(tmp_path / "gh-config")
+    assert "do-not-leak" not in json.dumps(call["env"])
 
 
-def workspace_env():
-    return plugin.workspace.git_env()
+def test_workspace_leaves_from_out_for_a_default_base(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    add_origin(directory, tmp_path)
+    sid = run("plan", directory)["session_id"]
+    assert session("workspace", sid, branch="task/a")["base"] == "origin/main"
+    assert cli_calls(home)[0]["args"] == {"branch": "task/a"}
+
+
+def test_workspace_surfaces_the_command_lines_refusal_and_creates_and_moves_nothing(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    cli_refuses(home, "git_worktree_add", "invalid_argument", "task/a is checked out in /elsewhere; pick another")
+    sid = run("plan", directory)["session_id"]
+    error = session("workspace", sid, branch="task/a", base="head")["error"]
+    assert "git_worktree_add failed: invalid_argument: task/a is checked out" in error
+    assert fake.moves == [] and fake.sessions[sid]["location"]["directory"] == str(directory)
+    cli_refuses(home, "git_worktree_add", "git_error", "x" * 500)
+    assert len(session("workspace", sid, branch="task/a", base="head")["error"]) < 300, "cut to a line"
+
+
+def test_workspace_says_the_plugin_is_missing_when_there_is_no_command_line(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    configure(home, f"  worktree_root: {tmp_path / 'wt'}\n  git_tools_cli: [{tmp_path / 'missing' / 'node'}, cli.js]\n")
+    assert "git-tools plugin is not installed" in session("workspace", sid, branch="task/a", base="head")["error"]
+    configure(home, f"  worktree_root: {tmp_path / 'wt'}\n")
+    monkeypatch.setattr(plugin.workspace, "_plugin_homes", lambda: [tmp_path / "no-hermes-home"])
+    monkeypatch.setattr(plugin.workspace, "_node", lambda: "/usr/bin/node")
+    assert "git-tools plugin is not installed" in session("workspace", sid, branch="task/a", base="head")["error"]
+    monkeypatch.setattr(plugin.workspace, "_node", lambda: None)
+    assert "needs node" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert fake.moves == [] and not (tmp_path / "wt").exists()
+
+
+def test_the_default_command_line_is_node_and_the_installed_plugins_script(tmp_path, monkeypatch):
+    profile, root = tmp_path / "profiles" / "p", tmp_path / "root"
+    script = root / "plugins" / "git-tools" / "dist" / "cli.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("")
+    monkeypatch.setattr(plugin.workspace, "_plugin_homes", lambda: [profile, root])
+    monkeypatch.setattr(plugin.workspace, "_node", lambda: "/opt/node")
+    assert plugin.workspace.default_cli() == ["/opt/node", str(script)]
+    own = profile / "plugins" / "git-tools" / "dist" / "cli.js"
+    own.parent.mkdir(parents=True)
+    own.write_text("")
+    assert plugin.workspace.default_cli() == ["/opt/node", str(own)], "a profile's own copy comes first"
 
 
 def commit_as_the_service(directory):
@@ -1074,7 +1358,8 @@ def test_workspace_refuses_an_existing_branch_and_an_existing_path(fixture, tmp_
     subprocess.run(["git", "-C", str(directory), "branch", "task/taken"], check=True, capture_output=True)
     assert "already exists" in session("workspace", sid, branch="task/taken")["error"]
     (tmp_path / "wt" / "work tree" / "task-b").mkdir(parents=True)
-    assert "already exists" in session("workspace", sid, branch="task/b")["error"]
+    assert "already exists" in session("workspace", sid, branch="task/b", base="head")["error"]
+    assert fake.moves == []
 
 
 def git(directory, *args):
@@ -1102,14 +1387,6 @@ def land(target):
     git(target, "push", "-q", "origin", "HEAD:main")
 
 
-def merged_as(monkeypatch, *pulls):
-    monkeypatch.setattr(plugin.workspace, "merged_pulls", lambda source, branch: list(pulls))
-
-
-def pull(target, number=7, **kwargs):
-    return {"number": number, "head_sha": git(target, "rev-parse", "HEAD"), "fork": False, "stack": None, **kwargs}
-
-
 def assert_untouched(fixture, sid, target, branch="task/a"):
     _, directory, _, fake = fixture
     assert target.is_dir() and branch in branches(directory)
@@ -1133,6 +1410,9 @@ def test_cleanup_moves_the_sessions_back_removes_the_worktree_and_deletes_the_la
     assert not target.exists() and not target.parent.exists(), "the repository folder goes with its last worktree"
     assert (tmp_path / "wt").is_dir() and branches(directory) == ["topic"]
     assert git(directory, "worktree", "list", "--porcelain").count("worktree ") == 1
+    removal = cli_calls(home)[-1]
+    assert_minimal_cli_call(removal, tmp_path / "wt", directory, "git_worktree_remove")
+    assert removal["args"] == {"directory": str(target)}
 
 
 def test_cleanup_moves_only_the_callers_sessions_and_counts_the_others(fixture, tmp_path):
@@ -1151,34 +1431,17 @@ def test_cleanup_moves_only_the_callers_sessions_and_counts_the_others(fixture, 
         assert fake.sessions[other]["location"]["directory"] == str(target), "not the caller's: left where it is"
 
 
-def test_cleanup_accepts_a_squash_merge_only_when_the_pull_request_head_is_the_branch_tip(fixture, tmp_path,
-                                                                                          monkeypatch):
+def test_cleanup_removes_a_clean_worktree_whose_work_has_not_landed_and_keeps_the_branch_with_the_reason(
+        fixture, tmp_path):
     home, directory, _, fake = fixture
     sid, target = built(fixture, tmp_path)
-    merged_as(monkeypatch, pull(target, head_sha="0" * 40))
-    assert "another commit" in session("cleanup", sid)["error"]
-    merged_as(monkeypatch, pull(target, fork=True))
-    assert "has not landed" in session("cleanup", sid)["error"], "a fork's branch of the same name proves nothing"
-    assert_untouched(fixture, sid, target)
-    merged_as(monkeypatch, pull(target))
     out = session("cleanup", sid)
-    assert out["branches_deleted"] == ["task/a"] and not target.exists()
+    assert out["removed"] == str(target) and out["moved_to"] == str(directory) and out["branches_deleted"] == []
+    [kept] = out["branches_kept"]
+    assert kept["branch"] == "task/a" and "not landed" in kept["reason"]
+    assert not target.exists() and "task/a" in branches(directory), "the commits stay on the branch"
     assert fake.sessions[sid]["location"]["directory"] == str(directory)
-
-
-def test_cleanup_refuses_unlanded_work_and_an_unreadable_github_changing_nothing(fixture, tmp_path, monkeypatch):
-    sid, target = built(fixture, tmp_path)
-    error = session("cleanup", sid)["error"]
-    assert "has not landed" in error and "nothing was moved or removed" in error and "origin/main" in error
-
-    def unreadable(source, branch):
-        raise RuntimeError("boom")
-    monkeypatch.setattr(plugin.workspace, "merged_pulls", unreadable)
-    assert "GitHub could not be read: boom" in session("cleanup", sid)["error"]
-    assert_untouched(fixture, sid, target)
-    land(target)
-    out = session("cleanup", sid)
-    assert out["branches_deleted"] == ["task/a"] and "GitHub could not be read (boom)" in out["warning"]
+    assert fake.sessions[sid]["metadata"]["hermes"]["branch"] == "topic"
 
 
 def test_cleanup_refuses_what_is_not_safe_to_remove_changing_nothing(fixture, tmp_path, monkeypatch):
@@ -1241,39 +1504,14 @@ def test_cleanup_never_cleans_up_a_default_or_protected_branch(fixture, tmp_path
     assert target.is_dir() and fake.moves == []
 
 
-def test_cleanup_deletes_only_the_landed_layers_of_the_merged_stack(fixture, tmp_path, monkeypatch):
+def test_cleanup_leaves_the_branches_of_lower_stack_layers_alone(fixture, tmp_path):
     home, directory, _, fake = fixture
     sid, target = built(fixture, tmp_path)
     land(target)
-
-    def commit_on(name):
-        sha = git(directory, "commit-tree", "origin/main^{tree}", "-p", "origin/main", "-m", name)
-        git(directory, "branch", name, sha)
-        return sha
-
-    git(directory, "branch", "task/layer-landed", "task/a")
-    git(directory, "branch", "task/layer-elsewhere", "task/a")
-    git(directory, "worktree", "add", "-q", str(tmp_path / "elsewhere"), "task/layer-elsewhere")
-    squashed, unlanded = commit_on("task/layer-squashed"), commit_on("task/layer-open")
-    commit_on("task/layer-forked")
-    commit_on("task/unrelated")
-
-    def layer(position, name, state="merged", head_sha=None, head_repo="o/r"):
-        return {"position": position, "number": position, "state": state, "head_sha": head_sha, "head": name,
-                "head_repo": head_repo, "repo": "o/r"}
-    stack = {"number": 1, "layers": [
-        layer(1, "task/layer-landed"), layer(2, "task/layer-squashed", head_sha=squashed),
-        layer(3, "task/layer-elsewhere"), layer(4, "task/layer-open", "open", unlanded),
-        layer(5, "task/layer-forked", head_sha=git(directory, "rev-parse", "task/layer-forked"), head_repo="x/r"),
-        layer(6, "task/gone"), layer(7, "task/a"), layer(8, "main")]}
-    merged_as(monkeypatch, pull(target, stack=stack))
+    git(directory, "branch", "task/lower", "task/a")
     out = session("cleanup", sid)
-    assert out["branches_deleted"] == ["task/a", "task/layer-landed", "task/layer-squashed"]
-    assert out["branches_kept"] == [
-        {"branch": "task/layer-elsewhere", "reason": f"checked out in {(tmp_path / 'elsewhere').resolve()}"},
-        {"branch": "task/layer-open", "reason": "its work has not landed on the default branch"}]
-    assert {"task/layer-forked", "task/unrelated", "task/layer-elsewhere", "task/layer-open"} <= set(branches(directory))
-    assert "task/layer-landed" not in branches(directory) and "task/layer-squashed" not in branches(directory)
+    assert out["branches_deleted"] == ["task/a"] and out["branches_kept"] == []
+    assert "task/lower" in branches(directory)
 
 
 def test_cleanup_rolls_the_moved_sessions_back_when_a_later_one_cannot_move(fixture, tmp_path):
@@ -1316,54 +1554,50 @@ def test_cleanup_refuses_a_locked_worktree_before_moving_anything(fixture, tmp_p
     assert_untouched(fixture, sid, target)
 
 
-def test_cleanup_puts_the_sessions_back_when_git_will_not_remove_the_worktree(fixture, tmp_path, monkeypatch):
+def test_cleanup_puts_the_sessions_back_when_the_command_line_refuses_the_removal(fixture, tmp_path):
     home, directory, _, fake = fixture
     sid, target = built(fixture, tmp_path)
     land(target)
     twin = session("fork", sid)["session_id"]
-    real = plugin.workspace._run
-
-    def run_git(source, *args, **kwargs):
-        if args[:2] == ("worktree", "remove"):
-            raise ValueError("git worktree remove failed: Device busy")
-        return real(source, *args, **kwargs)
-    monkeypatch.setattr(plugin.workspace, "_run", run_git)
+    cli_refuses(home, "git_worktree_remove", "operation_in_progress", "a rebase is in progress in the worktree")
     error = session("cleanup", sid)["error"]
-    assert "Device busy" in error and "nothing was removed" in error and "retried" in error
+    assert "operation_in_progress: a rebase is in progress" in error
+    assert "nothing was removed" in error and "retried" in error
     for moved in (sid, twin):
         assert fake.sessions[moved]["location"]["directory"] == str(target)
         assert fake.sessions[moved]["metadata"]["hermes"]["branch"] == "task/a", "bound as before"
     assert target.is_dir() and "task/a" in branches(directory)
-    monkeypatch.setattr(plugin.workspace, "_run", real)
+    (home.parent / "refuse.json").unlink()
     assert session("cleanup", sid)["removed"] == str(target), "and it can be retried"
 
 
-def test_cleanup_keeps_a_branch_that_moved_after_the_landed_check(fixture, tmp_path, monkeypatch):
+def test_cleanup_keeps_the_sessions_in_the_main_checkout_when_the_command_line_fails_after_removing(
+        fixture, tmp_path):
     home, directory, _, fake = fixture
     sid, target = built(fixture, tmp_path)
-    land(target)
-    git(directory, "branch", "task/layer", "task/a")
-    stack = {"number": 1, "layers": [{"position": 1, "number": 8, "state": "merged", "head": "task/layer",
-                                      "head_sha": git(target, "rev-parse", "HEAD"), "head_repo": "o/r",
-                                      "repo": "o/r"}]}
-    merged_as(monkeypatch, pull(target, stack=stack))
-    real = plugin.workspace._run
-    late = {}
-
-    def run_git(source, *args, **kwargs):
-        if args[:2] == ("update-ref", "-d") and args[2] not in late:
-            # Someone commits to the branch between the check and the deletion.
-            late[args[2]] = git(source, "commit-tree", args[2] + "^{tree}", "-p", args[2], "-m", "late")
-            git(source, "update-ref", args[2], late[args[2]])
-        return real(source, *args, **kwargs)
-    monkeypatch.setattr(plugin.workspace, "_run", run_git)
+    twin = session("fork", sid)["session_id"]
+    cli_fails_after_removal(home)
     out = session("cleanup", sid)
-    assert out["branches_deleted"] == []
-    assert out["branches_kept"] == [{"branch": name, "reason": "it moved after the landed check"}
-                                    for name in ("task/a", "task/layer")]
-    for name, sha in late.items():
-        assert git(directory, "rev-parse", name) == sha, "the late commit survives"
-    assert set(late) == {"refs/heads/task/a", "refs/heads/task/layer"}
+    assert "error" not in out and out["removed"] == str(target) and out["moved_to"] == str(directory)
+    assert sorted(out["moved_sessions"]) == sorted([sid, twin]) and out["branches_deleted"] == []
+    [kept] = out["branches_kept"]
+    assert kept["branch"] == "task/a" and kept["reason"].startswith("unknown: git_worktree_remove failed after removal")
+    assert "fetch timed out" in kept["reason"] and "fetch timed out" in out["warning"]
+    assert "git_repo_read" in out["warning"] and "task/a" in out["warning"]
+    assert not target.exists() and "task/a" in branches(directory)
+    for moved in (sid, twin):
+        assert fake.sessions[moved]["location"]["directory"] == str(directory), "not back in a gone directory"
+        assert fake.sessions[moved]["metadata"]["hermes"]["branch"] == "topic"
+    assert len(fake.moves) == 3, "the move into the worktree and the two moves out, none back"
+
+
+def test_cleanup_says_the_plugin_is_missing_and_moves_nothing(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    configure(home, f"  worktree_root: {tmp_path / 'wt'}\n  git_tools_cli: [{tmp_path / 'missing' / 'node'}, cli.js]\n")
+    error = session("cleanup", sid)["error"]
+    assert "git-tools plugin is not installed" in error and "nothing was removed" in error
+    assert fake.sessions[sid]["location"]["directory"] == str(target) and target.is_dir()
 
 
 def test_cleanup_warns_when_the_fetch_fails_and_decides_from_the_last_fetch(fixture, tmp_path):
@@ -1375,121 +1609,17 @@ def test_cleanup_warns_when_the_fetch_fails_and_decides_from_the_last_fetch(fixt
     assert "fetching origin failed" in out["warning"] and out["branches_deleted"] == ["task/a"]
 
 
-def test_cleanup_runs_no_repository_hook(fixture, tmp_path):
+def test_cleanup_runs_the_command_line_from_the_main_checkout_with_the_minimal_environment(fixture, tmp_path,
+                                                                                         monkeypatch):
     home, directory, _, fake = fixture
     sid, target = built(fixture, tmp_path)
     land(target)
-    leak = tmp_path / "leak.txt"
-    for name in ("pre-push", "post-checkout", "reference-transaction"):
-        (directory / ".git" / "hooks" / name).write_text(f"#!/bin/sh\nenv > '{leak}'\n")
-        (directory / ".git" / "hooks" / name).chmod(0o755)
+    monkeypatch.setenv("GATEWAY_BOT_TOKEN", "do-not-leak")
+    monkeypatch.setenv("GH_TOKEN", "do-not-leak")
     assert session("cleanup", sid)["branches_deleted"] == ["task/a"]
-    assert not leak.exists()
-
-
-def layer_node(position, number, branch):
-    return {"position": position, "pullRequest": {
-        "number": number, "state": "MERGED", "headRefOid": f"sha{number}", "headRefName": branch,
-        "headRepository": {"nameWithOwner": "o/r"}, "repository": {"nameWithOwner": "o/r"}}}
-
-
-class FakeGh:
-    """A `gh` on PATH that answers a GraphQL request with a prepared body and exit status, and keeps
-    what it was sent (stdin) and the environment it ran with."""
-
-    def __init__(self, tmp_path, monkeypatch, body, status=0, stderr=""):
-        self.bin, self.sent, self.environment = tmp_path / "ghbin", tmp_path / "gh-sent", tmp_path / "gh-env"
-        self.bin.mkdir()
-        answer = tmp_path / "gh-answer"
-        answer.write_text(json.dumps(body))
-        script = self.bin / "gh"
-        script.write_text(f"#!/bin/sh\necho \"$@\" >> '{self.sent}.args'\ncat > '{self.sent}'\nenv > '{self.environment}'\n"
-                          f"cat '{answer}'\necho '{stderr}' >&2\nexit {status}\n")
-        script.chmod(0o755)
-        monkeypatch.setenv("PATH", f"{self.bin}{os.pathsep}{os.environ['PATH']}")
-
-    def request(self):
-        return json.loads(self.sent.read_text())
-
-
-@pytest.mark.parametrize("url, repo", [
-    ("git@github.com:o/r.git", ("o", "r")), ("https://github.com/o/r", ("o", "r")),
-    ("https://tok@github.com/o/r.git", ("o", "r")), ("ssh://git@github.com/o/r.git", ("o", "r"))])
-def test_merged_pulls_reads_the_origin_repository_connection_with_gh(fixture, tmp_path, monkeypatch, url, repo):
-    _, directory, _, _ = fixture
-    git(directory, "remote", "add", "origin", url)
-    stack = {"number": 9, "size": 2, "baseRefName": "main",
-             "entries": {"nodes": [layer_node(1, 4, "task/a"), layer_node(2, 5, "task/b")]}}
-    gh = FakeGh(tmp_path, monkeypatch, {"data": {"repository": {"pullRequests": {"nodes": [
-        {"number": 4, "headRefName": "task/a", "headRefOid": "sha4", "isCrossRepository": False, "stack": stack,
-         "stackEntry": {"position": 1}},
-        {"number": 6, "headRefName": "task/a", "headRefOid": "sha6", "isCrossRepository": True, "stack": None,
-         "stackEntry": None},
-        {"number": 5, "headRefName": "task/a-other", "headRefOid": "sha5", "isCrossRepository": False}]}}}})
-    found = plugin.workspace.merged_pulls(directory, "task/a")
-    assert [(p["number"], p["head_sha"], p["fork"]) for p in found] == [(4, "sha4", False), (6, "sha6", True)]
-    assert [(l["number"], l["head"], l["state"], l["head_sha"], l["head_repo"], l["repo"])
-            for l in found[0]["stack"]["layers"]] == [(4, "task/a", "merged", "sha4", "o/r", "o/r"),
-                                                      (5, "task/b", "merged", "sha5", "o/r", "o/r")]
-    assert found[1]["stack"] is None
-    sent = gh.request()
-    assert sent["variables"] == {"owner": repo[0], "name": repo[1], "branch": "task/a"}
-    assert "pullRequests(headRefName:$branch,states:MERGED" in sent["query"] and "search" not in sent["query"]
-    assert Path(f"{gh.sent}.args").read_text().split() == ["api", "graphql", "--input", "-"]
-
-
-def test_merged_pulls_runs_gh_with_the_minimal_environment(fixture, tmp_path, monkeypatch):
-    _, directory, _, _ = fixture
-    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
-    monkeypatch.setenv("HERMES_TEST_GATEWAY_SECRET", "leak")
-    monkeypatch.setenv("GH_TOKEN", "leak")
-    monkeypatch.setenv("GH_CONFIG_DIR", str(tmp_path / "gh-config"))
-    gh = FakeGh(tmp_path, monkeypatch, {"data": {"repository": {"pullRequests": {"nodes": []}}}})
-    assert plugin.workspace.merged_pulls(directory, "task/a") == []
-    seen = gh.environment.read_text()
-    assert "leak" not in seen and "HERMES_TEST_GATEWAY_SECRET" not in seen
-    assert f"GH_CONFIG_DIR={tmp_path / 'gh-config'}" in seen and "GH_PROMPT_DISABLED=1" in seen
-    assert f"HOME={os.environ['HOME']}" in seen
-
-
-def test_merged_pulls_raises_for_a_repository_it_cannot_see(fixture, tmp_path, monkeypatch):
-    _, directory, _, _ = fixture
-    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
-    FakeGh(tmp_path, monkeypatch, {"data": {"repository": None}, "errors": [
-        {"type": "NOT_FOUND", "path": ["repository"], "message": "Could not resolve to a Repository"}]}, status=1)
-    with pytest.raises(ValueError, match="not found or not visible"):
-        plugin.workspace.merged_pulls(directory, "task/a")
-
-
-@pytest.mark.parametrize("body, status, message", [
-    ({"errors": [{"type": "FORBIDDEN", "message": "Resource not accessible"}]}, 1, "Resource not accessible"),
-    ({"data": {"repository": None}, "errors": [{"type": "NOT_FOUND", "message": "gone"},
-                                                {"type": "RATE_LIMITED", "message": "slow down"}]}, 0,
-     "slow down"),
-    ({"message": "Bad credentials"}, 1, "gh auth|exit 1|login"),
-    ({}, 0, "GitHub refused the request")])
-def test_merged_pulls_raises_when_gh_fails(fixture, tmp_path, monkeypatch, body, status, message):
-    _, directory, _, _ = fixture
-    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
-    FakeGh(tmp_path, monkeypatch, body, status=status, stderr="To get started with GitHub CLI, run: gh auth login")
-    with pytest.raises(ValueError, match=message):
-        plugin.workspace.merged_pulls(directory, "task/a")
-
-
-def test_merged_pulls_raises_when_gh_is_missing(fixture, monkeypatch):
-    _, directory, _, _ = fixture
-    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
-    monkeypatch.setattr(plugin.workspace, "gh_env", lambda: {"PATH": "/nonexistent"})
-    with pytest.raises(ValueError, match="gh could not run"):
-        plugin.workspace.merged_pulls(directory, "task/a")
-
-
-def test_merged_pulls_reads_nothing_without_a_github_origin(fixture, tmp_path, monkeypatch):
-    _, directory, _, _ = fixture
-    monkeypatch.setattr(plugin.workspace, "graphql", lambda query, variables: pytest.fail("no GitHub read expected"))
-    assert plugin.workspace.merged_pulls(directory, "task/a") == []
-    add_origin(directory, tmp_path)
-    assert plugin.workspace.merged_pulls(directory, "task/a") == []
+    removal = cli_calls(home)[-1]
+    assert_minimal_cli_call(removal, tmp_path / "wt", directory, "git_worktree_remove")
+    assert "do-not-leak" not in json.dumps(removal["env"])
 
 
 def test_a_session_that_moved_itself_into_another_repository_is_refused(fixture, tmp_path):
@@ -2378,8 +2508,9 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     scratch, readable = policy.directories("/tmp/fake-opencode")
     narrow = (set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
               | set(policy.DEPENDABOT_ALERT_READS))
-    # The github-tools reads: the whole action is denied right before them, so they reopen reads only.
-    reads = [policy.rule(name, "*", "allow") for name in policy.GITHUB_TOOLS_READS]
+    # The github-tools and git-tools reads: the whole action is denied right before them, so they
+    # reopen reads only.
+    reads = [policy.rule(name, "*", "allow") for name in (*policy.GITHUB_TOOLS_READS, *policy.GIT_TOOLS_READS)]
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -2407,16 +2538,18 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
                             "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-            assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+            for tool in ("git_worktree_add", "git_worktree_remove"):
+                assert policy.decide(rules, tool, "*") == "deny", (kind, tool, "workspace owns worktrees")
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
-            for tool in ("github_issue_create", "github_issue_edit", "github_issue_close", "github_pr_create",
+            for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):
                 assert policy.decide(rules, tool, "owner/repo") == "deny", (kind, tool)
             for tool in ("github_issue_read", "github_pr_read", "github_project_read", "github_run_read"):
                 assert policy.decide(rules, tool, "*") == "allow", (kind, tool)
-            assert policy.decide(rules, "github_pr_edit", "owner/repo") == ("ask" if kind == "write" else "deny")
+            for tool in policy.RUN_GITHUB_TOOLS_ASKS:
+                assert policy.decide(rules, tool, "owner/repo") == ("ask" if kind == "write" else "deny"), (kind, tool)
             # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
             # target, so even a bare `exit` allow would approve a file write unseen.
             project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
@@ -2449,12 +2582,40 @@ def test_never_approved_commands_stay_denied_however_spelled():
                         "git clean -xdf", "git clean -Xdf",
                         "X=push git --config-env=alias.p=X p --force origin main"):
             assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-        assert policy.decide(rules, "shell", "sh -c 'git push'") == ("ask" if kind == "write" else "deny")
         for path in (".git/config", ".git/hooks/pre-commit", "sub/.git/config", f"{Path.home()}/.gitconfig",
                      f"{Path.home()}/.config/gh/config.yml"):
             assert policy.decide(rules, "edit", path) == "deny", (kind, path)
         # The known cost of containment for git: a command that merely quotes such words.
         assert policy.decide(rules, "shell", "grep -rn 'git push --force' docs") == "deny"
+
+
+PUSH_SPELLINGS = (
+    "git push", "git push origin topic", "git push origin HEAD:refs/heads/task/x",
+    "git push --force-with-lease origin HEAD:refs/heads/topic",
+    "git push --force-with-lease --force-if-includes origin HEAD:refs/heads/topic",
+    "git push --force-with-lease origin HEAD:refs/heads/main", "git push -u origin topic",
+    "env FOO=1 git push", "FOO=1 git push", "git -C . push", "git --no-pager push origin topic",
+    "git\tpush origin topic", "sh -c 'git push'", 'sh -c "git push origin topic"', "xargs git push",
+    "git 'push' origin topic", "git push \\\norigin topic", "cd x && git push", "/usr/bin/git push",
+    "gh stack push", "gh stack -R o/r push", "gh stack submit", "gh stack submit --open", "gh stack sync",
+    "env X=1 gh stack push", "sh -c 'gh stack submit'", "gh stack\tpush",
+)
+
+
+def test_every_shell_push_is_denied_in_every_run_however_spelled():
+    """A push leaves the machine only through git_push_send, which the caller approves against
+    the git_push_read preview; a shell push would carry nothing the caller can check."""
+    for kind in config.POLICIES:
+        session = policy.rules(kind, "granted", {"main"}, branch="topic")
+        rules = fakes.agent_info("build")["permissions"] + session
+        for command in PUSH_SPELLINGS:
+            assert policy.decide(rules, "shell", command) == "deny", (kind, command)
+        assert not [r for r in session if r["action"] == "git_push_send"], "the global rules decide the send"
+    write = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="topic")
+    for command in ("gh stack view", "gh stack view --json"):
+        assert policy.decide(write, "shell", command) == "allow", command
+    for command in ("gh stack rebase", "gh stack checkout fix/merge-order"):
+        assert policy.decide(write, "shell", command) == "ask", command
 
 
 def test_gh_denies_follow_the_subcommand_not_the_text():
@@ -2478,8 +2639,8 @@ def test_options_and_prefixes_cannot_skip_the_person_asks():
                                                                         gh_aliases=("co",))
         # A write run's caller decides; a read-only run is denied, as its agents may deny these themselves.
         expected = "ask" if kind == "write" else "deny"
-        for command in ("git --no-pager push origin topic", "FOO=1 git push origin topic", "git -C x commit -m 'fix status'",
-                        "git --no-pager commit -m x", "git --work-tree=. checkout other", "git -C x push origin status",
+        for command in ("git --no-pager rebase main", "FOO=1 git reset HEAD~1", "git -C x commit -m 'fix status'",
+                        "git --no-pager commit -m x", "git --work-tree=. checkout other", "git -C x rebase status",
                         "git -c core.fsmonitor=x status", "git --exec-path=/tmp status", "gh pr checkout 3",
                         "gh pr -R o/r checkout 3", "gh co 3"):
             assert policy.decide(rules, "shell", command) == expected, (kind, command)
@@ -2602,14 +2763,28 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
     for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish"):
+    for tool in policy.GIT_TOOLS_READS:
+        assert policy.decide(rules, tool, "*") == "allow", f"{tool} only reads"
+    for tool in ("git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify",
+                 "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_push_send",
+                 "git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish",
+                 "git_future_read", "git_state", "git_worktree", "git_worktree_add", "git_worktree_remove"):
         assert policy.decide(rules, tool, "*") == "deny", tool
-    assert policy.decide(rules, "git_publish_preview", "*") != "deny", "previewing a publication only reads"
+    assert policy.decide(rules, "github_pr_create", "owner/repo") == "deny"
     write = policy.rules("write", None, {"main"})
-    for tool in ("git_commit", "git_rebase", "git_stack"):
-        assert policy.decide(write, tool, "*") != "deny", f"a build rewrites its own commits through {tool}"
+    assert [r for r in write if r["action"].startswith("git_") and r["action"] not in policy.TOOL_DENY] == [], \
+        "the person's global rules decide a write run's git tools"
+    for tool in ("git_commit_amend", "git_rebase_start", "git_push_send", "git_commit_verify", "git_commit",
+                 "git_rebase", "git_stack"):
+        assert policy.decide(write, tool, "*") != "deny", f"a build rewrites and pushes its own commits through {tool}"
+    for tool in policy.TOOL_DENY:
+        assert policy.decide(write, tool, "*") == "deny", tool
+    assert not [r for r in write if r["action"] == "git_push_send"], "git_push_send has no session rule: the global rules ask"
+    for tool in ("github_pr_create", "github_stack_link"):
+        assert policy.decide(write, tool, "owner/repo") == "ask", tool
+    assert policy.decide(write, "github_issue_create", "owner/repo") == "deny"
     reviewer = [{"action": "*", "resource": "*", "effect": "deny"}] + write
-    for tool in ("git_stack", "git_publish"):
+    for tool in ("git_push_send", "git_commit_create", "git_stack", "git_publish"):
         assert policy.decide(reviewer, tool, "*") == "deny", f"a write run must not reopen a subagent's own {tool} deny"
 
 
@@ -2618,11 +2793,8 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
     rules = policy.rules("write", None, {"main"}, tmp="/tmp/fake-opencode", person_denies=person, branch="topic")
     assert {"action": "shell", "resource": "ls *", "effect": "deny"} not in rules
     combined = fakes.agent_info("build")["permissions"] + rules
-    for command in ("git push origin topic", "git push --force-with-lease origin HEAD:refs/heads/topic",
-                    "git push --force-with-lease --force-if-includes origin HEAD:refs/heads/topic", "git rebase main",
-                    "git commit --amend", "gh stack rebase", "gh stack push", "gh stack -R o/r push",
-                    "gh stack submit --open", "gh stack view --json", "git checkout other", "git -C .. status x",
-                    "npm exec foo", "gh issue comment 1"):
+    for command in ("git rebase main", "git commit --amend", "gh stack rebase", "gh stack view --json",
+                    "git checkout other", "git -C .. status x", "npm exec foo", "gh issue comment 1"):
         expected = "allow" if command.startswith(("git -C .. status", "gh stack view")) else "ask"
         assert policy.decide(combined, "shell", command) == expected, command
     assert policy.decide(combined, "shell", "pytest -q") == "allow"
@@ -2632,9 +2804,6 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
                     "pnpm dlx create-x"):
         assert policy.decide(combined, "shell", command) == "ask", command
     assert policy.decide(combined, "shell", "gh stack checkout fix/merge-order") == "ask"
-    unbound = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="main")
-    assert policy.decide(unbound, "shell", "git push --force-with-lease origin HEAD:refs/heads/main") == "deny", \
-        "never a protected lease"
     assert policy.decide(combined, "shell", "sudo rm -rf /") == "deny"
     assert policy.decide(combined, "edit", "src/a.py") == "allow"
     assert policy.decide(rules, "external_directory", "/secret/x/*") == "deny"
@@ -2839,6 +3008,10 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: plan, policy: write, alternate: 'xai/grok-4.7'}\n", "allowed_providers"),
     ("  worktree_root: relative/dir\n", "worktree_root"),
     ("  worktree_root: '/tmp/*'\n", "worktree_root"),
+    ("  git_tools_cli: node\n", "git_tools_cli"),
+    ("  git_tools_cli: []\n", "git_tools_cli"),
+    ("  git_tools_cli: [node, '']\n", "git_tools_cli"),
+    ("  git_tools_cli: [node, 3]\n", "git_tools_cli"),
     ("  read_roots: /src\n", "read_roots"),
     ("  read_roots: [relative/dir]\n", "read_roots"),
     ("  read_roots: ['/src/*']\n", "read_roots"),
@@ -2851,6 +3024,13 @@ def test_configuration_is_validated(fixture, text, message):
     (home / "config.yaml").write_text("opencode:\n  enabled: true\n" + text)
     with pytest.raises(ValueError, match=message):
         config.load(home)
+
+
+def test_the_git_tools_command_is_unset_unless_configured(fixture):
+    home, _, _, _ = fixture
+    assert config.load(home)["git_tools_cli"] is None, "unset: looked for when it is called"
+    configure(home, "  git_tools_cli: [node, /opt/git-tools/dist/cli.js]\n")
+    assert config.load(home)["git_tools_cli"] == ["node", "/opt/git-tools/dist/cli.js"]
 
 
 def test_only_the_assistant_gets_the_tools(fixture, monkeypatch, tmp_path):

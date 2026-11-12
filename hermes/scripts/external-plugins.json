@@ -1,4 +1,12 @@
 {
+  "git-tools": {
+    "repo": "craft-agent/git-tools",
+    "version": "0.2.1",
+    "commit": "2d1cbf6158fca4d00064709d7e0311c4d96ac8ee",
+    "npm": "@craftsamo/git-tools",
+    "skills": ["repo", "commit", "rebase", "worktree", "push"],
+    "requires": ["git-tools-guard"]
+  },
   "github-tools": {
     "repo": "craft-agent/github-tools",
     "version": "0.13.0",

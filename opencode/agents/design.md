@@ -12,12 +12,8 @@ permissions:
   - { action: read, resource: "*/.env.*", effect: deny }
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
-  - { action: git_state, resource: "*", effect: allow }
-  - { action: git_commit, resource: "*", effect: deny }
-  - { action: git_worktree, resource: "*", effect: deny }
-  - { action: git_rebase, resource: "*", effect: deny }
-  - { action: git_stack, resource: "*", effect: deny }
-  - { action: git_publish, resource: "*", effect: deny }
+  - { action: "git_*", resource: "*", effect: deny }
+  - { action: "git_*_read", resource: "*", effect: allow }
   - { action: "signal_*", resource: "*", effect: deny }
   - { action: "signal_*_read", resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }

@@ -59,7 +59,7 @@ def build_assistant_tree(write, validator):
             write(f"{entry}/SKILL.md", entry_text(name, routes))
     chat_files = ("workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
                   "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
-                  "youtube.md", "google.md", "web3.md", "github.md")
+                  "youtube.md", "google.md", "web3.md", "github.md", "git.md")
     write("chat/SKILL.md", entry_text(
         "chat-assistant", [f"references/{filename}" for filename in chat_files]
     ))

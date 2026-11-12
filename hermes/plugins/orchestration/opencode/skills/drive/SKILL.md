@@ -95,13 +95,14 @@ configuration: a role missing from your tools is not configured.
   Issues. All are records of the operating contract, not authentication, and
   none is shown to the run: the ruleset holds the grant, so the message
   never opens by reporting the approval. The Assistant's engineering pipeline
-  never passes `issue_approval`: it changes Issues, boards, pull requests and
+  never passes `issue_approval`: it changes Issues, boards, existing PRs and
   merges itself through its GitHub tools.
 - **GitHub writes are yours, not the run's.** The ruleset denies every GitHub
   write of a run (Issues, the board, comments, labels, a linked branch); only
-  a build's `github_pr_edit` (a PR's labels, assignees, reviewers and
-  milestone only) reaches you as a request, which you may approve `once`;
-  anything else on the PR is yours. You mirror the run's
+  a build's `github_pr_create`, `github_stack_link` and `github_pr_edit`
+  (a PR's labels, assignees, reviewers and milestone only) reach you as
+  requests, which you may approve `once` as `opencode:answer` says, never
+  with board arguments; anything else on the PR is yours. You mirror the run's
   progress to GitHub yourself, with your GitHub tools: read `progress.md` in
   the output directory and the run's report, then tick the issue's body and
   move its board Status. The task branch reaches the issue's Development
@@ -179,14 +180,15 @@ so say so.
   its own repository (`task/issue-N` for a session bound to an issue, else the
   `branch` you name); it refuses a running session, a protected or existing
   branch and an existing path, and undoes itself if the service refuses the
-  move. `cleanup` is its inverse, once the unit's work has landed on the
-  default branch: it moves your sessions in that worktree back to the main
-  checkout (history kept, so a later read-only turn can still look back),
-  removes the worktree and deletes the task branches that landed, a merged
-  stack's layers included. It changes nothing while a run is going, while the
-  worktree holds uncommitted changes or while the branch has not landed (a
-  commit made after the merge counts as not landed), and reports the branches
-  it kept and why.
+  move. `cleanup` is its inverse: it moves your sessions in that worktree back
+  to the main checkout (history kept, so a later read-only turn can still look
+  back) and removes the worktree, never forced. It changes nothing while a run
+  is going, while the worktree holds uncommitted or untracked changes or
+  commits that no branch holds. The task branch is deleted only once its work
+  has landed (it is in the remote default branch, or the head of a merged pull
+  request of this repository; a commit made after the merge counts as not
+  landed); otherwise the worktree goes but the branch stays, and the result
+  says why in `branches_kept`. Lower layers of a stack are left as they are.
 
 `opencode_instructions(action, session_id, key?, value?)` lists, sets or
 removes durable instructions (`hermes.<name>`) announced to the agent at its

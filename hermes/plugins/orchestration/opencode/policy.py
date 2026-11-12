@@ -94,7 +94,7 @@ def git_home_edits():
 # write run's caller as permission requests. `pnpm exec` runs only what the project
 # installed (it never downloads), so it is the person's agent rules' call like `pnpm run`.
 WRITE_ASK_SHELL = (
-    "git push *", "git rebase *", "git reset *", "git checkout *", "git switch *", "git restore *",
+    "git rebase *", "git reset *", "git checkout *", "git switch *", "git restore *",
     "git clean *", "git merge *", "git revert *", "git cherry-pick *",
     "git commit *--amend*", "git commit *--no-verify*",
     "npm exec *", "npm create *", "pnpm dlx *", "pnpm create *", "yarn dlx *",
@@ -105,12 +105,13 @@ WRITE_ASK_SHELL = (
 # routine commands are allowed by the person's agent rules, and these would ride along
 # unless a write run asks for them by name. Best effort, like every shell rule here.
 DEPLOY_ASK_SHELL = ("*deploy*", "*publish*", "*secret*", "*--remote*", "*--prod*")
-# The same writes however spelled (`git --no-pager push`, `FOO=1 git commit`):
+# The same writes however spelled (`FOO=1 git commit`, `git --no-pager reset`):
 # options before the subcommand slip past the prefix asks into the person's
 # `git *` allow. A write run asks for them; a read-only run is denied them,
 # since a read-only agent may deny them itself and an ask would reopen that.
+# A push is not among them: it is denied outright (`PUSH_DENY_SHELL`).
 GIT_WRITES = _all(*(contains("git", verb) for verb in (
-    "push", "rebase", "reset", "checkout", "switch", "restore", "clean", "merge", "revert", "cherry-pick",
+    "rebase", "reset", "checkout", "switch", "restore", "clean", "merge", "revert", "cherry-pick",
     "commit")))
 # Per-command configuration runs code or rewrites what a command does
 # (`git -c core.fsmonitor=<cmd> status`, `-c alias.p=push`), and so does an
@@ -119,9 +120,21 @@ GIT_CONFIG_ON_THE_FLY = _all(contains("git", "-c"), contains("git", "--exec-path
 # gh stack rebases, moves branches and force-pushes layers past the git rules,
 # and takes flags before its subcommand, so a write run asks for all of it but
 # viewing and a read-only run is denied it (an allow there would reopen what a
-# subagent denies itself); merging or unstacking on GitHub is never allowed.
+# subagent denies itself); merging or unstacking on GitHub is never allowed, and
+# neither is any verb that pushes (`PUSH_DENY_SHELL`).
 STACK_ALL = "gh stack *"
 STACK_READS = ("gh stack view *",)
+# A push leaves the machine only through `git_push_send`, which the caller approves
+# `once` against the `git_push_read` preview the build reported: branches, commits
+# and leases are checked there. A shell push would carry nothing the caller can
+# check, so every run is denied it however spelled (an option, an environment
+# prefix or a wrapper before the subcommand, a lease, a refspec), and `gh stack`'s
+# verbs that push (`push`, `submit`, `sync`) the same. Placed in `HARD_DENY_SHELL`,
+# after every ask and allow, so nothing later reopens it.
+PUSH_DENY_SHELL = _all(
+    contains("git", "push", quotes=True),
+    *(command("gh", "stack", verb) for verb in ("push", "submit", "sync")),
+)
 ISSUE_WRITES = _all(*(command("gh", "issue", verb) for verb in ("create", "edit", "comment", "reopen")))
 # A branch switch like `git checkout`: `gh pr checkout`, and the person's own gh
 # aliases, which may expand to anything (`rules(gh_aliases=…)`).
@@ -174,40 +187,34 @@ HARD_DENY_SHELL = _all(
     *(contains("git", "remote", verb) for verb in ("add", "set-url", "rename", "remove", "rm", "set-branches")),
     contains("git", "-c", "push"), contains("git", "-c", "alias.", open_end=True),
     contains("git", "--config-env", open_end=True), ("*GIT_CONFIG_*git*",),
-    # Every force spelling, the lease included: a rebased task branch's own lease
-    # push is re-opened as an ask by its exact text only (`lease_pushes`).
-    *(contains("git", "push", flag, open_end=True, quotes=True)
-      for flag in ("--force", "--mirror", "--all", "--prune", "--delete", "-f", "-uf", "-vf", "-qf", "-nf", "-uvf",
-                   "-d", "-ud", "+", ":")),
+    # Every push, forced or leased, and the gh stack verbs that push.
+    PUSH_DENY_SHELL,
     contains("git", "reset", "--hard", open_end=True),
     *(contains("git", "clean", flag, open_end=True)
       for flag in ("-f", "-df", "-xf", "-Xf", "-qf", "-dxf", "-xdf", "-Xdf", "-qdf", "-dqf", "--force")),
 )
 
 
-def protected_pushes(name):
-    """A push naming a protected branch, as a ref or a refspec side, in any spelling."""
-    sides = tuple(f"*git*push*{lead}{name}{end}*" for lead in (":", "/", *_QUOTES)
-                  for end in (*_SEPARATORS, ":", *_QUOTES))
-    # Ending the command: a trailing ` *` would not apply after `:main`.
-    return _all(contains("git", "push", name, quotes=True), sides,
-                tuple(f"*git*push*{lead}{name}" for lead in (":", "/", *_QUOTES)))
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
-# removes worktrees itself (`workspace` does), and a read-only run never commits,
-# stages, rebases or runs a command at each commit (git_verify_commits asks, and
-# the caller must not approve that for a read-only run). A write run's
-# git_commit amend/fixup and git_rebase stay open: they refuse by themselves to
-# rewrite the default branch, shared or protected commits, and what they rewrote
-# leaves the machine only through a push, which asks. git_stack moves a
-# native stack's local branches (split, add, rebase) like git_rebase;
-# git_publish pushes and opens or links PRs and asks through the person's
-# global rules, as git_verify_commits does. A write run states no ask for it:
-# a session-level rule would come after, and reopen, the deny a read-only
-# subagent sets itself. A read-only run is denied both; git_publish_preview
-# only reads and stays open to every run.
-TOOL_DENY = ("git_worktree",)
-READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
-                        "git_publish")
+# removes worktrees itself (`workspace` does), so every run is denied the worktree
+# tools. A read-only run never stages, commits, rebases, pushes or runs a command at
+# each commit: it is denied the whole `git_*` action and reopens only the named
+# reads (`GIT_TOOLS_READS`; git_push_read only previews a push). A write run's
+# git_commit_amend and git_rebase_* stay open: they refuse by themselves to rewrite
+# the default branch, shared or protected commits, and what they rewrote leaves the
+# machine only through a push. git_push_send is that push: it sends exactly what
+# git_push_read previewed, and asks the caller, who approves it `once` against the
+# preview the build reported (a shell push is denied, `PUSH_DENY_SHELL`).
+# git_commit_verify runs a command at each commit and asks the same way. Both ask
+# through the person's global rules: a write run states no session rule for the
+# git tools, since an ask would come after, and reopen, the deny a read-only
+# subagent sets itself.
+TOOL_DENY = ("git_worktree_add", "git_worktree_remove")
+# git-tools (`@craftsamo/git-tools`): the same pattern as github-tools below. Each read is
+# named, never a `git_*_read` glob, so a write a later release adds stays denied even if
+# it is named `…_read`.
+GIT_TOOLS_DENY = "git_*"
+GIT_TOOLS_READS = ("git_repo_read", "git_commit_read", "git_rebase_read", "git_worktree_read", "git_push_read")
 # The person's own messaging accounts, reads included: a run is commissioned by the
 # Assistant, whose access to them goes through its own plugin and cards, and a run's
 # asks reach only the caller, who could approve a send there with no card at all.
@@ -215,33 +222,47 @@ READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "
 MESSAGING_DENY_TOOLS = ("signal_*",)
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
-# write run keeps one: a PR's labels, assignees, reviewers and milestone only (github_pr_edit),
-# asking the caller; the caller approves it
-# only while the call carries nothing but those (pr_edit_beyond_metadata). The reads' allows are the ruleset's
+# write run keeps three, asking the caller: a PR's labels, assignees, reviewers and milestone
+# (github_pr_edit), approved only while the call carries nothing but those
+# (pr_edit_beyond_metadata); opening its PR (github_pr_create) and linking its native stack
+# (github_stack_link), which the caller approves `once` only after checking the push against
+# git_push_read's preview and the PR's title and body, and never with a board
+# (pr_create_beyond_pr). The reads' allows are the ruleset's
 # only allows beyond paths: they follow the deny of the whole action and name each read, so they
 # reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
 # Being session rules, which come after an agent's own, they also reopen these reads for a subagent
-# that denies `*` itself; accepted, since they only read through the person's own `gh` login.
+# that denies `*` itself; accepted, since they only read through the person's own `gh` login. The
+# asks reach a subagent the same way, so they are approvable only when the run's own session raised
+# them (pr_ask_from_child): a subagent's is rejected.
 GITHUB_TOOLS_DENY = "github_*"
 GITHUB_TOOLS_READS = (
     "github_issue_read", "github_pr_read", "github_stack_read", "github_project_read", "github_repo_read",
     "github_label_read", "github_milestone_read", "github_ruleset_read", "github_release_read",
     "github_workflow_read", "github_run_read",
 )
-RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit",)
+RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit", "github_pr_create", "github_stack_link")
 PR_METADATA_ARGS = frozenset({
     "pr", "repo", "add_labels", "remove_labels", "add_assignees", "remove_assignees",
     "add_reviewers", "remove_reviewers", "milestone", "remove_milestone",
 })
+PR_CREATE_BOARD_ARGS = frozenset({"project", "fields"})
 
 
 def github_write(action):
     """Whether a permission action writes GitHub Issues, the board or anything else past
-    a PR's metadata: a `github_*` tool that is neither a read
+    opening a PR, linking its stack and its metadata: a `github_*` tool that is neither a read
     nor one of the asks a write run keeps. The caller may reject one, never approve it."""
     return isinstance(action, str) and (
         matches(GITHUB_TOOLS_DENY, action) and action not in GITHUB_TOOLS_READS
         and action not in RUN_GITHUB_TOOLS_ASKS)
+
+
+def pr_ask_from_child(item, sid):
+    """Whether a pending permission request is one of a write run's PR asks (`RUN_GITHUB_TOOLS_ASKS`)
+    that the run's own session `sid` did not raise: a subagent copies the ruleset, so a read-only
+    one that denies `github_*` itself would get the ask. Fails closed on a missing session id.
+    The caller may reject it, never approve it."""
+    return item.get("action") in RUN_GITHUB_TOOLS_ASKS and item.get("session_id") != sid
 
 
 def pr_edit_beyond_metadata(item):
@@ -254,6 +275,18 @@ def pr_edit_beyond_metadata(item):
     arguments = metadata.get("arguments") if isinstance(metadata, dict) else None
     return not isinstance(arguments, dict) or any(
         name not in PR_METADATA_ARGS and value is not None for name, value in arguments.items())
+
+
+def pr_create_beyond_pr(item):
+    """Whether a pending permission request is a `github_pr_create` that also puts the PR on
+    a board (a project or its fields), or whose arguments cannot be read: a board write is
+    the Assistant's. The caller may reject it, never approve it."""
+    if item.get("action") != "github_pr_create":
+        return False
+    metadata = item.get("metadata")
+    arguments = metadata.get("arguments") if isinstance(metadata, dict) else None
+    return not isinstance(arguments, dict) or any(
+        arguments.get(name) is not None for name in PR_CREATE_BOARD_ARGS)
 
 
 def rule(action, resource, effect):
@@ -299,16 +332,6 @@ def output_dir(value):
     return str(path)
 
 
-def lease_pushes(branch):
-    """The exact pushes of a rebased task branch that ask instead of hitting the
-    force deny: a lease, to origin, naming the branch itself. No wildcard, so no
-    other destination or extra flag rides along."""
-    # An explicit, full destination: a bare `<branch>` is remapped by push config,
-    # and git would read `HEAD:heads/main` as main.
-    return [f"git push {flags} origin HEAD:refs/heads/{branch}"
-            for flags in ("--force-with-lease", "--force-with-lease --force-if-includes")]
-
-
 def gh_aliases():
     """The person's gh alias names (`gh alias list`), each of which a run's ruleset
     asks for; none when gh is missing or has no aliases."""
@@ -340,11 +363,12 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     """The session ruleset for one run, ordered broad to narrow under last-match
     evaluation. Its caller-chosen allows are the output directory and, in a
     read-only run, the configured `read_roots` (source checkouts), which the
-    person's own outside-path denies still override. `branch` is a write run's
-    task branch, whose own lease push asks rather than being denied; each of
-    `gh_aliases` asks like a branch switch. Every GitHub write is denied
-    (`GITHUB_TOOLS_DENY`) except a write run's `github_pr_edit`,
-    which asks."""
+    person's own outside-path denies still override. Every shell push is denied
+    (`PUSH_DENY_SHELL`), so the run's `protected` branches and `branch` need no
+    rule of their own and are not read; each of `gh_aliases` asks like a branch
+    switch. Every GitHub write is denied
+    (`GITHUB_TOOLS_DENY`) except a write run's `RUN_GITHUB_TOOLS_ASKS`,
+    which ask."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -388,7 +412,8 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
         out += [rule("shell", pattern, "deny")
                 for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES + (STACK_ALL,) + risky_git]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
-        out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
+        out.append(rule(GIT_TOOLS_DENY, "*", "deny"))
+        out += [rule(name, "*", "allow") for name in GIT_TOOLS_READS]
     else:
         out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + DEPLOY_ASK_SHELL + (STACK_ALL,)]
         out += [rule("shell", pattern, "allow") for pattern in STACK_READS]
@@ -398,10 +423,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "deny") for pattern in GH_API_DENY]
     out += [rule("shell", pattern, "allow") for pattern in DEPENDABOT_ALERT_READS]
     out += [rule("shell", pattern, "deny") for pattern in GH_API_WRITE_SPELLED]
-    deny = HARD_DENY_SHELL + _all(*(protected_pushes(name) for name in sorted(protected)))
-    out += [rule("shell", pattern, "deny") for pattern in deny]
-    if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
-        out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
+    out += [rule("shell", pattern, "deny") for pattern in HARD_DENY_SHELL]
     out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS]
     out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
     out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]

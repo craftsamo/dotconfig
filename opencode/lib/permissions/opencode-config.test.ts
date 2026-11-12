@@ -10,6 +10,7 @@ type Rule = { action: string; resource: string; effect: "allow" | "ask" | "deny"
 const config = Bun.JSONC.parse(await Bun.file(join(import.meta.dir, "../../opencode.jsonc")).text()) as {
   permissions: Rule[]
   agents: Record<string, { permissions?: Rule[] }>
+  plugins: (string | { package: string; options?: { worktree_root?: string } })[]
 }
 // What the built-in build agent resolves before the global rules.
 const builtIn: Rule[] = [
@@ -151,6 +152,29 @@ describe("policies", () => {
   })
 })
 
+describe("Git tools", () => {
+  const decide = (action: string) => {
+    let effect = "ask"
+    for (const r of rules) if (matches(r.action, action, false) && matches(r.resource, "*", false)) effect = r.effect
+    return effect
+  }
+
+  test("git-tools supplies the worktree strategy under ~/Worktrees", () => {
+    const plugin = config.plugins.find((plugin) => typeof plugin !== "string" && plugin.package.startsWith("@craftsamo/git-tools@"))
+    expect(plugin).toBeDefined()
+    expect(typeof plugin === "object" && plugin.options?.worktree_root).toBe("~/Worktrees")
+  })
+
+  test("local writes are allowed, arbitrary commands and pushes ask", () => {
+    for (const tool of ["git_commit_stage", "git_commit_create", "git_commit_amend", "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_worktree_add", "git_worktree_remove"])
+      expect([tool, decide(tool)]).toEqual([tool, "allow"])
+    for (const tool of ["git_push_send", "git_commit_verify", "git_future_write"])
+      expect([tool, decide(tool)]).toEqual([tool, "ask"])
+    for (const tool of ["opencode_worktree_create", "opencode_worktree_remove"])
+      expect(rules.some((rule) => rule.action === tool)).toBe(false)
+  })
+})
+
 describe("global outside-directory rules", () => {
   // The built-in rules allow every action since 2.0.25, outside directories
   // included; the global ask restores the prompt. Resources are the directory
@@ -245,7 +269,7 @@ describe("agent rules over a project's catch-all", () => {
         .filter((r) => r.action === "skill" && r.effect === "allow")
         .map((r) => r.resource)
       expect(own.sort()).toEqual([...topSkillAllows].sort())
-      for (const id of ["commit", "pullrequest", "new-feature", "japanese-writing"])
+      for (const id of ["commit", "pullrequest", "new-feature", "japanese-writing", "git-repo", "git-commit", "git-rebase", "git-worktree", "git-push"])
         expect([id, decide(agent, "skill", id)]).toEqual([id, "allow"])
       expect(decide(agent, "shell", "lsof -nP -iTCP:3000 -sTCP:LISTEN")).toBe("allow")
       expect(decide(agent, "skill", "some-new-skill")).toBe("ask")
@@ -290,6 +314,15 @@ describe("agent rules over a project's catch-all", () => {
     expect(decide("plan", "github_pr_read", "*")).toBe("allow")
     expect(decide("build", "skill", "github-issues")).toBe("allow")
   })
+
+  for (const agent of ["plan", "explore"]) {
+    test(`${agent} denies Git writes and allows reads`, () => {
+      for (const tool of ["git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify", "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_worktree_add", "git_worktree_remove", "git_push_send", "git_future_write"])
+        expect([tool, decide(agent, tool, "*")]).toEqual([tool, "deny"])
+      for (const tool of ["git_repo_read", "git_commit_read", "git_rebase_read", "git_worktree_read", "git_push_read"])
+        expect([tool, decide(agent, tool, "*")]).toEqual([tool, "allow"])
+    })
+  }
 })
 
 describe("subagents that reset shell to ask", () => {
@@ -325,6 +358,32 @@ describe("subagents that reset shell to ask", () => {
       }
       expect(decide("github_issue_edit")).toBe("deny")
       expect(decide("github_pr_read")).toBe("allow")
+    })
+  }
+
+  for (const name of ["debug", "review", "design", "explore-medium", "explore-high", "explore-max", "debugger", "reviewer", "reviewer-deep"]) {
+    test(`${name} allows Git reads but denies pushes`, async () => {
+      const own = (await front(name)).permissions
+      const decide = (action: string) => {
+        let effect = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, action, false) && matches(r.resource, "*", false)) effect = r.effect
+        return effect
+      }
+      for (const tool of ["git_repo_read", "git_commit_read", "git_rebase_read", "git_worktree_read", "git_push_read"])
+        expect([tool, decide(tool)]).toEqual([tool, "allow"])
+      expect(decide("git_push_send")).toBe("deny")
+    })
+  }
+
+  test("verifier asks before running a command at each commit", async () => {
+    const own = (await front("verifier")).permissions
+    expect(own).toContainEqual({ action: "git_commit_verify", resource: "*", effect: "ask" })
+  })
+
+  for (const name of ["worker", "worker-deep", "refactorer"]) {
+    test(`${name} can access task worktrees under ~/Worktrees`, async () => {
+      const own = (await front(name)).permissions
+      expect(own).toContainEqual({ action: "external_directory", resource: "~/Worktrees/*", effect: "allow" })
     })
   }
 
@@ -397,7 +456,8 @@ describe("subagents that reset shell to ask", () => {
     expect(decide("edit", "src/app/page.tsx")).toBe("deny")
     expect(decide("edit", "/w/Projects/Acme/.agent/20261012-form/design/index.html")).toBe("allow")
     expect(decide("edit", "/w/Projects/Acme/.agent/job/x.env")).toBe("deny")
-    expect(decide("git_commit", "*")).toBe("deny")
+    expect(decide("git_commit_create", "*")).toBe("deny")
+    expect(decide("git_repo_read", "*")).toBe("allow")
     for (const command of ["git log --oneline -5", "git diff main", "ls apps"]) expect([command, decide("shell", command)]).toEqual([command, "allow"])
     for (const command of ["git diff --output=x.patch", "git log > x", "rm -rf src", "node -e 'x'"])
       expect([command, decide("shell", command)]).toEqual([command, "ask"])

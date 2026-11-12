@@ -44,6 +44,7 @@ Shared contract first: [Access plugins — common contract](./docs/access-common
 Each doc then holds only its own deltas.
 
 [Google](./docs/google-access.md) · [GitHub](./docs/github-tools.md) ·
+[Git](./docs/git-tools.md) ·
 [WhatsApp](./docs/whatsapp-access.md) ·
 [Signal](./docs/signal-tools.md) · [Discord](./docs/discord-access.md) ·
 [Telegram](./docs/telegram-access.md) · [X](./docs/x-access.md) ·

@@ -16,6 +16,9 @@ import hermes_yaml as yaml
 KEY = "opencode"
 # Where `opencode_session workspace` puts a task branch's worktree: <root>/<repo>/<branch>.
 DEFAULT_WORKTREE_ROOT = "~/Worktrees"
+# The git-tools command line `workspace` and `cleanup` run (node and its script, as a list). Unset, it is
+# looked for when it is called: Hermes' node and the installed git-tools plugin's dist/cli.js.
+DEFAULT_GIT_TOOLS_CLI = None
 # Source checkouts every run may read (never edit) without a round trip to the
 # caller; the worktree root is added to them. Credentials live outside them.
 DEFAULT_READ_ROOTS = ("~/ghq",)
@@ -117,7 +120,8 @@ def load(home):
     config = read(home).get(KEY) or {}
     if not isinstance(config, dict) or config.get("enabled") is not True:
         raise ValueError(f"OpenCode integration is not enabled ({KEY}.enabled)")
-    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root", "read_roots"}
+    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root", "read_roots",
+                             "git_tools_cli"}
     if unknown:
         raise ValueError(f"{KEY}: unknown keys {', '.join(sorted(unknown))}")
     wait = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
@@ -142,6 +146,9 @@ def load(home):
     reads = config.get("read_roots", list(DEFAULT_READ_ROOTS))
     if not isinstance(reads, list) or not all(_directory(v) for v in reads):
         raise ValueError(f"{KEY}.read_roots must be a list of absolute paths (or ~/…) without wildcards")
+    cli = config.get("git_tools_cli", DEFAULT_GIT_TOOLS_CLI)
+    if cli is not None and (not isinstance(cli, list) or not cli or not all(isinstance(v, str) and v for v in cli)):
+        raise ValueError(f"{KEY}.git_tools_cli must be a command as a list of words, such as [node, /path/to/cli.js]")
     worktree_root = str(Path(root).expanduser())
     read_roots = []
     home = Path.home()
@@ -156,7 +163,7 @@ def load(home):
         if str(path) not in read_roots:
             read_roots.append(str(path))
     return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured,
-            "worktree_root": worktree_root, "read_roots": read_roots}
+            "worktree_root": worktree_root, "read_roots": read_roots, "git_tools_cli": cli}
 
 
 def _directory(value):

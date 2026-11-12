@@ -2,7 +2,6 @@ import { readFileSync } from "fs"
 import { homedir } from "os"
 import { z } from "zod"
 import { isToolSpec, type OAuthAccess, type ToolContext, type ToolSpec } from "../lib/custom-tools/define"
-import * as git from "../lib/custom-tools/git"
 import * as webUi from "../lib/custom-tools/web_ui"
 import * as x from "../lib/custom-tools/x"
 
@@ -11,7 +10,7 @@ import * as x from "../lib/custom-tools/x"
  * (`server()`, 1.18.29+ object entrypoint) and OpenCode V2 (`setup()`).
  *
  * Tool IDs keep the old `tools/<file>.ts` naming (`<file>_<export>`, e.g.
- * git_secret_scan, git_commit, x_search), so the per-tool
+ * web_ui_check, x_search), so the per-tool
  * permission keys in opencode.jsonc and the skills that call them are
  * unchanged. Do not reintroduce a `tools/` directory: V1 would register the
  * same IDs twice, and V2 no longer loads it.
@@ -22,7 +21,6 @@ import * as x from "../lib/custom-tools/x"
  */
 
 const modules: Record<string, Record<string, unknown>> = {
-  git,
   web_ui: webUi,
   x,
 }
@@ -68,11 +66,7 @@ async function server() {
 type V2Context = {
   location: { directory: string }
   session: {
-    get(input: { sessionID: string }): Promise<{ projectID?: string; location?: { directory?: string }; metadata?: Record<string, unknown> }>
-  }
-  worktree: {
-    refresh(input: { projectID: string }): Promise<unknown>
-    list(input: { projectID: string }): Promise<{ directory: string; strategy?: string }[]>
+    get(input: { sessionID: string }): Promise<{ location?: { directory?: string }; metadata?: Record<string, unknown> }>
   }
   integration: {
     connection: {
@@ -94,7 +88,7 @@ async function gitToplevel(directory: string): Promise<string> {
 async function setup(ctx: V2Context) {
   // V2 tool contexts carry no directory; resolve it from the calling session.
   // Fail closed instead of falling back to ctx.location: the shared server
-  // hosts many projects, and the git tools stage changes in that directory.
+  // hosts many projects, and web_ui_check must keep output outside the worktree.
   const worktreeFor = async (sessionID: string) => {
     let directory: string | undefined
     try {
@@ -102,24 +96,6 @@ async function setup(ctx: V2Context) {
     } catch {}
     if (!directory) throw new Error(`Could not resolve the working directory of session ${sessionID}.`)
     return gitToplevel(directory)
-  }
-
-  // The worktree inventory of the calling session's project. git_worktree
-  // creates and removes through the strategy itself (V2's create takes a
-  // directory name, which cannot carry a branch with a slash), then refreshes
-  // this inventory so the TUI lists the result.
-  const worktreesFor = (sessionID: string): ToolContext["worktrees"] => {
-    const projectID = async () => {
-      const id = (await ctx.session.get({ sessionID })).projectID
-      if (!id) throw new Error(`Session ${sessionID} has no project.`)
-      return id
-    }
-    return {
-      refresh: async () => {
-        await ctx.worktree.refresh({ projectID: await projectID() })
-      },
-      list: async () => ctx.worktree.list({ projectID: await projectID() }),
-    }
   }
 
   const oauthAccess = async (integrationID: string): Promise<OAuthAccess | undefined> => {
@@ -143,7 +119,6 @@ async function setup(ctx: V2Context) {
             oauthAccess,
             sessionID: context.sessionID,
             signal: context.signal,
-            worktrees: worktreesFor(context.sessionID),
             sessionMetadata: async () => {
               try {
                 return (await ctx.session.get({ sessionID: context.sessionID })).metadata

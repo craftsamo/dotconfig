@@ -108,8 +108,9 @@ PUBLISHED_NOTE = (
     "The brief, the decision log, the Phase names and this note are working context (the progress file keeps "
     "them; it is for this run alone): a commit subject, branch name, PR title or body, or Issue text is read "
     "by someone who has only the repository, so none of them names a Phase, a decision number, the tools or "
-    "agents that did the work, a local path or anything about this machine or account; show the titles and "
-    "bodies in git_publish_preview before publishing.")
+    "agents that did the work, a local path or anything about this machine or account; report git_push_read's "
+    "preview and the PR titles and bodies you will open before pushing, so Hermes checks them before "
+    "approving the push and the PRs.")
 READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
@@ -787,8 +788,9 @@ def _shell_issue_write(item):
         for pattern in policy.ISSUE_WRITES for resource in item.get("resources") or [] if isinstance(resource, str))
 
 
-def _reply_plan(found, entry):
-    """One validated reply as (item, route, segments, body); sends nothing."""
+def _reply_plan(found, entry, sid):
+    """One validated reply as (item, route, segments, body) to a request pending in the run whose own
+    session is `sid`; sends nothing."""
     if not isinstance(entry, dict) or set(entry) - set(REPLY_FIELDS):
         raise ValueError(f"Each reply takes only {', '.join(REPLY_FIELDS)}")
     request_id = entry.get("request_id")
@@ -807,12 +809,21 @@ def _reply_plan(found, entry):
             # makes the change itself through its own GitHub tools, from the run's progress.
             raise ValueError(f"{item['action']} is an Issue or board write: reject it (and make the change "
                              "yourself through the GitHub tools if it is wanted)")
+        if decision == "once" and policy.pr_ask_from_child(item, sid):
+            # A subagent copies the run's ruleset, so a read-only one that denies github_* itself
+            # still gets these asks; only the run's own build may open, link or edit its PR.
+            raise ValueError(f"{item['action']} came from a subagent: only the run's own build may open, link or "
+                             "edit its PR; reject it")
         if decision == "once" and policy.pr_edit_beyond_metadata(item):
             # A run may only change a PR's labels, assignees, reviewers and milestone; a title,
             # body, base, closing issues or attachments (local files) are the Assistant's.
             raise ValueError("github_pr_edit may carry only a PR's labels, assignees, reviewers and milestone "
                              "for a run: reject it (the rest of the PR is yours to change through the "
                              "GitHub tools if it is wanted)")
+        if decision == "once" and policy.pr_create_beyond_pr(item):
+            # Putting a PR on a board is a board write, the Assistant's.
+            raise ValueError("github_pr_create may not put a run's PR on a board: reject it (add it to the "
+                             "board yourself through the GitHub tools if it is wanted)")
         body = {"decision": decision, **({"message": reason} if reason else {})}
         return item, "post", "/api/session/{sid}/permission/{per}/reply", {"per": request_id}, body
     if not FORM_ID.fullmatch(request_id):
@@ -847,7 +858,7 @@ def opencode_request(args, **kwargs):
         else:
             entries = [{k: args[k] for k in REPLY_FIELDS if k in args}]
         # Every reply is checked before any is sent, so a bad one sends none.
-        planned = [_reply_plan(found, entry) for entry in entries]
+        planned = [_reply_plan(found, entry, sid) for entry in entries]
         ids = [item["id"] for item, *_ in planned]
         if len(set(ids)) != len(ids):
             raise ValueError("Each request may be answered once")
@@ -1146,9 +1157,9 @@ def register(ctx):
         "running turn; interrupt stops it (never a rollback); diff lists the newest turn's changed files "
         "(patch=true adds patches); messages reads recent messages; fork copies an idle session; workspace moves "
         "an idle session into a new worktree on a new task branch of its own repository, so an approved plan "
-        "continues as a build on the same session; cleanup, once its work has landed on the default branch, moves "
-        "your sessions in that worktree back to the main checkout and removes the worktree and its landed task "
-        "branches.")
+        "continues as a build on the same session; cleanup moves your sessions in that worktree back to the main "
+        "checkout and removes the clean worktree, never forced, deleting its task branch only once it has landed "
+        "(otherwise the branch is kept and the reason given).")
     add("opencode_request", opencode_request, {
         "action": {"type": "string", "enum": ["list", "reply"]},
         "session_id": {"type": "string"},
