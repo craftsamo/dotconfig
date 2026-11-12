@@ -2244,8 +2244,8 @@
       "effect": "deny"
     },
     // A skill's permission resource is its id, the directory holding SKILL.md
-    // (`git/commit/SKILL.md` -> `commit`), not its frontmatter `name`
-    // (`git-commit`). A project config with a later `skill *` rule still wins.
+    // (`git/commit/SKILL.md` -> `commit`), even when its frontmatter `name`
+    // differs. A project config with a later `skill *` rule still wins.
     {
       "action": "skill",
       "resource": "*",

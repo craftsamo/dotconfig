@@ -340,7 +340,7 @@ numbers bottom to top, each asking the caller. The caller checks the push
 against its preview and reads the whole PR text for someone with only the
 repository: no Phase names, decision-log numbers, tool or agent names, local
 paths or account state. The preview's findings are tripwires to judge, not a
-filter: the rule lives in the `git-pullrequest` skill. In a write run every
+filter: the rule lives in the `pullrequest` skill. In a write run every
 `gh stack` command but `view` asks too, since it rebases and force-pushes
 layers and takes flags before its subcommand; a read-only run is denied
 `gh stack` entirely, and merging or unstacking a stack always. A write

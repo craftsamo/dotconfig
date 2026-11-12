@@ -27,7 +27,7 @@ The shell is zsh. Quote every path that holds `[ ] ( ) * ?` or spaces
 with `no matches found`. A heredoc ends only on a line holding nothing but
 its terminator, so never write `EOF && next` or follow the heredoc with an
 operator line; put multi-line text in a file with `write` and pass the path
-(`git_commit` takes the message itself, `gh pr create --body-file <file>`).
+(`git_commit_create` takes the message itself, `gh pr create --body-file <file>`).
 
 </ShellCommands>
 
@@ -35,7 +35,7 @@ operator line; put multi-line text in a file with `write` and pass the path
 
 When this session will keep working in a worktree or another directory
 outside its current Location, move it with `session_move` through `execute`.
-Create a task worktree with `git_worktree` (`action: create`), not
+Create a task worktree with the package's `git_worktree_add`, not
 `git worktree add`: it cuts a branch from the fetched default branch at
 `~/Worktrees/<repository>/<branch>` and records it where the TUI lists it.
 The move applies at a safe boundary, so do the destination work in a later
@@ -70,7 +70,7 @@ plan has designed, worker-deep when its logic is hard, refactorer to tidy a
 layer's changed files before it is published; Build for design, integration
 and commits). When the work ends in pull requests, Phase N is one reviewable
 layer: one PR, or one layer of a native stack when there are several
-(git-pullrequest), in stack order; {m} are the steps inside it, each ending in
+(pullrequest), in stack order; {m} are the steps inside it, each ending in
 a verified checkpoint commit, and the plan says when the layers are published
 (each as it completes, or all at the end), agreed with the user. Work that
 ends in no PR keeps Phase = dependency wave, {m} = reference id within the
@@ -80,7 +80,7 @@ in the user's language, so it fits the sidebar. Carry what the investigation fou
 step touches, the existing file to follow, and the command that verifies it —
 so Build writes specs from the plan instead of investigating again.
 `Phase{N}.{m}` is the conversation's name for the work: it never enters a
-branch name, commit subject, PR title or body (git-pullrequest `<Audience>`).
+branch name, commit subject, PR title or body (pullrequest `<Audience>`).
 
 The todo list is the session's execution queue, kept by the primary agent; a
 subagent reports back instead of keeping one. After registering it, call
@@ -108,7 +108,7 @@ when the plan does not say. A narrower restriction from the user or the
 session's instructions (local commit only, no push) wins. When the layers
 form a native stack, the report of the publication that completes its goal
 ends with the merge title and message for landing it in one merge, written
-out in full (git-pullrequest `<MergeMessageHandoff>`); Build never merges. At phase
+out in full (pullrequest `<MergeMessageHandoff>`); Build never merges. At phase
 boundaries and handoffs, restate unfinished items, blockers, and the next step
 in the reply, since only the TUI shows the list.
 
@@ -150,8 +150,9 @@ When asked to triage, resolve, or fix GitHub Dependabot security alerts
 When asked to create git commits, or when an aligned plan's step ends in its
 checkpoint commit — staging, splitting changes into atomic build-passing
 commits, writing commit messages, or tracing which commit/PR/Issue a change
-came from — load and follow the `git-commit` skill rather than committing ad
-hoc.
+came from — load and follow the `commit` skill for conventions, with the
+package's `git-commit` skill for how the tools are called, rather than
+committing ad hoc.
 
 </CommitSkill>
 
@@ -161,8 +162,10 @@ When asked to open, push, or update a GitHub pull request, or when an aligned
 plan's publish timing is reached — rebasing the branch onto its latest base,
 pushing it, creating a PR whose title and body match the repo, scanning the
 branch for related Issues/PRs to link, marking it ready, or following its CI
-checks and review comments — load and follow the `git-pullrequest` skill. It
-does not create commits (use `git-commit`) and does not merge.
+checks and review comments — load and follow the `pullrequest` skill for
+conventions, with the package's `git-push` and github-tools'
+`github-pull-requests` skills for the mechanics. It does not create commits
+(use `commit`) and does not merge.
 
 </PullRequestSkill>
 
@@ -335,10 +338,10 @@ the `code-hygiene` standard without changing behavior, makes only changes
 inside a file or its directory, and reports moves, renames and public API
 changes as proposals; decide those in the primary, and hand an accepted one
 to `worker` as a spec. Verify its result like a worker's, then commit by
-where the tidied code came from (`git-commit`):
+where the tidied code came from (`commit`):
 
 - code this branch introduced and nobody has reviewed yet: fold each hunk
-  into the commit that introduced it (`fixup`, where `git_amend_check`
+  into the commit that introduced it (`fixup`, where `git_commit_read` `amend`
   allows the rewrite), so the history reads as if it had been written tidy;
 - code already under review in an open PR, or older than the branch: a
   separate `refactor` commit, or a separate PR when it is large.
