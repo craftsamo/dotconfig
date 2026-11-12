@@ -32,11 +32,12 @@ plugin of its own. The person's OpenCode loads the same release from npm.
   loaded: the package's handler does not refuse by itself, so the pin
   `requires` the guard and the profile validator refuses a config that
   enables the package without it.
-- **Runs only read, and the Assistant writes.** An OpenCode run the Assistant
-  drives reads GitHub and edits its PR's labels, assignees, reviewers and
-  milestone on the caller's ask; the caller can only reject an Issue or board
-  write, or a PR edit that carries anything more. The Assistant writes the
-  record and mirrors the run's progress on its own cards.
+- **Runs deliver PRs, and the Assistant writes the record.** An OpenCode run
+  reads GitHub; a write run may open its PRs, link its stack and set their
+  labels, assignees, reviewers and milestone on the caller's `once`. The caller
+  cannot approve an Issue or board write, or a PR edit that carries anything
+  more. The Assistant writes the record and mirrors the run's progress on its
+  own cards.
 - **Its skills arrive whole.** The package registers every skill it ships;
   the Assistant's conventions are its own technics, which point to them.
 

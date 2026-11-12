@@ -208,8 +208,9 @@ class EngineeringClientTests(unittest.TestCase):
                       "its `progress.md` and report", text)
         ops = read("engineering/execute/references/github-ops.md")
         self.assertIn("**OpenCode reads; every Issue and board write is yours.**", ops)
-        self.assertIn("OpenCode only reads GitHub, and may set a PR's metadata through `github_pr_edit`, which you "
-                      "approve `once` when it fits", ops)
+        self.assertIn("OpenCode reads GitHub, opens its PRs and links its stack (`github_pr_create`, "
+                      "`github_stack_link`), and may set a PR's metadata through `github_pr_edit`, "
+                      "each of which you approve `once` when it fits", ops)
         self.assertIn("mirrored from the unit's `progress.md` and the run's report once you have read them", ops)
         plan = read("engineering/plan/SKILL.md")
         self.assertIn("A unit's plan turn passes its `issue` (`owner/repo#N`)", plan)

@@ -108,8 +108,9 @@ PUBLISHED_NOTE = (
     "The brief, the decision log, the Phase names and this note are working context (the progress file keeps "
     "them; it is for this run alone): a commit subject, branch name, PR title or body, or Issue text is read "
     "by someone who has only the repository, so none of them names a Phase, a decision number, the tools or "
-    "agents that did the work, a local path or anything about this machine or account; show the titles and "
-    "bodies in git_publish_preview before publishing.")
+    "agents that did the work, a local path or anything about this machine or account; report git_push_read's "
+    "preview and the PR titles and bodies you will open before pushing, so Hermes checks them before "
+    "approving the push and the PRs.")
 READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "

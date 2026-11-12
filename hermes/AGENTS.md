@@ -490,9 +490,10 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   the gateway's own, possibly stale, values.
 - **A run never writes GitHub on the caller's `once`.** The ruleset denies
   the whole `github_*` action, reopens only
-  `github_*_read`, and asks only for a write run's `github_pr_edit`;
-  `opencode_request` refuses `once` on any Issue or board write
-  (`policy.github_write`), a shell `gh issue …` included. Widening the asks or
+  `github_*_read`, and asks only for a write run's `github_pr_edit`,
+  `github_pr_create` and `github_stack_link`; `opencode_request` refuses `once`
+  on any Issue or board write (`policy.github_write`), a PR create with
+  `project`/`fields` or a shell `gh issue …` included. Widening the asks or
   approving one reopens card-less GitHub writes
   ([decision](docs/decisions/github-tools-plugin.md)).
 - **The caller's own model is refused unless the role allows it

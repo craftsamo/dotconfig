@@ -95,13 +95,14 @@ configuration: a role missing from your tools is not configured.
   Issues. All are records of the operating contract, not authentication, and
   none is shown to the run: the ruleset holds the grant, so the message
   never opens by reporting the approval. The Assistant's engineering pipeline
-  never passes `issue_approval`: it changes Issues, boards, pull requests and
+  never passes `issue_approval`: it changes Issues, boards, existing PRs and
   merges itself through its GitHub tools.
 - **GitHub writes are yours, not the run's.** The ruleset denies every GitHub
   write of a run (Issues, the board, comments, labels, a linked branch); only
-  a build's `github_pr_edit` (a PR's labels, assignees, reviewers and
-  milestone only) reaches you as a request, which you may approve `once`;
-  anything else on the PR is yours. You mirror the run's
+  a build's `github_pr_create`, `github_stack_link` and `github_pr_edit`
+  (a PR's labels, assignees, reviewers and milestone only) reach you as
+  requests, which you may approve `once` as `opencode:answer` says, never
+  with board arguments; anything else on the PR is yours. You mirror the run's
   progress to GitHub yourself, with your GitHub tools: read `progress.md` in
   the output directory and the run's report, then tick the issue's body and
   move its board Status. The task branch reaches the issue's Development
