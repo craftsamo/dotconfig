@@ -301,6 +301,17 @@ def _sessions_in(directory, policy, turn):
     raise ValueError("too many sessions in this worktree to move them all back")
 
 
+def _worktree_remains(main, worktree, policy):
+    """Whether the worktree is still on disk and still listed by the repository (`main` is its main checkout).
+    When git cannot list them, a directory that is still there counts as remaining."""
+    if not Path(worktree).exists():
+        return False
+    try:
+        return any(policy.same_dir(entry["path"], worktree) for entry in _worktrees(main))
+    except (ValueError, subprocess.SubprocessError):
+        return True
+
+
 def _checked(meta, worktree, policy):
     """The worktree's branch and the branches never to delete, once the session's binding holds."""
     repo = policy.common_dir(worktree)
@@ -379,18 +390,29 @@ def cleanup(*, sid, info, meta, owner, settings, policy, turn):
         put_back()
         raise
 
+    deleted, failure = [], None
     try:
         removed = git_tools("git_worktree_remove", {"directory": worktree}, main, settings)
     except ValueError as exc:
-        put_back()
-        raise ValueError(f"{exc}; nothing was removed and the sessions are back in the worktree, so cleanup can be "
-                         "retried") from None
-
-    deleted = [branch] if removed.get("branch_deleted") is True else []
-    code = removed.get("kept_because")
-    kept = [] if deleted else [{"branch": branch, "reason": KEPT_BECAUSE.get(code, code) or "it was not deleted"}]
+        # The package removes the directory before its landed check, fetch and branch deletion, so a
+        # failure may come after the removal: the sessions then stay in the main checkout.
+        if _worktree_remains(main, worktree, policy):
+            put_back()
+            raise ValueError(f"{exc}; nothing was removed and the sessions are back in the worktree, so cleanup "
+                             "can be retried") from None
+        failure = exc
+    if failure:
+        kept = [{"branch": branch, "reason": f"unknown: git_worktree_remove failed after removal: {failure}"}]
+    else:
+        deleted = [branch] if removed.get("branch_deleted") is True else []
+        code = removed.get("kept_because")
+        kept = [] if deleted else [{"branch": branch, "reason": KEPT_BECAUSE.get(code, code) or "it was not deleted"}]
     result = {"session_id": sid, "removed": worktree, "moved_to": main, "moved_sessions": [i["id"] for i in moved],
               "left_behind": len(sessions) - len(mine), "branches_deleted": deleted, "branches_kept": kept}
-    if removed.get("warnings"):
+    if failure:
+        result["warning"] = (f"The worktree was removed, but git_worktree_remove failed afterwards ({failure}), so "
+                             f"whether branch {branch} was deleted is unknown and it may remain; the sessions stay "
+                             "in the main checkout. Check with git_repo_read (status and the branch list).")
+    elif removed.get("warnings"):
         result["warning"] = "; ".join(map(str, removed["warnings"]))
     return result

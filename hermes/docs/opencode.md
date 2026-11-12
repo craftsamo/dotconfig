@@ -200,8 +200,10 @@ fetch, or the head commit of a merged pull request of the same repository read
 with `gh` (a squash merge leaves no ancestry, and a name alone could match an older
 branch); an unlanded branch stays, with the reason in `branches_kept`, and
 lower layers of a stack are left as they are. Sessions bound to someone else
-stay where they are and are counted; a refused or failed removal puts the
-moved sessions back, so the call can be retried.
+stay where they are and are counted; a refused or failed removal that left the
+worktree in place puts the moved sessions back, so the call can be retried. A
+failure after the worktree is gone leaves them in the main checkout and reports
+the branch as kept with an `unknown` reason, to check with `git_repo_read`.
 
 **Commit identity.** The shared service keeps its starter's environment, never
 the gateway's, so a run would commit as the person's global identity. When the

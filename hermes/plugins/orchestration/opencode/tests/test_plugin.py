@@ -1001,6 +1001,8 @@ def remove():
     if has_origin(cwd) and git(cwd, "fetch", "--quiet", "origin", check=False).returncode:
         warnings.append("fetching origin failed: the default branch is as of the last fetch")
     git(cwd, "worktree", "remove", str(directory))
+    if (HERE / "fail-after-removal").exists():
+        raise Refused("git_error", "git fetch timed out after the worktree was removed")
     if directory.parent != root:
         try:
             directory.parent.rmdir()
@@ -1041,6 +1043,10 @@ def cli_calls(home):
 
 def cli_refuses(home, tool, code, message):
     (home.parent / "refuse.json").write_text(json.dumps({"tool": tool, "error": [code, message]}))
+
+
+def cli_fails_after_removal(home):
+    (home.parent / "fail-after-removal").write_text("")
 
 
 def with_root(home, root):
@@ -1563,6 +1569,26 @@ def test_cleanup_puts_the_sessions_back_when_the_command_line_refuses_the_remova
     assert target.is_dir() and "task/a" in branches(directory)
     (home.parent / "refuse.json").unlink()
     assert session("cleanup", sid)["removed"] == str(target), "and it can be retried"
+
+
+def test_cleanup_keeps_the_sessions_in_the_main_checkout_when_the_command_line_fails_after_removing(
+        fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    twin = session("fork", sid)["session_id"]
+    cli_fails_after_removal(home)
+    out = session("cleanup", sid)
+    assert "error" not in out and out["removed"] == str(target) and out["moved_to"] == str(directory)
+    assert sorted(out["moved_sessions"]) == sorted([sid, twin]) and out["branches_deleted"] == []
+    [kept] = out["branches_kept"]
+    assert kept["branch"] == "task/a" and kept["reason"].startswith("unknown: git_worktree_remove failed after removal")
+    assert "fetch timed out" in kept["reason"] and "fetch timed out" in out["warning"]
+    assert "git_repo_read" in out["warning"] and "task/a" in out["warning"]
+    assert not target.exists() and "task/a" in branches(directory)
+    for moved in (sid, twin):
+        assert fake.sessions[moved]["location"]["directory"] == str(directory), "not back in a gone directory"
+        assert fake.sessions[moved]["metadata"]["hermes"]["branch"] == "topic"
+    assert len(fake.moves) == 3, "the move into the worktree and the two moves out, none back"
 
 
 def test_cleanup_says_the_plugin_is_missing_and_moves_nothing(fixture, tmp_path):
