@@ -43,8 +43,9 @@
     // The account, its sync service and mirror are shared with Hermes, so pin
     // the same release Hermes runs. Default toolsets only (files and actions
     // stay off); the permission rules below cover every tool, so turning one
-    // on later needs no new rule.
-    { "package": "@craftsamo/telegram-tools@0.3.0", "options": { "language": "ja" } },
+    // on later needs no new rule. channels and keep_disappearing match the
+    // settings the shared sync service is installed with.
+    { "package": "@craftsamo/telegram-tools@0.3.0", "options": { "language": "ja", "channels": true, "keep_disappearing": true } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
