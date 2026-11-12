@@ -1,0 +1,8 @@
+name: git-tools-guard
+version: 1.0.0
+description: >-
+  Guard for the third-party git-tools plugin. Blocks its writes where no
+  person can answer an approval card and for inbound A2A requests, and blocks
+  the terminal and file tools from changing a repository around its tools (git
+  writes, the package's CLI and MCP server, its installed directory).
+kind: standalone
