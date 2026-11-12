@@ -26,7 +26,7 @@ allowlist) or a question the agent would put to a person.
 `kind`, `id`, whether a subagent asked, and its action and resources or its
 fields and options. A shell request names every simple command of a chain as
 its own resource, and the one that needs you is often the last (`kill`,
-`rm`, `git push`): judge them all before answering. A notification shortens
+`rm`, `git reset`): judge them all before answering. A notification shortens
 them; where it says `complete: false`, read the request with `list` first.
 
 `opencode_request(action="reply", session_id, replies=[{request_id, …}, …])`
@@ -71,13 +71,11 @@ follows comes to you as a request.
   also puts the PR on a board (`project`/`fields`). A stack's layers are
   linked by `github_stack_link`: approve once its PRs are the ones just
   opened, bottom to top.
-- **Pushes** (a rebased branch's
-  `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
-  `git_push_send` and `gh stack push` included), shell history rewrites, branch
-  moves, package downloaders (`npm exec`, `pnpm dlx`), anything naming
-  `deploy`, `publish`, `secret`, `--remote` or `--prod` and per-command git
-  configuration (`git -c`) come back to you as requests, also behind a
-  prefix or a wrapper such as `env` or `sh -c`.
+- Shell history rewrites, branch moves, package downloaders (`npm exec`,
+  `pnpm dlx`), anything naming `deploy`, `publish`, `secret`, `--remote` or
+  `--prod` and per-command git configuration (`git -c`) come back to you as
+  requests, also behind a prefix or a wrapper such as `env` or `sh -c`. A push
+  is not among them: it arrives only as `git_push_send` (above).
 - **The run's GitHub writes** are denied by the ruleset, except a build's
   `github_pr_create` and `github_stack_link` (as above), and `github_pr_edit`
   (a PR's labels, assignees, reviewers and milestone only),
@@ -92,7 +90,8 @@ follows comes to you as a request.
   wanted, from the run's `progress.md` and report. An Issue or board write
   runs on your own card, never on your approval of a run.
 - **Denied outright**, however spelled, and never yours to approve: every
-  other force push, protected-branch pushes, merges, `gh api`, Project
+  push from the shell (a lease push and `gh stack push`, `submit` and `sync`
+  included: nothing in it could be checked against a preview), merges, `gh api`, Project
   writes through the shell, git config and remote rewrites, `gh` aliases
   and extensions, edits under `.git/` or the global git and gh config, and
   secret reads. A read-only run is denied the requests above as well.

@@ -451,7 +451,9 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   and a write run's outside edits, so in a write run they would let it change
   the live checkout unasked. A read root never holds the home directory, where
   credentials live. Anything the caller must never approve is a `deny`, not an
-  `ask`.
+  `ask`: a push leaves the machine only through `git_push_send`, which the
+  caller checks against the `git_push_read` preview, so every shell push
+  (`gh stack push|submit|sync` too) is denied and never re-opened as an ask.
 - **Reach OpenCode only through `api.py`** (`opencode api`, output to files,
   minimal environment): a piped reply is cut off at a buffer boundary with exit
   status zero, `--param` silently drops query parameters (queries go in the
@@ -511,7 +513,8 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   `metadata.hermes.repo` and the per-turn check in `_prepare` detect a stray
   session at its next turn; the only sanctioned moves are
   `opencode_session workspace` and its inverse `cleanup`. Never ask an OpenCode run to move itself, keep
-  the service's own worktree route unused and `git_worktree` denied in the
+  the service's own worktree route unused and `git_worktree_add` and
+  `git_worktree_remove` denied in the
   ruleset (`workspace` creates, binds and rolls back in one step). `workspace`
   and `cleanup` create and remove worktrees only through the git-tools command
   line, started with the minimal environment (`workspace.gh_env()`), never the
