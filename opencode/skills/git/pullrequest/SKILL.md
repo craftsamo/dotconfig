@@ -132,12 +132,9 @@ PRs that carry a plan label, say — it is a habit to break, not to follow:
 write the clean form, and tell the user in your reply (never in the PR) that
 the habit was not followed.
 
-What is checked, and what is not: the push preview (`git_push_read`) matches
-only branch names and commit subjects against the published-text rules file
-(`~/.config/git-tools/published-text.json`). No tool checks a PR's title or
-body. Read them yourself, as the <Audience> reader, before `github_pr_create`
-or `github_pr_edit`. A preview finding is fixed in the words, never argued
-past: the pattern that tripped is a sample of the rule, not its edge.
+No tool checks these words. Read the branch name, the commit subjects and the
+PR's title and body yourself, as the <Audience> reader, before
+`git_push_send`, `github_pr_create` or `github_pr_edit`.
 
 </Audience>
 

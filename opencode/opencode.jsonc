@@ -47,10 +47,9 @@
     // Git repositories, commits, rebases, worktrees and pushes (craft-agent/git-tools).
     // Reads never ask; every write asserts its tool ID, so the rules below decide.
     // Its git-tools.worktrees strategy replaces OpenCode's default and uses
-    // ~/Worktrees. Published-text rules live at ~/.config/git-tools/published-text.json,
-    // linked from this repo's git-tools/. Hermes pins the same release
+    // ~/Worktrees. Hermes pins the same release
     // (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/git-tools@0.2.1", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees", "published_text_rules": "~/.config/git-tools/published-text.json" } },
+    { "package": "@craftsamo/git-tools@0.2.1", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
