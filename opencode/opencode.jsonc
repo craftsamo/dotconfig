@@ -37,7 +37,7 @@
     // release Hermes runs. Default toolsets only (files and actions stay off);
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
-    { "package": "@craftsamo/signal-tools@0.3.1", "options": { "language": "ja" } },
+    { "package": "@craftsamo/signal-tools@0.4.0", "options": { "language": "ja" } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
