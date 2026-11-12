@@ -1,18 +1,20 @@
 ---
-name: git-pullrequest
+name: pullrequest
 description: >-
-  Use when opening, pushing, or updating a GitHub pull request — rebasing onto
-  the latest base, pushing, writing a title and body in the repository's
-  convention for a reader who has only the repository, marking it ready,
-  stacking PRs when the work splits into reviewable layers, setting labels,
-  assignees, reviewers and milestones (ラベル, アサイン, レビュアー,
-  マイルストーン), attaching screenshots (スクショ添付), linking related Issues
-  and PRs, and following CI checks and review feedback (PR, pull request,
-  プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
-  stacked PR, gh stack, スタック, rebase onto main, 最新の main を取り込む, CI,
-  checks, チェックが落ちた, レビューコメント, review comments). Do NOT use to
-  create commits (use git-commit) or to merge — merging stays gated and
-  explicit.
+  Use when opening, pushing, or updating a GitHub pull request — the
+  convention layer over the git and GitHub tools: rebasing onto the latest
+  base, pushing, writing a title and body in the repository's convention for a
+  reader who has only the repository, marking it ready, stacking PRs when the
+  work splits into reviewable layers, judging labels, assignees, reviewers and
+  milestones (ラベル, アサイン, レビュアー, マイルストーン), attaching
+  screenshots (スクショ添付), linking related Issues and PRs, and following CI
+  checks and review feedback (PR, pull request, プルリク, プルリクエスト, push,
+  gh pr, open a PR, レビュー依頼, 関連Issue, stacked PR, gh stack, スタック,
+  rebase onto main, 最新の main を取り込む, CI, checks, チェックが落ちた,
+  レビューコメント, review comments). How each tool is called is the package
+  skills' job (`git-push`, `git-rebase`, and github-tools'
+  `github-pull-requests`). Do NOT use to create commits (use `commit`) or to
+  merge — merging stays gated and explicit.
 author: CraftSamo
 license: MIT
 ---
@@ -43,23 +45,39 @@ actually touches, and follow its checks and reviews when asked. Never merge.
 
 <DoNotUseWhen>
 
-- Creating commits or staging — use `git-commit`. This skill assumes the
-  commits already exist and starts at push.
+- Creating commits or staging — use `commit`. This skill assumes the commits
+  already exist and starts at push.
 - Merging, closing, or approving a PR. Merging stays gated (`ask`) and happens
   only on explicit request.
 
 </DoNotUseWhen>
 </Scope>
 
+<Mechanics>
+
+This skill decides what to publish and what to write; the packages' skills say
+how each tool is called. Load the package skills for the call itself and do
+not restate them here: `git-push` (`git_push_read` `preview`, `git_push_send`:
+kinds of push, refusals, findings, leases), `git-rebase` (`git_rebase_*`:
+stack reading, rebasing, resuming, cutting and adding layers), `git-worktree`
+(`git_worktree_*`) and github-tools' `github-pull-requests` (`github_pr_*`,
+`github_stack_*`: opening and editing, closing issues, attachments, partial
+failures, merging). The package's `git-commit` skill is about the commit tools;
+this repo's `commit` skill is the convention for using them.
+
+</Mechanics>
+
 <ConventionResolution>
 
 Resolve the title and body format. Detect, do not assume.
 
-1. Existing habit — call `git_history_digest` for recent merged PR titles and
-   the branch's commit subjects; infer the title style (casing, whether a
-   `type:` prefix is used, parentheticals) and the body structure.
-2. Template — `git_history_digest` reports whether a PR template exists; if so,
-   fill its sections instead of inventing structure.
+1. Existing habit — read recent merged PR titles with `github_pr_read`
+   (`method: "list"`, `state: "merged"`) and the branch's commit subjects with
+   `git_repo_read` `conventions` (it reads commit subjects only, not PR
+   titles); infer the title style (casing, whether a `type:` prefix is used,
+   parentheticals) and the body structure.
+2. Template — the same `conventions` call reports the PR template in the
+   tree; if there is one, fill its sections instead of inventing structure.
 3. Fallback — derive from the branch's commits (`git log <base>..HEAD`): a
    capitalized summary title and the body of <BodyStructure>.
 
@@ -96,9 +114,9 @@ Keep out of titles, bodies and branch names:
   decision the reader must know is restated in its own words; one that lives
   in a GitHub Issue is linked as `#N`.
 - **Tooling** — the names of agents, tools, skills, subagents or the harness
-  (`reviewer`, `git_verify_commits`, `OpenCode`, `Hermes`). Say what was
+  (`reviewer`, `git_commit_verify`, `OpenCode`, `Hermes`). Say what was
   checked, not what checked it: "each commit passes lint and typecheck",
-  never "`git_verify_commits` ran".
+  never "`git_commit_verify` ran".
 - **The build machine** — local paths, the user's home, what is or is not
   installed there ("no Java here"), which model or account did the work.
 - **The organisation's state** — billing, plan or account status, who is on
@@ -108,38 +126,48 @@ Keep out of titles, bodies and branch names:
   PR's purpose. Give the purpose as the repository's reader would state it.
 
 Commit subjects feed the fallback title and show in the PR, so the same
-exclusions hold there (`git-commit` <MessageHygiene>). When a convention
+exclusions hold there (`commit` <MessageHygiene>). When a convention
 resolved in <ConventionResolution> appears to invite one of these — merged
 PRs that carry a plan label, say — it is a habit to break, not to follow:
 write the clean form, and tell the user in your reply (never in the PR) that
 the habit was not followed.
 
+What is checked, and what is not: the push preview (`git_push_read`) matches
+only branch names and commit subjects against the published-text rules file
+(`~/.config/git-tools/published-text.json`). No tool checks a PR's title or
+body. Read them yourself, as the <Audience> reader, before `github_pr_create`
+or `github_pr_edit`. A preview finding is fixed in the words, never argued
+past: the pattern that tripped is a sample of the rule, not its edge.
+
 </Audience>
 
 <RelatedScan>
 
-Find the Issues and PRs to link. Call `git_related_scan` (base defaults to the
-repo's default branch; pass `keywords` to widen the search). It returns,
-read-only:
+Find the Issues and PRs to link. There is no single scan tool; do it by
+reading, all read-only:
 
-- `existingPR` — the open PR for this branch, if any. Update it; do not duplicate.
-- `closes` / `refs` — issue numbers from the branch's commit messages and name
-  (explicit references — link directly).
-- `issueCandidates` / `relatedPRs` — keyword-search hits. Propose and confirm;
-  never auto-`Closes` a guessed issue.
-- `stack` — the branch's native stack membership (trunk, position, size) and
-  the PR of the layer below, when this branch is part of a stack.
+- **Existing PR** — `github_pr_read` `list` with `head` = this branch (state
+  open, then all if none). Update the open one; do not duplicate it.
+- **Explicit references** — issue numbers (`#N`, `Closes #N`, `Refs #N`) in the
+  branch's commit messages (`git log <base>..HEAD`) and in its name. Link
+  these directly.
+- **Candidates** — search by the change's keywords: `github_issue_read`
+  `list` with `query` for Issues and `github_pr_read` `list` with `query` for
+  PRs. Propose and confirm; never auto-`Closes` a guessed issue.
+- **Stack membership** — `git_rebase_read` `stack` shows the layers of the
+  checked-out branch, and `github_pr_read` `view` or `github_stack_read`
+  `view` the PR-side stack, including the PR of the layer below.
 
-For a prior PR that a commit builds on, `git_provenance` (commit → PR) gives a
-`Follow-up to #M` / `Supersedes #M` link.
+For a prior PR that a commit builds on, `commit` <Provenance> (commit → PR)
+gives a `Follow-up to #M` / `Supersedes #M` link.
 
 Judgment stays here: explicit refs link directly, search hits are confirmed not
 assumed, and a link is never fabricated. Use `Closes #N` for full resolution;
 `Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
 
-Limits: `gh` search filters by keyword, not reliably by file path, so area
-overlap is approximate; links exist only when the work genuinely maps;
-cross-repo or private refs may not resolve; solo repos surface few Issues.
+Limits: search filters by keyword, not reliably by file path, so area overlap
+is approximate; links exist only when the work genuinely maps; cross-repo or
+private refs may not resolve; solo repos surface few Issues.
 
 </RelatedScan>
 
@@ -154,7 +182,7 @@ not the layer's name: it decides where the cut falls and never reaches a
 branch name, title or body (<Audience>).
 
 - **Always stack** when the branch builds on an unmerged PR of the same
-  repository: adopt that PR's branch and add a layer (<StackedPRs>), never
+  repository: add a layer on top of that PR's branch (<StackedPRs>), never
   hand-manage a base branch.
 - **Propose a split** when the branch's own commits fall into two or more
   layers that each review and build on their own — an extraction before its
@@ -162,12 +190,13 @@ branch name, title or body (<Audience>).
   change. Cuts run between existing commits: never reorder or rewrite commits
   to make a cut fit. Propose the cut once (each layer's commits, its branch
   name, why it stands alone, and that the quick check passes at each cut,
-  `git_verify_commits`), and split only after the user agrees.
+  `git_commit_verify`), and split only after the user agrees.
 - **Stay plain** when one reviewable change remains: a single layer gains
   nothing, since GitHub forms a stack from two PRs. Also when the PR comes
-  from a fork (stacks cannot span a fork and its upstream), the remote is not
-  github.com, or `git_publish` returns `stacksUnavailable`. A plain PR still
-  publishes through <Publishing>, and can join a stack later.
+  from a fork (stacks cannot span a fork and its upstream; `github_pr_create`
+  does not open from forks yet), the remote is not github.com, or stacks are
+  unavailable for the repository. A plain PR still publishes through
+  <Publishing>, and can join a stack later.
 - A unit in `approach-github-delivery` follows its own `<Branches>`, which
   already decides the stack.
 
@@ -175,113 +204,101 @@ branch name, title or body (<Audience>).
 
 <Publishing>
 
-Every PR this skill opens or updates leaves through two tools, plain or
-stacked alike:
+Every PR this skill opens or updates leaves in three steps, plain or stacked
+alike: push, then PR, then (for a stack) link.
 
-- `git_publish_preview` (read-only, runs without asking) describes the
-  publication and pins it in a `token`: the `mode` (`plain` for a branch
-  outside a stack, `stack` for a stack's layers), the `base`, each layer's
-  commits and push kind (create / fast-forward / force), its PR, a `retarget`
-  of an existing plain PR's base, refusals, warnings, and a secret scan of
-  every commit. For a plain branch pass `base` only for a base the user chose
-  (Step 2); otherwise the open PR's base, else the default branch, is kept.
-  For a `submit`, pass the `prs` (title and body per layer) it will set: the
-  preview shows them under `text`, pins them in the token, and reads them
-  with every commit subject and branch name for what <Audience> keeps out;
-  each finding names the words and the rule they trip.
-- `git_publish` (asks) publishes exactly that, given the `token` and the same
-  `base` and `prs` (and `meta`, `attachments`): `push` sends the commits and
-  sets the previewed metadata on PRs that already exist; `submit` also opens
-  each missing PR (ready unless asked for drafts), applies the `prs` titles
-  and bodies to new and existing PRs, moves a plain PR's base when the
-  preview showed `retarget`, and links a stack's PRs. Existing PRs keep their
-  draft state. Other `prs` than the preview's fail the token: a changed
-  title or body is previewed again, and a changed title or body on an
-  existing PR is a `submit` with `prs`, never a `push`. A `push` preview
-  takes no `prs`.
+1. **Preview, then send the push.** `git_push_read` `preview` describes the
+   push per branch (kind, the commits the remote lacks, what a force drops),
+   with refusals, warnings, the secret scan and the published-text findings;
+   its `send` is what `git_push_send` (asks) pushes, atomically and each
+   branch leased on the remote commit the preview saw. Show the user the
+   preview before sending. `stale` means a branch moved: preview again. A
+   refusal is fixed, never worked around: rebase (Step 3), commit or stash,
+   remove a secret, or ask. A finding is fixed in the words or the code, and
+   a false positive is let through only by its fingerprint after reading it
+   (`git-push`). A force push after a rebase is the mechanism here, not a
+   violation of the no-force-push rule: the leased push in `send` is that
+   push.
+2. **Open or update the PRs.** `github_pr_create` per missing layer: `head`,
+   `head_sha` = the sha the push returned, `base` (the layer below's branch;
+   the default branch for a plain PR or the bottom layer, unless the user chose
+   another), `title`, `body`, `draft`, the <Metadata> judged and the <Media>
+   agreed, and `closes` for the issues the layer finishes. An existing PR is
+   changed with `github_pr_edit` (title, body, base, metadata), never
+   duplicated; `github_pr_ready` marks a draft ready. Read the title and body
+   as the <Audience> reader first.
+3. **Link a stack.** `github_stack_link` with the PR numbers bottom to top
+   (<StackedPRs>).
 
-Show the user the preview's layers, text, refusals and warnings before
-publishing. A `text` finding is fixed in the words, never argued past:
-rewrite for the <Audience> reader and preview again; the pattern that
-tripped is a sample of the rule, not its edge.
-A refusal is fixed, never worked around: rebase (Step 3), commit or stash,
-remove a secret, or ask. A force push after a rebase is the mechanism here,
-not a violation of the no-force-push rule: the pinned commits leave in one
-atomic push, each branch leased on the remote commit the preview saw. Read
-`pushed`, `pr`, `baseMismatch`, `errors`, `autoMergeDisabled` and
-`attachments` in the result rather than assuming success.
+Read the results rather than assuming success: `pushed` and `sha` per branch,
+the PR's `errors` (a step after the PR exists that failed — fix it on what
+exists and never run `github_pr_create` again to retry; see the package's
+`github-pull-requests` "Partial failures"), `closing_issues` and notes.
 
 Fall back to the gated shell (`git push`, `gh pr create`, `gh pr edit`) only
 where the tools refuse by design: a PR from a fork, a remote that is not
-github.com, or a metadata-only update of title or body with nothing to push.
+github.com. A metadata-only update of title or body with nothing to push needs
+no push at all: go straight to `github_pr_edit`.
 
 </Publishing>
 
 <Metadata>
 
 Labels, assignees, review requests and a milestone can start workflows,
-merge bots and notifications, so they are judged before they are set.
+merge bots and notifications, so they are judged before they are set. No tool
+infers them: decide each yourself, from the repository, and pass them to
+`github_pr_create` / `github_pr_edit`.
 
-- **At publication.** Pass `meta` to `git_publish_preview` and `git_publish`
-  alike (and `layerMeta` for one layer of a stack). By default that is
-  `infer: true`: the repository's habit, read from your merged PRs, adds
-  yourself as assignee and the labels most of them carry; a habitual milestone
-  is only suggested. Add what the user asked for on top. The preview judges
-  each change — `harmless`, `approval` (with reasons), `invalid` (a label,
-  milestone or person that does not exist; nothing is created) or
-  `unchanged` — and publishing sets the harmless and approval ones, so show
-  them with the rest of the preview.
-- **On an existing PR.** `github_pr_edit` (labels, assignees, reviewers,
-  milestone) asks the person once, with a description of the change, on every
-  call; propose only what the repository's habit or the user's request
-  supports, and call it only after they agree
-  (`github-pull-requests` `Changing a pull request`).
+- **Labels.** Read the repository's labels (`github_label_read`) and what its
+  recent merged PRs carry (`github_pr_read` `list`, `state: "merged"`); use
+  the labels the habit supports, plus what the user asked for. Never create a
+  label to make a change valid.
+- **Assignees.** The habit of recent merged PRs (usually the author); add
+  whom the user names.
+- **Milestone.** Only when the user asks, or the repository's habit is clear
+  and the user agrees; never create one.
 - **Reviewers only on request.** A review request notifies people (and
   `@copilot` uses AI credits); never infer or add one the user did not ask
-  for. The PR's author cannot review it.
-- Report what was set, inferred (with its counts) or skipped, from the tool's
-  re-read rather than from the request.
+  for, and consult CODEOWNERS only to suggest a name. The PR's author cannot
+  review it.
+- **On an existing PR**, `github_pr_edit` overwrites and asks the person once
+  per call; propose only what the repository's habit or the user's request
+  supports, and call it only after they agree.
+- Report what was set or skipped from the tool's result, not from the request.
 
 </Metadata>
 
 <Media>
 
-Screenshots and recordings show a reviewer what the diff cannot. `git_publish`
-uploads them into a PR body through `attachments` (`{ branch, path, alt? }`
-per file; gh 2.99.0 or later). An upload cannot be deleted, so nothing is
-attached that the user has not agreed to.
+Screenshots and recordings show a reviewer what the diff cannot.
+`attachments` on `github_pr_create`, `github_pr_edit` and `github_pr_comment`
+upload them (`{ path, alt? }` per file; gh 2.99.0 or later; limits in
+`github-pull-requests` "Attachments"). An upload cannot be deleted, so
+nothing is attached that the user has not agreed to.
 
 - **When.** If the PR changes what a page or screen renders and `web_ui_check`
   ran, propose its screenshots (the `Screenshots:` directory; the comparison
   images under `Comparison images:` when it compared a baseline): name each
   file and what it shows, and attach only those the user picks. Otherwise
   attach only what the user asks for.
-- **Files.** Images and videos; the preview refuses a type, size or count gh
-  would refuse, and warns that videos over 10 MiB upload only on paid plans.
-  Keep them outside the worktree or gitignored: an untracked file there makes
-  the preview refuse a dirty tree (`web_ui_check` already writes outside it).
-  Do not touch a file after the preview: a changed file fails the token, or
-  is skipped if it changes while publishing.
+- **Files.** Images and videos. Keep them outside the worktree or gitignored,
+  so they are never committed (`web_ui_check` already writes outside it).
+  Do not touch a file between agreeing and sending.
 - **Placement.** Reference a file where it belongs in the body,
   `![After, 375px](<absolute path>)` or a path relative to the worktree root,
-  and gh replaces it with the uploaded URL, keeping that reference's alt text.
+  and it is replaced with the uploaded URL, keeping that reference's alt text.
   Files the body does not reference are appended at the end, with `alt` (else
   the file name) as alt text. Videos render as a player and take no alt text.
-- **Preview.** Pass the same `attachments` to `git_publish_preview` and
-  `git_publish` (`submit` only). Show the preview's `attachments` (each file
-  and its size, the `visibility` and its `note` on who can open the uploads)
-  with its refusals and warnings; a refusal with rule `attachments` is fixed
-  like any other. On a public repository anyone can open them, and the secret
-  scan does not read images: check that no screenshot shows a token, a
-  private page or personal data before asking.
-- **Existing PRs.** A body in `prs` replaces the current one; without it the
-  files are appended to the current body. Either way, publishing again
-  uploads and appends them again: attach each file once.
-- **Result.** `attachments.sent` lists the files handed to gh, not those that
-  uploaded; `errors` names the failures and `skipped` the layers whose files
-  were withheld. The PR still stands either way: never re-run `git_publish` to
-  retry. Tell the user which files are missing and, once they agree, add them
-  with the shell fallback below on `gh pr edit <n>`.
+- **Before sending.** Show the user each file and what it shows. On a public
+  repository anyone can open the uploads and no scan reads images: check that
+  no screenshot shows a token, a private page or personal data before asking.
+- **Existing PRs.** A `body` replaces the current one; without it the files are
+  appended. Either way, attaching again uploads and appends them again: attach
+  each file once.
+- **Result.** A failed upload is in `errors.attachments`, and the PR still
+  stands: never re-run `github_pr_create` to retry. Tell the user which files
+  are missing and, once they agree, add them with `github_pr_edit` or
+  `github_pr_comment`.
 - **Shell fallback.** For a fork or a non-GitHub remote, `gh pr create` and
   `gh pr edit` take `--attach '<absolute path>#<alt>'` (repeatable, `#<alt>`
   optional, no `#` inside the alt); check `gh --version` first. GitHub
@@ -303,51 +320,50 @@ skill still owns the title, body and links.
   label such as "layer 2 of Phase 3" (<Audience>). Never broaden the top
   PR's title to serve as a whole-stack merge title.
 
-`git_stack` (local only, runs without asking: `split`, `add`, `rebase`)
-shapes the stack over the `github/gh-stack` extension (`gh stack`, declared in
-`GH_EXTENSIONS` in `install.sh`; if it is missing, install it rather than
-falling back to hand-managed base branches), and <Publishing> publishes it.
-Prefer them to shell `gh stack`, which stays available (asking) for what they
-do not cover, such as `gh stack sync` or `gh stack checkout`.
+A stack is local branches read from ancestry (`git_rebase_read` `stack`) and
+GitHub PRs each based on the one below, joined by `github_stack_link`.
+`git_rebase_*` shapes the branches, <Publishing> publishes them. Shell
+`gh stack` stays available (asking) for what the tools do not cover, such as
+`gh stack sync` or `gh stack checkout`.
 
-- **Detect first.** `git_related_scan` returns `stack` — trunk, position, size,
-  the layers below and above, and `needsRebase` — for a layer that has no PR
-  yet as well as one that has. If the branch is in a stack, do not compute a
-  base yourself: the layer below is the base and the stack maintains it,
-  including retargeting survivors after a partial merge.
-- **Creating.** `git_stack` `split` with `at` (the last commit of each lower
-  layer, bottom-up) and `names` turns the current branch into the top layer
-  on the default branch. With no cuts it adopts the branch, and its open PR,
-  as a one-layer stack, so work that builds on an unmerged PR can follow as a
-  new layer.
-- **Adding a layer.** `git_stack` `add` with the new branch name appends on
-  top (it switches to the top first). The CLI cannot insert mid-stack, and
-  `gh stack modify` is TUI-only.
-- **Rebasing.** `git_stack` `rebase` brings the trunk's latest state into
-  every layer and moves the layers above a changed one; publishing refuses a
-  stack that is behind the trunk or out of order. On conflicts it returns the
-  layer, the worktree and the conflict map (`ours` is the layer below,
-  `theirs` the commit being replayed; lockfiles are regenerated, not merged):
-  resolve, `git add`, then `step: continue`, or `step: abort` to restore every
-  layer. Keep its `before` commits for the report.
-- **Publishing.** Per <Publishing>: `submit` for new layers (each missing PR
-  opens on the layer below, and the stack's PRs are linked), `push` for
-  updates. Report `stacksUnavailable` when present.
-- **Linking existing PRs.** `git_publish` `link` with PR numbers
-  bottom-up; it always passes the default branch as `--base`. Never run a bare
+- **Detect first.** `git_rebase_read` `stack` shows the layers, how each
+  branch stands to its remote, and whether the stack may be rewritten; for the
+  PR side, `github_pr_read` `view` or `github_stack_read` `view`. If the branch
+  is in a stack, do not compute a base yourself: the layer below is the base.
+- **Creating.** `git_rebase_split` with `at` (the last commit of each lower
+  layer, bottom-up) and `names` cuts the current branch into lower layers,
+  the current branch staying the top. A single branch is already a stack of one
+  layer, so work that builds on an unmerged PR follows as a new layer on top.
+- **Adding a layer.** `git_rebase_split` `add` starts a new empty layer on the
+  top (from the top only) and checks it out, so the next commit lands there.
+  Layers cannot be inserted mid-stack.
+- **Rebasing.** `git_rebase_start` brings the trunk's latest state into every
+  layer and keeps each on the one below. When a lower layer was merged by
+  squash, pass `after` (that layer) so only the layers above are replayed.
+  A fix to a lower layer is a fixup committed on the top and folded with
+  `keep_base` (`commit` <CommitGranularity>). On a stop, see Step 3; keep the
+  result's before-shas for the report.
+- **Publishing.** Per <Publishing>: push the layers in one preview/send, open
+  each missing PR on the layer below (`github_pr_create` with that `base`),
+  then link them.
+- **Linking existing PRs.** `github_stack_link` with PR numbers bottom-up. It
+  never opens a PR or changes a base: it refuses bases that do not chain and
+  names the base to set with `github_pr_edit`. Never run a bare
   `gh stack link`: it silently retargets existing PRs.
 - **Closing keywords work from any layer** of a stack rooted at the default
-  branch — a mid-stack `Closes #N` does fire on merge. This is NOT true when
-  the stack is rooted elsewhere, which is one reason the topology fixes the
-  trunk to the default branch. So write `Closes` only on the layer that
-  actually finishes the issue; earlier layers use `Refs`.
+  branch — a mid-stack `Closes #N` does fire on merge (the tool may note that
+  GitHub shows it in the Development panel only for a PR into the default
+  branch). This is NOT true when the stack is rooted elsewhere, which is one
+  reason the topology fixes the trunk to the default branch. So write
+  `Closes` only on the layer that actually finishes the issue; earlier layers
+  use `Refs`.
 - **A branch created from an issue closes it regardless.** A PR opened from a
   `gh issue develop` branch lands in the issue's `closingIssuesReferences`
-  with no keyword written anywhere. Check the layer's `closingIssues` with
-  `github_pr_read` `view` before merging a lower layer, or the issue closes while the
-  rest of the stack is still open.
-- Merging (`gh stack merge`) stays out of scope here, like every other merge;
-  how a finished stack should land is the handoff in <MergeMessageHandoff>.
+  with no keyword written anywhere. Check the layer's `closing_issues` with
+  `github_pr_read` `view` before merging a lower layer, or the issue closes
+  while the rest of the stack is still open.
+- Merging stays out of scope here, like every other merge; how a finished
+  stack should land is the handoff in <MergeMessageHandoff>.
 
 </StackedPRs>
 
@@ -391,9 +407,13 @@ Landing plan for a stack whose layers serve one goal:
   field starts as the top PR's title and ` (#n)` and lands exactly as edited,
   so keep the ` (#n)`. Or `PUT /repos/{owner}/{repo}/pulls/{top}/merge-async`
   with `merge_method: merge`, the top PR's head as `sha`, `commit_title` and
-  `commit_message`; nothing appends the number there. `gh stack merge` takes
-  no message: with `--merge` it always lands the top PR's title, so never hand
-  it a stack of two or more layers for a merge commit.
+  `commit_message`; nothing appends the number there. `github_pr_merge` takes
+  `subject` and `body` (and `with_lower_layers`), but the package's skill
+  says they apply to the named layer only, so for one merge commit of several
+  layers give the message on the page or through the API above.
+  `gh stack merge` takes no message: with `--merge` it always lands the top
+  PR's title, so never hand it a stack of two or more layers for a merge
+  commit.
 - **No merge commits allowed, or the user asks for squash:** squash lands one
   commit per layer with that layer's own default message, so there is nothing
   to write; a `commit_title` sent with it renames only the top layer's commit.
@@ -436,106 +456,99 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    publish timing has been reached (global `<PlanHandoff>`); when the plan
    does not say, ask at the layer boundary. A narrower restriction from the
    user or the session's instructions (no push) wins. Inspect the branch with
-   `git_state` (branch, upstream ahead/behind, uncommitted files, the
-   branch's PR). Its `base` is the merge-base with the remote default branch,
-   not the PR's base (Step 2 resolves that), and it reads local refs only:
-   ahead/behind are as of `lastFetch`. Do not open a PR from the default
-   branch; move the work to a task branch (`git_worktree`, `action: create`)
-   first. Warn that uncommitted changes will not be in the PR.
+   `git_repo_read` `status` (branch, upstream ahead/behind, uncommitted files,
+   the branch's commits). Its `base` is the merge-base with the remote default
+   branch, not the PR's base (Step 2 resolves that), and it reads local refs
+   only: ahead/behind are as of `last_fetch`. Do not open a PR from the
+   default branch; move the work to a task branch (`git_worktree_add`) first.
+   Warn that uncommitted changes will not be in the PR.
 2. Run <RelatedScan> before comparing changes, writing descriptions or pushing.
    Resolve the existing PR and stack membership, then determine the base: the
    stack's immediate lower layer wins. For a non-stack PR, honor an explicit
-   base request (it becomes `git_publish_preview`'s `base`); otherwise the
-   existing PR's base is kept, and a new PR without a selected base goes to the
-   repository default — the preview resolves both and reports the `base`. If
-   adding/rebasing layers changes the topology, rescan and resolve the base
-   again before continuing.
+   base request; otherwise the existing PR's base is kept, and a new PR
+   without a selected base goes to the repository default. If adding or
+   rebasing layers changes the topology, rescan and resolve the base again
+   before continuing.
 3. Bring in the base's latest state before every push, for a new PR and for an
-   update alike (skip it for a metadata-only update). For a stack,
-   `git_stack` `rebase` (see <StackedPRs>). Otherwise `git_rebase` with
-   `action: start` and `onto: <base>`: it fetches the base, replays the
-   branch's commits on it without an editor, and folds pending fixups.
-   - `upToDate` — nothing to do.
-   - `conflicts` — resolve each file from its conflict map (in a rebase `ours`
-     is the base, `theirs` the commit being replayed; lockfiles are
-     regenerated, not merged), `git add` it, then `git_rebase` with
-     `action: continue`; `abort` restores the branch.
-   - `empty` — the replayed commit's change is already in the base:
-     `action: skip` drops it.
-   - `rebase` with `inProgress` — git stopped for another reason (an
-     untracked file in the way, signing): fix what `output` names, then
-     `action: continue`. Never `skip` it: that drops a real commit.
-   - `rewrite` — the rewrite rule refuses (the default branch, commits
-     already on it or held by another remote branch, or a branch GitHub
-     protects; see `git_amend_check`): stop and report; do not merge the base
-     in or rebase with shell git instead.
-   Keep the result's `before` sha for the report: `undo` restores it. Then,
-   before every push, run the project's quick check once on the final commit;
-   a failure is fixed with a commit (`git-commit`) before pushing.
-   For a new PR not yet in a stack, apply <StackDecision> now, on the rebased
-   commits: an agreed split or an adoption goes through `git_stack`, and
-   Step 2's scan runs again, since every layer now has its own base.
+   update alike (skip it for a metadata-only update). `git_rebase_start`
+   fetches the default branch and replays every layer of the stack on it
+   without an editor (`onto` names another base), folding pending fixups; for
+   a lone branch it is a stack of one.
+   - `up_to_date` — nothing to do.
+   - `paused` for `conflicts` — resolve each file from the result's conflict
+     map (in a rebase `ours` is the base, `theirs` the commit being replayed;
+     lockfiles are regenerated, not merged), then `git_rebase_resume` with
+     `action: "continue"`; `abort` restores every layer.
+   - `paused` for `empty` — the replayed commit's change is already in the
+     base: `action: "skip"` drops it.
+   - `paused` as `stopped` (a failing hook, an `exec`) — fix what `output`
+     names, then `continue`. Never `skip` it: that drops a real commit.
+   - `rewrite_refused` — the rewrite rule refuses (the default branch,
+     commits already on it or held by another remote branch, or a branch
+     GitHub protects; see `git_commit_read` `amend`): stop and report; do not
+     merge the base in or rebase with shell git instead.
+   Keep the result's before-shas for the report. Then, before every push, run
+   the project's quick check once on the final commit; a failure is fixed
+   with a commit (`commit`) before pushing. For a new PR not yet in a stack,
+   apply <StackDecision> now, on the rebased commits: an agreed split goes
+   through `git_rebase_split`, and Step 2's scan runs again, since every layer
+   now has its own base.
 4. Inspect `git log --oneline <base>..HEAD` and `git diff <base>...HEAD` using
    that resolved base. Confirm the PR introduces changes and review every
    included commit, not only the latest. For a stack, separate lower-layer
    context from the changes this layer actually introduces. For metadata-only
-   updates, inspect the published PR with `gh pr diff` and
-   `gh pr view --json commits` instead of unpublished local HEAD.
+   updates, inspect the published PR with `github_pr_read` `diff` and `view`
+   instead of unpublished local HEAD.
 5. Build the title and body per <ConventionResolution>, <Audience> and
    <StackedPRs>, folding in verified links; then read them once as the
    <Audience> reader and strip what only this conversation can explain.
-   Update an existing PR instead of creating a duplicate.
-   When the change is visible on screen, settle its attachments per <Media>
-   and reference them in the body.
-6. Publish only a new PR or an authorized branch update, through
-   <Publishing>: `git_publish_preview` (with `base` from Step 2 when one was
-   chosen, the Step 5 `prs` for a submit, `meta` per <Metadata> and
-   `attachments` per <Media>), show it, then `git_publish` with its `token`
-   and the same arguments — `push` when every PR already exists, `submit`
-   when one is missing or its title, body or base changes. A rebase (Step 3, or a fixup's fold) that reported
-   `needsForcePush` is published the same way: the leased push is the force
-   push. A request to edit a title or body alone does not authorize
-   publishing local commits.
+   Update an existing PR instead of creating a duplicate. Judge the metadata
+   (<Metadata>). When the change is visible on screen, settle its attachments
+   per <Media> and reference them in the body.
+6. Push only for a new PR or an authorized branch update, through
+   <Publishing>: `git_push_read` `preview`, show it, then `git_push_send` with
+   its `send`. A rebase (Step 3, or a fixup's fold) that reported
+   `needs_force_push` is published the same way: the leased push is the force
+   push. A request to edit a title or body alone does not authorize pushing
+   local commits.
    Only for a PR from a fork or a non-GitHub remote, push with the gated shell:
    `git push -u <writable remote> HEAD`, or after a rebase exactly
    `git push --force-with-lease <remote> HEAD:refs/heads/<branch>` (the full
    destination cannot be remapped by push config, and some rulesets open no
    other force spelling). Never a bare `--force`.
-7. Create or update the PR: `git_publish` `submit` opens a missing PR on its
-   base (ready unless asked for a draft) and sets the title and body from
-   `prs`, multi-line bodies included. If it returns `stacksUnavailable`, the
-   layer PRs already exist, each on the layer below, just unlinked: report them
-   and ask the user whether to keep them so or close them for one plain PR; do
-   not open another PR on your own.
-   On the shell fallback (a fork, or a metadata-only update with nothing to
-   push), write the body to a scratch file with the write tool, then
-   `gh pr create --base <base> --title "..." --body-file <file>` or
-   `gh pr edit` (never literal `\n`; a heredoc fed to `--body-file -` breaks
-   when anything follows its terminator line). Preserve unspecified fields and
-   draft state. Metadata goes through `github_pr_edit` there too (<Metadata>),
-   never through `gh pr` flags.
-8. Re-read the published PR's base, title, body and draft state, and the stack
-   order when applicable (`git_publish` returns them per layer, with any
-   `baseMismatch`, `pushed: false` or `errors`). Confirm the description
-   matches the layer diff and holds nothing <Audience> keeps out; do not
-   assume submission or base retargeting preserved that match. An attached
-   file's local path in the body now reads as its uploaded URL, and
-   unreferenced files sit at the end: that is the expected difference from
-   the body you wrote.
+7. Create or update the PR: `github_pr_create` (once per missing layer, bottom
+   to top, each on the layer below) with the Step 5 title, body and metadata
+   and `head_sha` from the push; `github_pr_edit` for an existing PR whose
+   title, body, base or metadata changes; then `github_stack_link` for a
+   stack. If the stack cannot be linked, the layer PRs already exist, each on
+   the layer below, just unlinked: report them and ask the user whether to
+   keep them so or close them for one plain PR; do not open another PR on your
+   own. On the shell fallback (a fork), write the body to a scratch file with
+   the write tool, then `gh pr create --base <base> --title "..." --body-file
+   <file>` or `gh pr edit` (never literal `\n`; a heredoc fed to
+   `--body-file -` breaks when anything follows its terminator line).
+   Preserve unspecified fields and draft state.
+8. Re-read the published PR's base, title, body and draft state with
+   `github_pr_read` `view`, and the stack order when applicable
+   (`github_stack_read` `view`). Confirm the description matches the layer
+   diff and holds nothing <Audience> keeps out; do not assume creation or base
+   retargeting preserved that match. An attached file's local path in the body
+   now reads as its uploaded URL, and unreferenced files sit at the end: that
+   is the expected difference from the body you wrote.
 9. Report the PR URL and its ready/draft state, including the immediate base
-   for a stack, and whether Step 3 rebased (with its `before` sha). When this
+   for a stack, and whether Step 3 rebased (with its before-shas). When this
    publication completes a stack's goal, add its landing plan
    (<MergeMessageHandoff>) after the report, never in the PR text. Do not
    merge.
 10. When CI or review feedback should be followed, read it with
-    `github_pr_read` with `method: "checks"` (it waits for them) instead of
+    `github_pr_read` `method: "checks"` (it waits for them) instead of
     `sleep` + `gh pr checks` loops or `--watch`; `method: "view"` adds
     mergeability, closing issues and unresolved review threads
-    (`github-pull-requests` `Waiting for checks`). Act on `waited.ended_by`:
+    (`github-pull-requests` "Waiting for checks"). Act on `waited.ended_by`:
     - `settled` — read `checks.overall`; report unresolved threads.
     - `failed` (with `fail_fast`), or `settled` with failures — read
       `failed_logs` (the error lines first); a fix is a new commit or a
-      fixup (`git-commit`), then Steps 3 and 6 again.
+      fixup (`commit`), then Steps 3 and 6 again.
     - `timeout` with `checks.overall` pending — call it again, do not sleep.
     - `timeout` with `checks.overall` `none` — read `hints`: CI will not
       start (a conflict with the base, no workflow, runs awaiting approval);
@@ -616,39 +629,43 @@ the organisation's state, the caller's words.
 - Do not open or update a PR unless explicitly asked or an aligned plan's
   publish timing calls for it; when the plan is silent, ask at the layer
   boundary.
-- Do not create commits here — that is `git-commit`'s job.
+- Do not create commits here — that is `commit`'s job.
 - Do not merge, and do not bypass the `git push` or `gh pr merge` gates.
 - Do not force-push unless explicitly asked, except the leased push of a
-  `git_publish` (or its shell fallback) after a `git_rebase`, `git_stack`
-  rebase or `git_commit` amend that reported `needsForcePush`. Never a bare
+  `git_push_send` (or its shell fallback) after a `git_rebase_start` or
+  `git_commit_amend` that reported `needs_force_push`. Never a bare
   `--force`.
 - Do not push a branch without first bringing in its base (Step 3), and do
-  not merge the base in or rebase with shell git when `git_rebase` refuses.
+  not merge the base in or rebase with shell git when `git_rebase_start`
+  refuses.
 - Do not open one large PR when its commits split into reviewable layers, and
   do not split without the user's agreement or by reordering commits.
 - Do not hand-manage a base branch for work on top of an unmerged PR — stack it.
-- Do not publish without showing the user its `git_publish_preview`, and do
-  not retry `git_publish` with a fresh token to get past a refusal or a
+- Do not push without showing the user the `git_push_read` preview, and do
+  not retry `git_push_send` with a rebuilt `send` to get past a refusal or a
   changed branch without showing the new preview.
-- Do not push with the shell what `git_publish` can publish; the shell push is
+- Do not push with the shell what `git_push_send` can push; the shell push is
   for forks and non-GitHub remotes only.
-- Do not run a bare `gh stack link` or `gh stack submit --open`: link without
-  `--base` retargets existing PRs, and `--open` marks existing drafts ready.
-  Preserve existing draft state during metadata-only updates.
+- Do not run a bare `gh stack link`: it retargets existing PRs. Use
+  `github_stack_link`. Preserve existing draft state during metadata-only
+  updates.
 - Do not open a PR from the default branch, and do not duplicate an existing
   open PR — update it.
 - Do not silently exclude uncommitted work; warn that only pushed commits ship.
 - Do not request a review, change a milestone, or set metadata beyond the
   repository's habit unless asked; do not edit an existing PR's metadata with
-  `github_pr_edit` without the user's agreement, or create labels or milestones to make a change valid.
+  `github_pr_edit` without the user's agreement, or create labels or milestones
+  to make a change valid.
 - Do not attach a file the user has not agreed to, and do not re-run
-  `git_publish` to retry a failed upload: it appends every file again.
+  `github_pr_create` to retry a failed upload or any other partial failure.
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
 - Do not invent a title or body convention that contradicts the repo's merged
   PRs.
 - Do not write for this conversation: no plan label, decision-log number,
   agent or tool name, local path, or account state in a title, body or
   branch name (<Audience>) — a merged PR that carries one is not a licence.
+  The push preview checks only branch names and commit subjects; titles and
+  bodies are on you.
 - Do not describe lower-layer changes as new work in the current PR, or rename
   a layer to disguise a whole-stack merge-message mismatch.
 - Do not treat a PR title as a guaranteed merge subject or a PR-creation
