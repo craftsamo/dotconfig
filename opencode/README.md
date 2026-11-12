@@ -36,57 +36,51 @@ plugin fails to load. The `opencode-v2` formula conflicts with the 1.x
 Custom tools live in `lib/custom-tools/<module>.ts` (or `<module>/index.ts`)
 and are registered by `plugins/custom-tools.ts`, which exports both a V1
 `server()` and a V2 `setup()`. Tool IDs keep the `<module>_<export>` form
-(`git_secret_scan`, `web_ui_check`, `x_search`, ...), matching the permission
+(`web_ui_check` and `x_search` only), matching the permission
 actions in `opencode.jsonc`. Do not add a `tools/` directory: V1 would register
 the same IDs twice and V2 does not load it. Keep subdirectories out of
 `plugins/`; V2 loads each one as a plugin package. Child processes go through
 `lib/custom-tools/exec.ts`, which spawns with an explicit environment (Bun.$
 looks programs up on the PATH the process started with).
 
-The git tools (`lib/custom-tools/git/`) back the `git-commit` and
-`git-pullrequest` skills: `git_state` (one snapshot of the branch and
-worktree), `git_commit` (lint, secret scan and `git commit -F` on the same
-message; also amend and fixup), `git_rebase` (onto the fetched base without an
-editor, folding fixups; stops with a conflict map), `git_stage_hunks`,
-`git_conflicts`, `git_verify_commits` (each commit in a scratch worktree; asks
-every call), `git_worktree`, `git_stack` (a native GitHub stack's local side
-over `gh stack`: split a branch into layers, add one, rebase),
-`git_publish_preview` (read-only: what publishing a plain branch or a stack
-would do, pinned in a token) and `git_publish` (asks: pushes, opens or
-updates PRs, or links exactly the previewed branch or stack, then re-reads
-each layer), and the read-only
-history and lint helpers. Both publishing tools take `attachments`: images and
-videos that `gh pr create/edit --attach` (gh 2.99.0 or later) uploads into a
-PR body. `git/attachments.ts` checks them in the preview against gh's own
-limits and pins each file's content in the token, since an upload cannot be
-deleted. A failed upload is reported, never retried.
-Rewrites follow one rule (`git/rewrite.ts`, also behind `git_amend_check`): a
-task branch's own commits may be rewritten even once pushed (the result says
-when the push needs `--force-with-lease`), never the default branch, commits
-already on it or held by another remote branch (layers above in the same
-native stack excepted), or a branch GitHub protects against force pushes.
+Git comes from `@craftsamo/git-tools`, configured in `opencode.jsonc` with
+all toolsets and `worktree_root: ~/Worktrees`. Hermes pins the same release
+in `hermes/scripts/external-plugins.json`. The local `commit` and `pullrequest`
+skills supply conventions over the package's mechanics skills: `git-repo`,
+`git-commit`, `git-rebase`, `git-worktree` and `git-push`.
+
+Publication runs through `git_push_read` `preview`, then `git_push_send`,
+`github_pr_create` or `github_pr_edit`, and `github_stack_link` for native
+stacks. PR attachments and metadata belong to github-tools, not local git
+helpers. The push preview checks branch names and commit subjects against
+`git-tools/published-text.json` at the repository root, linked to
+`~/.config/git-tools/published-text.json`.
+Rewrites follow the package's check (`git_commit_read` `amend`): a task
+branch's own commits may be rewritten even once pushed (the result says when
+the push needs `--force-with-lease`), never the default branch, commits already
+on it or held by another remote branch (layers above in the same native stack
+excepted), or a branch GitHub protects against force pushes.
 
 GitHub work (issues, Projects, PR status and metadata) goes through
 `@craftsamo/github-tools`, pinned in `opencode.jsonc` at the same release
-Hermes pins. `lib/custom-tools/pr-meta.ts` is not a tool: it is the metadata
-engine `git_publish_preview` and `git_publish` use to judge and apply a PR's
-labels, assignees, review requests and milestone.
+Hermes pins. Its `github-pull-requests` skill covers PR mechanics, including
+labels, assignees, review requests, milestones and media attachments.
 
-`plugins/worktrees.ts` registers the worktree strategy in
-`lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
-worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout
-the Hermes workspace uses. It also removes OpenCode's own Code Mode
-`worktree_create` and `worktree_remove` (2.0.27) from the tool registry, for
-every agent and every Hermes session: the first asks for no permission, the
-second asks under `edit` and can force away dirty files, so no rule here
-reaches them. `worktree_list` stays.
+The package's V2 plugin registers the `git-tools.worktrees` strategy, so the
+TUI lists its worktrees. `git_worktree_add` creates them at
+`~/Worktrees/<repository>/<branch>` on a new branch cut from the fetched
+default branch, the layout the Hermes workspace uses; it does not move the
+session. `git_worktree_read` and `git_worktree_remove` read and remove them.
+`plugins/builtin-worktree-tools.ts` removes the built-in
+`opencode_worktree_create` and `opencode_worktree_remove` from the tool registry;
+worktree listing and session moving stay available.
 
 Custom tools run without OpenCode's permission rules, so each enforces its own
 limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
 `lib/web-ui-check/web-ui-check.mjs` in a Node child process, because Playwright
 is not reliable inside the Bun plugin host; `install.sh --deps` also installs
 Playwright's headless shell for it. Tests: `bun test lib/custom-tools
-lib/worktrees lib/permissions` and `node --test
+lib/permissions` and `node --test
 lib/web-ui-check/web-ui-check.test.mjs`. `node_modules` is gitignored, so in
 a task worktree run `../worktree-setup.sh` first (it links the live checkout's
 copy); without it the suites that need zod, axe-core or Playwright skip.
