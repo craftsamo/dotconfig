@@ -512,16 +512,20 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   session at its next turn; the only sanctioned moves are
   `opencode_session workspace` and its inverse `cleanup`. Never ask an OpenCode run to move itself, keep
   the service's own worktree route unused and `git_worktree` denied in the
-  ruleset (`workspace` creates, binds and rolls back in one step), and keep
-  `workspace.py`'s git calls hook-free with the minimal environment: a tracked
-  `core.hooksPath` is repository-controlled code and this process holds the
-  gateway's secrets. Its layout (`<root>/<origin repository name>/<branch>`)
-  and `cleanup`'s rule for a landed branch match OpenCode's worktree strategy
-  in `opencode/lib/worktrees/`; change both together. `cleanup` never forces
-  a removal or deletes a branch it has not proven landed: a squash-merged
-  branch is proven only by a merged PR whose head is its tip, read from the
-  repository's pull requests (search trails a fresh merge), and the branch is
-  deleted only if it still points at that tip.
+  ruleset (`workspace` creates, binds and rolls back in one step). `workspace`
+  and `cleanup` create and remove worktrees only through the git-tools command
+  line, started with the minimal environment (`workspace.gh_env()`), never the
+  gateway's: the package passes git an allowlisted environment, so a
+  repository's hooks, which run on fetch, removal and branch deletion as for the
+  person's own command (as they already do in the run's commits), never see the
+  gateway's secrets. Never widen that environment, and never pass `GIT_CONFIG_*`
+  (the package drops it). The layout and the landed-branch proof are the
+  package's, shared with OpenCode's `git-tools.worktrees` strategy. `cleanup`
+  never forces a removal, and the package deletes the branch only once it has
+  landed (ancestry, or a merged same-repository PR whose head is its tip);
+  an unlanded branch is kept with the reason, and lower stack layers are left
+  alone. The rollback in `create` removes only what that call made, with
+  `_run`'s hook-free git.
 
 ## Candidates and cutover
 

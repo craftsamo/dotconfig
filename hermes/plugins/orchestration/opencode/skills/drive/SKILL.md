@@ -180,14 +180,15 @@ so say so.
   its own repository (`task/issue-N` for a session bound to an issue, else the
   `branch` you name); it refuses a running session, a protected or existing
   branch and an existing path, and undoes itself if the service refuses the
-  move. `cleanup` is its inverse, once the unit's work has landed on the
-  default branch: it moves your sessions in that worktree back to the main
-  checkout (history kept, so a later read-only turn can still look back),
-  removes the worktree and deletes the task branches that landed, a merged
-  stack's layers included. It changes nothing while a run is going, while the
-  worktree holds uncommitted changes or while the branch has not landed (a
-  commit made after the merge counts as not landed), and reports the branches
-  it kept and why.
+  move. `cleanup` is its inverse: it moves your sessions in that worktree back
+  to the main checkout (history kept, so a later read-only turn can still look
+  back) and removes the worktree, never forced. It changes nothing while a run
+  is going, while the worktree holds uncommitted or untracked changes or
+  commits that no branch holds. The task branch is deleted only once its work
+  has landed (it is in the remote default branch, or the head of a merged pull
+  request of this repository; a commit made after the merge counts as not
+  landed); otherwise the worktree goes but the branch stays, and the result
+  says why in `branches_kept`. Lower layers of a stack are left as they are.
 
 `opencode_instructions(action, session_id, key?, value?)` lists, sets or
 removes durable instructions (`hermes.<name>`) announced to the agent at its

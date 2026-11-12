@@ -1151,9 +1151,9 @@ def register(ctx):
         "running turn; interrupt stops it (never a rollback); diff lists the newest turn's changed files "
         "(patch=true adds patches); messages reads recent messages; fork copies an idle session; workspace moves "
         "an idle session into a new worktree on a new task branch of its own repository, so an approved plan "
-        "continues as a build on the same session; cleanup, once its work has landed on the default branch, moves "
-        "your sessions in that worktree back to the main checkout and removes the worktree and its landed task "
-        "branches.")
+        "continues as a build on the same session; cleanup moves your sessions in that worktree back to the main "
+        "checkout and removes the clean worktree, never forced, deleting its task branch only once it has landed "
+        "(otherwise the branch is kept and the reason given).")
     add("opencode_request", opencode_request, {
         "action": {"type": "string", "enum": ["list", "reply"]},
         "session_id": {"type": "string"},
