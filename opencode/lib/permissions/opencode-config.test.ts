@@ -165,13 +165,13 @@ describe("Git tools", () => {
     expect(typeof plugin === "object" && plugin.options?.worktree_root).toBe("~/Worktrees")
   })
 
-  test("local writes are allowed, arbitrary commands and pushes ask, and built-in worktree writes are denied", () => {
+  test("local writes are allowed, arbitrary commands and pushes ask", () => {
     for (const tool of ["git_commit_stage", "git_commit_create", "git_commit_amend", "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_worktree_add", "git_worktree_remove"])
       expect([tool, decide(tool)]).toEqual([tool, "allow"])
     for (const tool of ["git_push_send", "git_commit_verify", "git_future_write"])
       expect([tool, decide(tool)]).toEqual([tool, "ask"])
     for (const tool of ["opencode_worktree_create", "opencode_worktree_remove"])
-      expect([tool, decide(tool)]).toEqual([tool, "deny"])
+      expect(rules.some((rule) => rule.action === tool)).toBe(false)
   })
 })
 

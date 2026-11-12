@@ -2430,18 +2430,7 @@
       "resource": "*",
       "effect": "ask"
     },
-    // Built-in creation asks nothing; removal can force-discard files.
-    // Worktrees go through git_worktree_add / git_worktree_remove instead.
-    {
-      "action": "opencode_worktree_create",
-      "resource": "*",
-      "effect": "deny"
-    },
-    {
-      "action": "opencode_worktree_remove",
-      "resource": "*",
-      "effect": "deny"
-    },
+    // plugins/builtin-worktree-tools.ts removes built-in worktree writers; creation asks nothing and removal asserts edit, not its tool id.
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     {
       "action": "x_search",
