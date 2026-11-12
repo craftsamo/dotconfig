@@ -30,10 +30,15 @@ Signal Desktop as an unofficial client
 holds one account; its state is `~/.local/state/signal-tools/default/`
 (signal-cli's keys and files, the mirror `mirror.sqlite`, the daemon socket).
 One sync service per label receives and keeps the mirror
-(`io.github.craft-agent.signal-tools.default`); every read tool reads the
-mirror only. Hermes and OpenCode share the device, the service and the mirror,
-so both pin the same release: a test holds `external-plugins.json` and
-`opencode.jsonc` to one version.
+(`io.github.craft-agent.signal-tools.default`, listed in Login Items as
+`signal-tools-sync-default`, the launcher it starts through, kept in
+`~/Library/Application Support/io.github.craft-agent.signal-tools/`); every
+read tool reads the mirror only. Hermes and OpenCode share the device, the
+service and the mirror, so both pin the same release: a test holds
+`external-plugins.json` and `opencode.jsonc` to one version. The `state_dir`
+setting stays unset in both: the guard finds the state through
+`SIGNAL_TOOLS_STATE_DIR` and `XDG_STATE_HOME` only, so a state the setting
+moved elsewhere would be unguarded.
 
 ## Toolsets
 
@@ -67,7 +72,7 @@ The guard (`signal-tools-guard`) adds, for every `signal_*` tool:
   inbound A2A request.
 - **No way around the tools.** Terminal and file-tool calls are blocked when
   they run `signal-cli`, `signal-tools-cli` or `signal-tools`, or name the
-  state, the plugin's directory, the launch agents, their logs, a
+  state, the plugin's directory, the launch agents, their launchers and logs, a
   `SIGNAL_TOOLS_` variable, Signal Desktop's data or the old plugin's state;
   paths are also matched by their real path
   ([bypass guard](access-common.md#bypass-guard-ways-around-the-tool)).

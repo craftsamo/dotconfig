@@ -34,9 +34,6 @@ npm, and both share one linked device, one sync service and one mirror.
   without it. What depends on how this setup runs (YOLO used for reads, peers
   that cannot answer a card, the runtime's private preview table) stays here
   and out of the package.
-- **Its skills arrive whole.** The package registers every skill it ships,
-  so the Assistant also sees `signal-tools:actions` though that toolset is
-  off; the Chat reference says those actions are not available.
 
 ## Why
 
