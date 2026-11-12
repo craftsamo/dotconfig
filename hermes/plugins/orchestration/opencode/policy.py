@@ -219,7 +219,7 @@ GIT_TOOLS_READS = ("git_repo_read", "git_commit_read", "git_rebase_read", "git_w
 # Assistant, whose access to them goes through its own plugin and cards, and a run's
 # asks reach only the caller, who could approve a send there with no card at all.
 # Denying the whole action also hides the tools from the run.
-MESSAGING_DENY_TOOLS = ("signal_*",)
+MESSAGING_DENY_TOOLS = ("signal_*", "telegram_*")
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
 # write run keeps three, asking the caller: a PR's labels, assignees, reviewers and milestone
