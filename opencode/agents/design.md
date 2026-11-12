@@ -16,6 +16,12 @@ permissions:
   - { action: "git_*_read", resource: "*", effect: allow }
   - { action: "signal_*", resource: "*", effect: deny }
   - { action: "signal_*_read", resource: "*", effect: allow }
+  - { action: "telegram_*", resource: "*", effect: deny }
+  # Each Telegram read is named: telegram_chat_mark_read is a write that a
+  # `telegram_*_read` glob would reopen.
+  - { action: telegram_account_read, resource: "*", effect: allow }
+  - { action: telegram_chat_read, resource: "*", effect: allow }
+  - { action: telegram_sync_read, resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }
   - { action: "github_*_read", resource: "*", effect: allow }
   # The repository is read-only; the mocks go to a job's drafts directory
