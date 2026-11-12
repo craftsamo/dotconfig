@@ -231,7 +231,9 @@ MESSAGING_DENY_TOOLS = ("signal_*",)
 # only allows beyond paths: they follow the deny of the whole action and name each read, so they
 # reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
 # Being session rules, which come after an agent's own, they also reopen these reads for a subagent
-# that denies `*` itself; accepted, since they only read through the person's own `gh` login.
+# that denies `*` itself; accepted, since they only read through the person's own `gh` login. The
+# asks reach a subagent the same way, so they are approvable only when the run's own session raised
+# them (pr_ask_from_child): a subagent's is rejected.
 GITHUB_TOOLS_DENY = "github_*"
 GITHUB_TOOLS_READS = (
     "github_issue_read", "github_pr_read", "github_stack_read", "github_project_read", "github_repo_read",
@@ -253,6 +255,14 @@ def github_write(action):
     return isinstance(action, str) and (
         matches(GITHUB_TOOLS_DENY, action) and action not in GITHUB_TOOLS_READS
         and action not in RUN_GITHUB_TOOLS_ASKS)
+
+
+def pr_ask_from_child(item, sid):
+    """Whether a pending permission request is one of a write run's PR asks (`RUN_GITHUB_TOOLS_ASKS`)
+    that the run's own session `sid` did not raise: a subagent copies the ruleset, so a read-only
+    one that denies `github_*` itself would get the ask. Fails closed on a missing session id.
+    The caller may reject it, never approve it."""
+    return item.get("action") in RUN_GITHUB_TOOLS_ASKS and item.get("session_id") != sid
 
 
 def pr_edit_beyond_metadata(item):

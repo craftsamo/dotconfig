@@ -788,8 +788,9 @@ def _shell_issue_write(item):
         for pattern in policy.ISSUE_WRITES for resource in item.get("resources") or [] if isinstance(resource, str))
 
 
-def _reply_plan(found, entry):
-    """One validated reply as (item, route, segments, body); sends nothing."""
+def _reply_plan(found, entry, sid):
+    """One validated reply as (item, route, segments, body) to a request pending in the run whose own
+    session is `sid`; sends nothing."""
     if not isinstance(entry, dict) or set(entry) - set(REPLY_FIELDS):
         raise ValueError(f"Each reply takes only {', '.join(REPLY_FIELDS)}")
     request_id = entry.get("request_id")
@@ -808,6 +809,11 @@ def _reply_plan(found, entry):
             # makes the change itself through its own GitHub tools, from the run's progress.
             raise ValueError(f"{item['action']} is an Issue or board write: reject it (and make the change "
                              "yourself through the GitHub tools if it is wanted)")
+        if decision == "once" and policy.pr_ask_from_child(item, sid):
+            # A subagent copies the run's ruleset, so a read-only one that denies github_* itself
+            # still gets these asks; only the run's own build may open, link or edit its PR.
+            raise ValueError(f"{item['action']} came from a subagent: only the run's own build may open, link or "
+                             "edit its PR; reject it")
         if decision == "once" and policy.pr_edit_beyond_metadata(item):
             # A run may only change a PR's labels, assignees, reviewers and milestone; a title,
             # body, base, closing issues or attachments (local files) are the Assistant's.
@@ -852,7 +858,7 @@ def opencode_request(args, **kwargs):
         else:
             entries = [{k: args[k] for k in REPLY_FIELDS if k in args}]
         # Every reply is checked before any is sent, so a bad one sends none.
-        planned = [_reply_plan(found, entry) for entry in entries]
+        planned = [_reply_plan(found, entry, sid) for entry in entries]
         ids = [item["id"] for item, *_ in planned]
         if len(set(ids)) != len(ids):
             raise ValueError("Each request may be answered once")

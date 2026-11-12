@@ -408,6 +408,48 @@ def test_the_caller_approves_a_pr_create_and_a_stack_link_once_but_never_a_board
     assert fake.replies[-1][1]["decision"] == "reject", rejected
 
 
+def test_pr_ask_from_child_is_true_for_a_pr_ask_the_runs_own_session_did_not_raise():
+    for action in policy.RUN_GITHUB_TOOLS_ASKS:
+        assert not policy.pr_ask_from_child({"action": action, "session_id": "ses_1"}, "ses_1"), action
+        assert policy.pr_ask_from_child({"action": action, "session_id": "ses_1child"}, "ses_1"), action
+        assert policy.pr_ask_from_child({"action": action}, "ses_1"), "fails closed without a session id"
+        assert policy.pr_ask_from_child({"action": action, "session_id": None}, "ses_1"), action
+    for item in ({"action": "external_directory", "session_id": "ses_1child"}, {"action": None}, {}):
+        assert not policy.pr_ask_from_child(item, "ses_1"), item
+
+
+@pytest.mark.parametrize("action", policy.RUN_GITHUB_TOOLS_ASKS)
+def test_the_caller_never_approves_a_pr_ask_a_subagent_raised_but_may_reject_it(fixture, action):
+    _, directory, _, fake = fixture
+    arguments = {"pr": 20, "add_labels": ["bug"]} if action == "github_pr_edit" else {"title": "Add x"}
+    scripted(fake, "ask-permission", "finish")
+    paused = run("plan", directory)
+    sid = paused["session_id"]
+    fake.requests.clear()
+    child = fake.ask(fake.child(sid), action=action, resources=["octo/example"], metadata={"arguments": arguments})
+    own = fake.ask(sid, action=action, resources=["octo/example"], metadata={"arguments": arguments})
+    pending = {p["id"]: p for p in request("list", sid)["pending"]}
+    assert pending[child["id"]]["subagent"] is True and pending[own["id"]]["subagent"] is False
+    refused = request("reply", sid, request_id=child["id"], decision="once")
+    assert "came from a subagent" in refused["error"] and action in refused["error"], refused
+    assert not fake.replies, "the refused once sent nothing"
+    rejected = request("reply", sid, request_id=child["id"], decision="reject")
+    assert fake.replies[-1] == (child["id"], {"decision": "reject"}), rejected
+    approved = request("reply", sid, request_id=own["id"], decision="once")
+    assert "error" not in approved and fake.replies[-1] == (own["id"], {"decision": "once"}), approved
+
+
+def test_a_pr_ask_whose_session_cannot_be_read_is_refused_once_but_may_be_rejected():
+    item = {"kind": "permission", "id": "per_1x", "action": "github_pr_create",
+            "metadata": {"arguments": {"title": "Add x"}}}
+    once = {"request_id": "per_1x", "decision": "once"}
+    with pytest.raises(ValueError, match="came from a subagent"):
+        plugin._reply_plan([item], once, "ses_1")
+    plan = plugin._reply_plan([item], {**once, "decision": "reject"}, "ses_1")
+    assert plan[-1] == {"decision": "reject"}
+    assert plugin._reply_plan([{**item, "session_id": "ses_1"}], once, "ses_1")[-1] == {"decision": "once"}
+
+
 def test_write_run_needs_approval_and_a_task_branch(fixture):
     _, directory, _, fake = fixture
     assert "approval" in run("build", directory)["error"]
