@@ -105,9 +105,11 @@ one merge follow "Stacks and chains" below.
   retargets the base when the lower PR merges. After lower PRs were
   squash-merged, the next one shows `behind` with `mergeable`: its branch
   still carries the originals while main has their squashed copies.
-  Confirm in a clone with `git merge-tree --write-tree origin/main
-  origin/<branch>` (a bare tree hash, no conflict lines) and report "behind,
-  no conflict". The fix is a rebase of the chain, not conflict resolution.
+  Read `git_repo_read` `conflicts` and the PR's mergeability before reporting
+  "behind, no conflict". If a local merge simulation is needed, tell the user to run
+  `git merge-tree --write-tree origin/main origin/<branch>` in the clone
+  (a bare tree hash, no conflict lines); do not run it yourself. The fix is a
+  rebase of the chain, not conflict resolution.
 - When handing over a chain for the user to merge by hand, say the rule in
   the same message: bottom-up with "Create a merge commit", or merge one and
   ask for a rebase of the rest before the next.
@@ -135,14 +137,20 @@ everywhere: merge with `github_pr_merge` and an explicit `subject` and `body`.
 
 ## After the merges
 
-When the user asks to tidy up branches, do it in one pass in the local clone,
-listing before deleting: `git fetch --prune origin`, then `git branch -r`
-(expect only `origin/main`), `git branch`, `git worktree list`; check
-`git status --porcelain` and the stash; then reset the clone to
-`origin/main`, remove the worktrees of merged branches, `git worktree prune`,
-and delete the rest with `git branch -D` (squash history leaves
-`--merged` empty; the remote holding only main is the evidence nothing is
-lost). Finish by showing the branches and worktrees left. Worktrees an
-OpenCode `workspace` made are not part of that pass: `opencode_session
-cleanup` removes each one with its sessions and landed branches right after
-its merge (`opencode:drive`), so never remove one by hand.
+When the user asks to tidy up branches, load `skill_view(name="git-tools:repo")`
+and `skill_view(name="git-tools:worktree")`. Fetch with
+`git fetch --prune origin`, inspect `git_repo_read` `status`, and list branches
+and stashes with `git branch -r`, `git branch` and `git stash list`. List
+worktrees with `git_worktree_read` `list`; remove a person's own landed task
+worktree with `git_worktree_remove`, on its card. It never forces removal and
+deletes the branch only once landed; a remote holding only main is not proof
+that an unlanded local branch is disposable.
+
+Resetting the clone or deleting an unlanded branch is the user's to do. Tell
+the user to run `git reset --hard origin/main` only after explaining what
+local changes it discards. Tell the user to run `git branch -D <branch>` only
+after naming the unlanded work it discards. Finish by showing the branches
+and worktrees left. Worktrees an OpenCode `workspace` made are not part of
+that pass: `opencode_session cleanup` removes each one with its sessions and
+landed branches right after its merge (`opencode:drive`), so never remove one
+with `git_worktree_remove` or by hand.
