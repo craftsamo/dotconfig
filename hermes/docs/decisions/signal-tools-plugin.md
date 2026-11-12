@@ -48,4 +48,5 @@ were fixed upstream rather than worked around here.
   `opencode/opencode.jsonc` together; a test keeps them equal.
 - The package's skills are its own; this repository adds only the Chat
   reference that says when the Assistant uses Signal.
-- Mandates for Telegram and WhatsApp are unchanged.
+- Mandates for WhatsApp are unchanged; Telegram moved to its own package
+  without them ([telegram-tools-plugin.md](telegram-tools-plugin.md)).

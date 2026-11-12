@@ -7,9 +7,8 @@ first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Four kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
-([hyperliquid.md](hyperliquid.md)), a text send on Telegram or
-WhatsApp ([telegram-access.md](telegram-access.md),
-[whatsapp-access.md](whatsapp-access.md)),
+([hyperliquid.md](hyperliquid.md)), a text send on
+WhatsApp ([whatsapp-access.md](whatsapp-access.md)),
 a Cloudflare zone change ([cloudflare-access.md](cloudflare-access.md)) and a
 gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
@@ -31,8 +30,8 @@ Hermes receives only shared secret layers: `profile-secrets.sh` and the
 tool-mode `secret-shim` pin `--scope <project>`, because without it `secret
 env` adds the scope named after the working directory's repository. A
 credential kept in the `hermes` keychain sits under a scope of its own (each
-doc names the item and scope; WhatsApp and Signal keep their sessions in the
-engine's own store instead), so it never enters any profile's secret scope or a
+doc names the item and scope; WhatsApp, Signal and Telegram keep their sessions
+in the engine's own store instead), so it never enters any profile's secret scope or a
 CLI session, and the engine reads it only when it needs it. The engine reads them when it
 needs them and never prints or logs them; replacing one needs no gateway
 restart. Short rule: [AGENTS.md](../AGENTS.md) "Secrets, auth and accounts".
@@ -82,15 +81,16 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. Discord, Telegram, WhatsApp, Google, note, Stripe and
+  exists. Discord, WhatsApp, Google, note, Stripe and
   Cloudflare use the shared check `plugins/_shared/human_gate.py`
   (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal, GitHub and Git packages
-  ([signal-tools.md](signal-tools.md), [github-tools.md](github-tools.md),
+  third-party Signal, Telegram, GitHub and Git packages
+  ([signal-tools.md](signal-tools.md), [telegram-tools.md](telegram-tools.md),
+  [github-tools.md](github-tools.md),
   [git-tools.md](git-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, a Telegram or WhatsApp text
+  inside a mandate (Hyperliquid, a WhatsApp text
   send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
@@ -98,8 +98,8 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
-  Signal, GitHub and Git are the exceptions: their package handlers are not
-  ours, so only the guards' hooks refuse, and the profile validator refuses a
+  Signal, Telegram, GitHub and Git are the exceptions: their package handlers
+  are not ours, so only the guards' hooks refuse, and the profile validator refuses a
   config that enables a package without its guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
   600 s so a card stays answerable on Telegram.

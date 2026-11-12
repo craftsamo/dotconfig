@@ -1,5 +1,12 @@
 # Telegram access
 
+> [!NOTE]
+> Being replaced by the third-party package
+> ([telegram-tools.md](telegram-tools.md)). Once the Assistant has moved, this
+> plugin stays in the repository, disabled, until it is removed. The shared
+> archive inspection described below is still in use by the other chat
+> plugins.
+
 The Assistant's access to the user's own Telegram account: reading chats,
 groups and channels, keeping a chosen set of supergroups and channels synced,
 saving received files, and sending text and workspace files that the user

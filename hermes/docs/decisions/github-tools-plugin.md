@@ -53,5 +53,4 @@ about than a write whose bounds were fixed in advance.
   `opencode/opencode.jsonc` together; a test keeps them equal.
 - Widening what a run may write, or approving one for the caller, reopens
   GitHub writes with no card.
-- Mandates for Hyperliquid, Telegram, WhatsApp, Cloudflare and gcloud are
-  unchanged.
+- Mandates for Hyperliquid, WhatsApp, Cloudflare and gcloud are unchanged.
