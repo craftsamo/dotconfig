@@ -49,7 +49,7 @@
     // Its git-tools.worktrees strategy replaces OpenCode's default and uses
     // ~/Worktrees. Hermes pins the same release
     // (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/git-tools@0.2.1", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
+    { "package": "@craftsamo/git-tools@0.2.2", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
