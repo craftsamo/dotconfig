@@ -129,12 +129,14 @@ the record the Assistant mirrors all hang on this one value.
 
 **A run's GitHub writes.** The session ruleset denies the whole `github_*`
 action (the person's github-tools writes), and reopens only the `github_*_read` reads. A write run
-also has `github_pr_edit` ask the caller, for its PR's labels, assignees,
-reviewers and milestone only, which the caller may answer `once`:
-`opencode_request` refuses `once` when the pending call's arguments
+also asks the caller to open its PR (`github_pr_create`), link its stack
+(`github_stack_link`) and set its PR's labels, assignees, reviewers and
+milestone only (`github_pr_edit`), which the caller may answer `once`.
+A PR create with board arguments (`project`/`fields`) is refused `once`.
+For a PR edit, `opencode_request` refuses `once` when the pending call's arguments
 (`metadata.arguments`) carry anything else (a title, body, base, closing issues,
 attachments) or cannot be read (`policy.pr_edit_beyond_metadata`), since the
-rest of a PR is the Assistant's through its own tools. Nothing else is
+rest of an existing PR is the Assistant's through its own tools. Nothing else is
 asked: a run never writes Issues or boards, and an Issue or board write that
 still reaches the caller, through a tool or the shell (`gh issue …`), can
 only be rejected: `opencode_request` refuses `once` on it (`policy.github_write`),
@@ -282,7 +284,9 @@ rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (f
 pushes, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
 aliases and extensions, edits under `.git/`, the Signal tools `signal_*` with
 their reads, the github-tools writes `github_*` but its read tools,
-and in a write run `github_pr_edit` for a PR's labels, assignees, reviewers and milestone as an ask), and last the person's own denies
+and in a write run asks for `github_pr_create`, `github_stack_link` and
+`github_pr_edit` for a PR's labels, assignees, reviewers and milestone only,
+with board arguments refused), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or
 `secret get`. OpenCode checks each command as written, environment prefixes,
 wrappers (`env`, `sh -c`, `xargs`), options before git's subcommand, tabs and
@@ -308,35 +312,38 @@ worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
-`worker`, `worker-deep`, `refactorer` and `general` subagents, and the
-`git_commit` / `git_stage_hunks` / `git_verify_commits` / `git_rebase` /
-`git_stack` / `git_publish` tools,
-which write or run commands past the shell rules. A `write` run rewrites its task branch the way the person's
-OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
-because they refuse the default branch, shared commits and protected branches
-themselves, and the result leaves the machine only through a push. Every force
-spelling stays denied except the task branch's own lease push, re-opened as an
+`worker`, `worker-deep`, `refactorer` and `general` subagents, and the whole
+`git_*` action, reopening only the named reads: `git_repo_read`,
+`git_commit_read`, `git_rebase_read`, `git_worktree_read`, `git_push_read`
+and the local read tools still listed in `policy.LEGACY_GIT_READS`.
+Every run denies `git_worktree`, `git_worktree_add` and `git_worktree_remove`:
+the caller owns its workspace. A `write` run leaves the other git tools to
+the person's global rules: `git_push_send` and `git_commit_verify` ask;
+staging, committing, amending and rebasing do not. A session ask would reopen
+a read-only subagent's own deny. The tools refuse the default branch, shared
+commits and protected branches themselves, and the result leaves the machine
+only through a push. Every force spelling stays denied except the task
+branch's own lease push, re-opened as an
 ask by its exact text (`git push --force-with-lease origin
 HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
 `policy.lease_pushes`): a full destination, which push config cannot remap.
 A build prefers a native stack for a PR whose work splits into reviewable
-layers, and publishes every PR, plain or stacked, through three tools:
-`git_stack` (split, add, rebase; local branches only) runs without asking like
-`git_rebase`, `git_publish_preview` only reads and is open to every run, and
-`git_publish` (push, submit, link) asks through
-the person's global rules (a session rule would reopen the deny a read-only
-subagent sets itself) and publishes only the exact state the preview's token
-pinned, metadata it judged and the PR titles and bodies included: the words
-the caller approved are the words published, and the preview reads them
-(with each commit subject and branch name) for the working context a run
-tends to carry into them — Phase names, decision-log numbers, tool and agent
-names, local paths, account state — which the operating note of a write run
-names as excluded, since the repository's readers have none of it. The
-preview's findings are tripwires for the caller to judge, not a filter: the
-rule lives in the `git-pullrequest` skill. In a write run every
+layers. Publication starts with `git_push_read` (method `preview`): for each
+branch it reports the push kind (`create`, `fast_forward`, `force`), commits
+the remote lacks, what a force drops, refusals, the secret scan and
+published-text findings over branch names and commit subjects, plus `send`,
+the exact arguments. The build reports that preview and the PR titles and
+bodies before pushing. `git_push_send` pushes exactly that `send`, leased,
+and asks the caller; then `github_pr_create` opens each layer with its title,
+body, base and metadata, and `github_stack_link` links a native stack's PR
+numbers bottom to top, each asking the caller. The caller checks the push
+against its preview and reads the whole PR text for someone with only the
+repository: no Phase names, decision-log numbers, tool or agent names, local
+paths or account state. The preview's findings are tripwires to judge, not a
+filter: the rule lives in the `git-pullrequest` skill. In a write run every
 `gh stack` command but `view` asks too, since it rebases and force-pushes
 layers and takes flags before its subcommand; a read-only run is denied
-`gh stack` and both tools entirely, and merging or unstacking a stack always. A write
+`gh stack` entirely, and merging or unstacking a stack always. A write
 run needs the user's quoted `approval`, a named non-default task branch, and a
 worktree no other session is running in (a person's included). The approval is
 the caller's record, kept as `metadata.hermes.approval` (the latest build's,
