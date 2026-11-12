@@ -813,6 +813,10 @@ def _reply_plan(found, entry):
             raise ValueError("github_pr_edit may carry only a PR's labels, assignees, reviewers and milestone "
                              "for a run: reject it (the rest of the PR is yours to change through the "
                              "GitHub tools if it is wanted)")
+        if decision == "once" and policy.pr_create_beyond_pr(item):
+            # Putting a PR on a board is a board write, the Assistant's.
+            raise ValueError("github_pr_create may not put a run's PR on a board: reject it (add it to the "
+                             "board yourself through the GitHub tools if it is wanted)")
         body = {"decision": decision, **({"message": reason} if reason else {})}
         return item, "post", "/api/session/{sid}/permission/{per}/reply", {"per": request_id}, body
     if not FORM_ID.fullmatch(request_id):
