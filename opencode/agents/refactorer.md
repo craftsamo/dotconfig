@@ -22,6 +22,7 @@ permissions:
   - { action: external_directory, resource: "*", effect: ask }
   - { action: external_directory, resource: "~/.local/share/opencode/worktree/*", effect: allow }
   - { action: external_directory, resource: "*/.worktrees/*", effect: allow }
+  - { action: external_directory, resource: "~/Worktrees/*", effect: allow }
   # The code-hygiene skill's references/ live in the shared skill root.
   - { action: external_directory, resource: "~/.agents/skills/code-hygiene/*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }

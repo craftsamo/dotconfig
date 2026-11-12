@@ -12,18 +12,12 @@ permissions:
   - { action: read, resource: "*/.env.*", effect: deny }
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
-  - { action: git_provenance, resource: "*", effect: allow }
-  - { action: git_state, resource: "*", effect: allow }
-  - { action: git_commit, resource: "*", effect: deny }
-  - { action: git_worktree, resource: "*", effect: deny }
-  - { action: git_rebase, resource: "*", effect: deny }
-  - { action: git_stack, resource: "*", effect: deny }
-  - { action: git_publish, resource: "*", effect: deny }
+  - { action: "git_*", resource: "*", effect: deny }
+  - { action: "git_*_read", resource: "*", effect: allow }
   - { action: "signal_*", resource: "*", effect: deny }
   - { action: "signal_*_read", resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }
   - { action: "github_*_read", resource: "*", effect: allow }
-  - { action: git_publish_preview, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
@@ -243,8 +237,8 @@ Workflow:
    changed between the last known-good state and now. Read the history of the
    failing code and of its inputs — configuration, dependencies and their lock
    files, data, and environment — not just the file where the error surfaces
-   (`git log`, `git blame`, `git_provenance`, all read-only). This bounds the
-   change set and forms candidate hypotheses.
+   (`git log`, `git blame`, `git_repo_read` method `origin`, all read-only).
+   This bounds the change set and forms candidate hypotheses.
 4. Delegate deep isolation to `debugger`, one call per independent hypothesis
    (in parallel when they are independent). Hand each an explicit, framed scope:
    the symptom, the reproduction, whether it is a regression, the bounded change
