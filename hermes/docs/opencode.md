@@ -132,7 +132,8 @@ action (the person's github-tools writes), and reopens only the `github_*_read` 
 also asks the caller to open its PR (`github_pr_create`), link its stack
 (`github_stack_link`) and set its PR's labels, assignees, reviewers and
 milestone only (`github_pr_edit`), which the caller may answer `once`.
-A PR create with board arguments (`project`/`fields`) is refused `once`.
+A PR create with board arguments (`project`/`fields`) is refused `once`, and so is
+any of the three raised by a subagent session (`policy.pr_ask_from_child`).
 For a PR edit, `opencode_request` refuses `once` when the pending call's arguments
 (`metadata.arguments`) carry anything else (a title, body, base, closing issues,
 attachments) or cannot be read (`policy.pr_edit_beyond_metadata`), since the

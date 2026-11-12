@@ -81,7 +81,8 @@ follows comes to you as a request.
   (a PR's labels, assignees, reviewers and milestone only),
   which arrives as a request you may approve `once` against the reasons the
   build reported; one that also carries a title, body, base, closing issues or
-  attachments is refused `once` like an Issue write: `reject` it and change
+  attachments, or one raised by a subagent (`subagent: true`), is refused `once`
+  like an Issue write: `reject` it and change
   the PR yourself with your GitHub tools when it is wanted. One that still
   reaches you for an Issue or the board (any other
   `github_*` write or a shell `gh issue
