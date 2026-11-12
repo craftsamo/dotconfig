@@ -139,7 +139,7 @@ def test_plan_then_build_switches_agent_model_and_ruleset_on_one_session(fixture
     assert now["agent"] == "build"
     assert now["model"] == {"providerID": "openai", "id": "gpt-6.1-sol", "variant": "medium"}
     assert {"action": "edit", "resource": "*", "effect": "deny"} not in now["permissions"]
-    assert policy.decide(now["permissions"], "shell", "git push origin topic") == "ask"
+    assert policy.decide(now["permissions"], "shell", "git push origin topic") == "deny"
     assert {"action": "shell", "resource": "gh issue comment *", "effect": "ask"} not in now["permissions"], \
         "an Issue grant lifts the Issue-write asks"
     assert fake.prompts[-1] == (sid, MESSAGE), "the approval is the caller's record, not prompt text"
@@ -2442,8 +2442,7 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
               | set(policy.DEPENDABOT_ALERT_READS))
     # The github-tools and git-tools reads: the whole action is denied right before them, so they
     # reopen reads only.
-    reads = [policy.rule(name, "*", "allow")
-             for name in (*policy.GITHUB_TOOLS_READS, *policy.GIT_TOOLS_READS, *policy.LEGACY_GIT_READS)]
+    reads = [policy.rule(name, "*", "allow") for name in (*policy.GITHUB_TOOLS_READS, *policy.GIT_TOOLS_READS)]
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -2471,7 +2470,7 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
                             "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-            for tool in ("git_worktree", "git_worktree_add", "git_worktree_remove"):
+            for tool in ("git_worktree_add", "git_worktree_remove"):
                 assert policy.decide(rules, tool, "*") == "deny", (kind, tool, "workspace owns worktrees")
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
@@ -2515,12 +2514,40 @@ def test_never_approved_commands_stay_denied_however_spelled():
                         "git clean -xdf", "git clean -Xdf",
                         "X=push git --config-env=alias.p=X p --force origin main"):
             assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-        assert policy.decide(rules, "shell", "sh -c 'git push'") == ("ask" if kind == "write" else "deny")
         for path in (".git/config", ".git/hooks/pre-commit", "sub/.git/config", f"{Path.home()}/.gitconfig",
                      f"{Path.home()}/.config/gh/config.yml"):
             assert policy.decide(rules, "edit", path) == "deny", (kind, path)
         # The known cost of containment for git: a command that merely quotes such words.
         assert policy.decide(rules, "shell", "grep -rn 'git push --force' docs") == "deny"
+
+
+PUSH_SPELLINGS = (
+    "git push", "git push origin topic", "git push origin HEAD:refs/heads/task/x",
+    "git push --force-with-lease origin HEAD:refs/heads/topic",
+    "git push --force-with-lease --force-if-includes origin HEAD:refs/heads/topic",
+    "git push --force-with-lease origin HEAD:refs/heads/main", "git push -u origin topic",
+    "env FOO=1 git push", "FOO=1 git push", "git -C . push", "git --no-pager push origin topic",
+    "git\tpush origin topic", "sh -c 'git push'", 'sh -c "git push origin topic"', "xargs git push",
+    "git 'push' origin topic", "git push \\\norigin topic", "cd x && git push", "/usr/bin/git push",
+    "gh stack push", "gh stack -R o/r push", "gh stack submit", "gh stack submit --open", "gh stack sync",
+    "env X=1 gh stack push", "sh -c 'gh stack submit'", "gh stack\tpush",
+)
+
+
+def test_every_shell_push_is_denied_in_every_run_however_spelled():
+    """A push leaves the machine only through git_push_send, which the caller approves against
+    the git_push_read preview; a shell push would carry nothing the caller can check."""
+    for kind in config.POLICIES:
+        session = policy.rules(kind, "granted", {"main"}, branch="topic")
+        rules = fakes.agent_info("build")["permissions"] + session
+        for command in PUSH_SPELLINGS:
+            assert policy.decide(rules, "shell", command) == "deny", (kind, command)
+        assert not [r for r in session if r["action"] == "git_push_send"], "the global rules decide the send"
+    write = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="topic")
+    for command in ("gh stack view", "gh stack view --json"):
+        assert policy.decide(write, "shell", command) == "allow", command
+    for command in ("gh stack rebase", "gh stack checkout fix/merge-order"):
+        assert policy.decide(write, "shell", command) == "ask", command
 
 
 def test_gh_denies_follow_the_subcommand_not_the_text():
@@ -2544,8 +2571,8 @@ def test_options_and_prefixes_cannot_skip_the_person_asks():
                                                                         gh_aliases=("co",))
         # A write run's caller decides; a read-only run is denied, as its agents may deny these themselves.
         expected = "ask" if kind == "write" else "deny"
-        for command in ("git --no-pager push origin topic", "FOO=1 git push origin topic", "git -C x commit -m 'fix status'",
-                        "git --no-pager commit -m x", "git --work-tree=. checkout other", "git -C x push origin status",
+        for command in ("git --no-pager rebase main", "FOO=1 git reset HEAD~1", "git -C x commit -m 'fix status'",
+                        "git --no-pager commit -m x", "git --work-tree=. checkout other", "git -C x rebase status",
                         "git -c core.fsmonitor=x status", "git --exec-path=/tmp status", "gh pr checkout 3",
                         "gh pr -R o/r checkout 3", "gh co 3"):
             assert policy.decide(rules, "shell", command) == expected, (kind, command)
@@ -2668,12 +2695,12 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
     for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    for tool in (*policy.GIT_TOOLS_READS, *policy.LEGACY_GIT_READS):
+    for tool in policy.GIT_TOOLS_READS:
         assert policy.decide(rules, tool, "*") == "allow", f"{tool} only reads"
     for tool in ("git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify",
                  "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_push_send",
                  "git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish",
-                 "git_future_read", "git_worktree", "git_worktree_add", "git_worktree_remove"):
+                 "git_future_read", "git_state", "git_worktree", "git_worktree_add", "git_worktree_remove"):
         assert policy.decide(rules, tool, "*") == "deny", tool
     assert policy.decide(rules, "github_pr_create", "owner/repo") == "deny"
     write = policy.rules("write", None, {"main"})
@@ -2684,6 +2711,7 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
         assert policy.decide(write, tool, "*") != "deny", f"a build rewrites and pushes its own commits through {tool}"
     for tool in policy.TOOL_DENY:
         assert policy.decide(write, tool, "*") == "deny", tool
+    assert not [r for r in write if r["action"] == "git_push_send"], "git_push_send has no session rule: the global rules ask"
     for tool in ("github_pr_create", "github_stack_link"):
         assert policy.decide(write, tool, "owner/repo") == "ask", tool
     assert policy.decide(write, "github_issue_create", "owner/repo") == "deny"
@@ -2697,11 +2725,8 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
     rules = policy.rules("write", None, {"main"}, tmp="/tmp/fake-opencode", person_denies=person, branch="topic")
     assert {"action": "shell", "resource": "ls *", "effect": "deny"} not in rules
     combined = fakes.agent_info("build")["permissions"] + rules
-    for command in ("git push origin topic", "git push --force-with-lease origin HEAD:refs/heads/topic",
-                    "git push --force-with-lease --force-if-includes origin HEAD:refs/heads/topic", "git rebase main",
-                    "git commit --amend", "gh stack rebase", "gh stack push", "gh stack -R o/r push",
-                    "gh stack submit --open", "gh stack view --json", "git checkout other", "git -C .. status x",
-                    "npm exec foo", "gh issue comment 1"):
+    for command in ("git rebase main", "git commit --amend", "gh stack rebase", "gh stack view --json",
+                    "git checkout other", "git -C .. status x", "npm exec foo", "gh issue comment 1"):
         expected = "allow" if command.startswith(("git -C .. status", "gh stack view")) else "ask"
         assert policy.decide(combined, "shell", command) == expected, command
     assert policy.decide(combined, "shell", "pytest -q") == "allow"
@@ -2711,9 +2736,6 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
                     "pnpm dlx create-x"):
         assert policy.decide(combined, "shell", command) == "ask", command
     assert policy.decide(combined, "shell", "gh stack checkout fix/merge-order") == "ask"
-    unbound = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="main")
-    assert policy.decide(unbound, "shell", "git push --force-with-lease origin HEAD:refs/heads/main") == "deny", \
-        "never a protected lease"
     assert policy.decide(combined, "shell", "sudo rm -rf /") == "deny"
     assert policy.decide(combined, "edit", "src/a.py") == "allow"
     assert policy.decide(rules, "external_directory", "/secret/x/*") == "deny"
