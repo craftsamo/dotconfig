@@ -24,7 +24,7 @@ status=0
 # GitHub CLI extensions. `gh` has no manifest of its own — the installed set is
 # only discoverable via `gh extension list` — so this array is the declaration.
 #   github/gh-stack  native stacked pull requests; required by the
-#                    git-pullrequest and approach-github-planning skills
+#                    git-pullrequest and approach-github-delivery skills
 GH_EXTENSIONS=(
   github/gh-stack
 )
