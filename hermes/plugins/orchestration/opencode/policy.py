@@ -193,21 +193,28 @@ def protected_pushes(name):
     return _all(contains("git", "push", name, quotes=True), sides,
                 tuple(f"*git*push*{lead}{name}" for lead in (":", "/", *_QUOTES)))
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
-# removes worktrees itself (`workspace` does), and a read-only run never commits,
-# stages, rebases or runs a command at each commit (git_verify_commits asks, and
-# the caller must not approve that for a read-only run). A write run's
-# git_commit amend/fixup and git_rebase stay open: they refuse by themselves to
-# rewrite the default branch, shared or protected commits, and what they rewrote
-# leaves the machine only through a push, which asks. git_stack moves a
-# native stack's local branches (split, add, rebase) like git_rebase;
-# git_publish pushes and opens or links PRs and asks through the person's
-# global rules, as git_verify_commits does. A write run states no ask for it:
-# a session-level rule would come after, and reopen, the deny a read-only
-# subagent sets itself. A read-only run is denied both; git_publish_preview
-# only reads and stays open to every run.
-TOOL_DENY = ("git_worktree",)
-READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
-                        "git_publish")
+# removes worktrees itself (`workspace` does), so every run is denied the worktree
+# tools. A read-only run never stages, commits, rebases, pushes or runs a command at
+# each commit: it is denied the whole `git_*` action and reopens only the named
+# reads (`GIT_TOOLS_READS`; git_push_read only previews a push). A write run's
+# git_commit_amend and git_rebase_* stay open: they refuse by themselves to rewrite
+# the default branch, shared or protected commits, and what they rewrote leaves the
+# machine only through a push. git_push_send pushes and git_commit_verify runs a
+# command at each commit; both ask through the person's global rules. A write run
+# states no session rule for the git tools: an ask would come after, and reopen, the
+# deny a read-only subagent sets itself.
+TOOL_DENY = ("git_worktree", "git_worktree_add", "git_worktree_remove")
+# git-tools (`@craftsamo/git-tools`): the same pattern as github-tools below. Each read is
+# named, never a `git_*_read` glob, so a write a later release adds stays denied even if
+# it is named `…_read`.
+GIT_TOOLS_DENY = "git_*"
+GIT_TOOLS_READS = ("git_repo_read", "git_commit_read", "git_rebase_read", "git_worktree_read", "git_push_read")
+# The local git tools' reads, reopened until those tools are removed; a later change drops
+# this tuple with them.
+LEGACY_GIT_READS = (
+    "git_state", "git_conflicts", "git_history_digest", "git_provenance", "git_related_scan",
+    "git_secret_scan", "git_commit_lint", "git_amend_check", "git_publish_preview",
+)
 # The person's own messaging accounts, reads included: a run is commissioned by the
 # Assistant, whose access to them goes through its own plugin and cards, and a run's
 # asks reach only the caller, who could approve a send there with no card at all.
@@ -215,9 +222,12 @@ READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "
 MESSAGING_DENY_TOOLS = ("signal_*",)
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
-# write run keeps one: a PR's labels, assignees, reviewers and milestone only (github_pr_edit),
-# asking the caller; the caller approves it
-# only while the call carries nothing but those (pr_edit_beyond_metadata). The reads' allows are the ruleset's
+# write run keeps three, asking the caller: a PR's labels, assignees, reviewers and milestone
+# (github_pr_edit), approved only while the call carries nothing but those
+# (pr_edit_beyond_metadata); opening its PR (github_pr_create) and linking its native stack
+# (github_stack_link), which the caller approves `once` only after checking the push against
+# git_push_read's preview and the PR's title and body, and never with a board
+# (pr_create_beyond_pr). The reads' allows are the ruleset's
 # only allows beyond paths: they follow the deny of the whole action and name each read, so they
 # reopen only those reads and a write a later release adds stays denied, even one named `…_read`.
 # Being session rules, which come after an agent's own, they also reopen these reads for a subagent
@@ -228,16 +238,17 @@ GITHUB_TOOLS_READS = (
     "github_label_read", "github_milestone_read", "github_ruleset_read", "github_release_read",
     "github_workflow_read", "github_run_read",
 )
-RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit",)
+RUN_GITHUB_TOOLS_ASKS = ("github_pr_edit", "github_pr_create", "github_stack_link")
 PR_METADATA_ARGS = frozenset({
     "pr", "repo", "add_labels", "remove_labels", "add_assignees", "remove_assignees",
     "add_reviewers", "remove_reviewers", "milestone", "remove_milestone",
 })
+PR_CREATE_BOARD_ARGS = frozenset({"project", "fields"})
 
 
 def github_write(action):
     """Whether a permission action writes GitHub Issues, the board or anything else past
-    a PR's metadata: a `github_*` tool that is neither a read
+    opening a PR, linking its stack and its metadata: a `github_*` tool that is neither a read
     nor one of the asks a write run keeps. The caller may reject one, never approve it."""
     return isinstance(action, str) and (
         matches(GITHUB_TOOLS_DENY, action) and action not in GITHUB_TOOLS_READS
@@ -254,6 +265,18 @@ def pr_edit_beyond_metadata(item):
     arguments = metadata.get("arguments") if isinstance(metadata, dict) else None
     return not isinstance(arguments, dict) or any(
         name not in PR_METADATA_ARGS and value is not None for name, value in arguments.items())
+
+
+def pr_create_beyond_pr(item):
+    """Whether a pending permission request is a `github_pr_create` that also puts the PR on
+    a board (a project or its fields), or whose arguments cannot be read: a board write is
+    the Assistant's. The caller may reject it, never approve it."""
+    if item.get("action") != "github_pr_create":
+        return False
+    metadata = item.get("metadata")
+    arguments = metadata.get("arguments") if isinstance(metadata, dict) else None
+    return not isinstance(arguments, dict) or any(
+        arguments.get(name) is not None for name in PR_CREATE_BOARD_ARGS)
 
 
 def rule(action, resource, effect):
@@ -343,8 +366,8 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     person's own outside-path denies still override. `branch` is a write run's
     task branch, whose own lease push asks rather than being denied; each of
     `gh_aliases` asks like a branch switch. Every GitHub write is denied
-    (`GITHUB_TOOLS_DENY`) except a write run's `github_pr_edit`,
-    which asks."""
+    (`GITHUB_TOOLS_DENY`) except a write run's `RUN_GITHUB_TOOLS_ASKS`,
+    which ask."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -388,7 +411,8 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
         out += [rule("shell", pattern, "deny")
                 for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES + (STACK_ALL,) + risky_git]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
-        out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
+        out.append(rule(GIT_TOOLS_DENY, "*", "deny"))
+        out += [rule(name, "*", "allow") for name in GIT_TOOLS_READS + LEGACY_GIT_READS]
     else:
         out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + DEPLOY_ASK_SHELL + (STACK_ALL,)]
         out += [rule("shell", pattern, "allow") for pattern in STACK_READS]

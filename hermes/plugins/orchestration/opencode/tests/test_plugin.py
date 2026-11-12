@@ -288,10 +288,11 @@ def test_rules_have_no_mandate_and_deny_github_writes():
             assert policy.decide(rules, name, "*") == "deny", (kind, name)
 
 
-def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_edit_a_build_may_ask_for():
-    for action in ("github_issue_edit", "github_project_item_edit", "github_foo_bar"):
+def test_a_github_write_is_every_write_tool_but_a_read_and_the_pr_tools_a_build_may_ask_for():
+    for action in ("github_issue_create", "github_issue_edit", "github_project_item_edit", "github_foo_bar"):
         assert policy.github_write(action), action
-    for action in (*policy.GITHUB_TOOLS_READS, "github_pr_edit", "external_directory", "shell", None):
+    for action in (*policy.GITHUB_TOOLS_READS, "github_pr_edit", "github_pr_create", "github_stack_link",
+                   "external_directory", "shell", None):
         assert not policy.github_write(action), action
 
 
@@ -357,6 +358,50 @@ def test_the_caller_approves_a_pr_edit_once_only_when_it_carries_pr_metadata(fix
         assert reply["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, reply
         return
     assert "labels, assignees, reviewers and milestone" in reply["error"], reply
+    assert not fake.replies, "the refused once sent nothing"
+    rejected = request("reply", sid, request_id=item["id"], decision="reject")
+    assert fake.replies[-1][1]["decision"] == "reject", rejected
+
+
+def test_pr_create_beyond_pr_is_true_for_a_board_or_arguments_that_cannot_be_read():
+    def create(arguments="missing"):
+        metadata = {} if arguments == "missing" else {"arguments": arguments}
+        return {"action": "github_pr_create", "metadata": metadata}
+
+    for arguments in ({"title": "x", "body": "y", "labels": ["bug"], "base": "main", "draft": True},
+                      {"title": "x", "project": None, "fields": None}, {}):
+        assert not policy.pr_create_beyond_pr(create(arguments)), arguments
+    for arguments in ({"title": "x", "project": "Roadmap"}, {"title": "x", "fields": {"Status": "Todo"}},
+                      {"project": 3, "fields": {}}, "missing", None, "text", ["title"]):
+        assert policy.pr_create_beyond_pr(create(arguments)), arguments
+    assert policy.pr_create_beyond_pr({"action": "github_pr_create"})
+    assert policy.pr_create_beyond_pr({"action": "github_pr_create", "metadata": "text"})
+    for item in ({"action": "github_pr_edit", "metadata": {"arguments": {"project": "Roadmap"}}}, {"action": None}, {}):
+        assert not policy.pr_create_beyond_pr(item), item
+
+
+@pytest.mark.parametrize("action, arguments, once_ok", [
+    ("github_pr_create", {"title": "Add x", "body": "Why", "labels": ["bug"]}, True),
+    ("github_pr_create", {"title": "Add x", "project": "Roadmap"}, False),
+    ("github_pr_create", {"title": "Add x", "fields": {"Status": "Todo"}}, False),
+    ("github_pr_create", None, False),
+    ("github_stack_link", {"prs": [20, 21]}, True),
+    ("github_issue_create", {"title": "Add x"}, False),
+])
+def test_the_caller_approves_a_pr_create_and_a_stack_link_once_but_never_a_board_or_issue_write(
+        fixture, action, arguments, once_ok):
+    _, directory, _, fake = fixture
+    metadata = {} if arguments is None else {"arguments": arguments}
+    fake.asks["pr"] = dict(action=action, resources=["octo/example"], metadata=metadata)
+    scripted(fake, "ask:pr", "finish")
+    paused = run("plan", directory)
+    sid, item = paused["session_id"], paused["pending"][0]
+    assert item["action"] == action, paused
+    reply = request("reply", sid, request_id=item["id"], decision="once")
+    if once_ok:
+        assert reply["status"] == "completed" and fake.replies[-1][1] == {"decision": "once"}, reply
+        return
+    assert "board" in reply["error"], reply
     assert not fake.replies, "the refused once sent nothing"
     rejected = request("reply", sid, request_id=item["id"], decision="reject")
     assert fake.replies[-1][1]["decision"] == "reject", rejected
@@ -2378,8 +2423,10 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     scratch, readable = policy.directories("/tmp/fake-opencode")
     narrow = (set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
               | set(policy.DEPENDABOT_ALERT_READS))
-    # The github-tools reads: the whole action is denied right before them, so they reopen reads only.
-    reads = [policy.rule(name, "*", "allow") for name in policy.GITHUB_TOOLS_READS]
+    # The github-tools and git-tools reads: the whole action is denied right before them, so they
+    # reopen reads only.
+    reads = [policy.rule(name, "*", "allow")
+             for name in (*policy.GITHUB_TOOLS_READS, *policy.GIT_TOOLS_READS, *policy.LEGACY_GIT_READS)]
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -2407,16 +2454,18 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
                             "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-            assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+            for tool in ("git_worktree", "git_worktree_add", "git_worktree_remove"):
+                assert policy.decide(rules, tool, "*") == "deny", (kind, tool, "workspace owns worktrees")
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
-            for tool in ("github_issue_create", "github_issue_edit", "github_issue_close", "github_pr_create",
+            for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):
                 assert policy.decide(rules, tool, "owner/repo") == "deny", (kind, tool)
             for tool in ("github_issue_read", "github_pr_read", "github_project_read", "github_run_read"):
                 assert policy.decide(rules, tool, "*") == "allow", (kind, tool)
-            assert policy.decide(rules, "github_pr_edit", "owner/repo") == ("ask" if kind == "write" else "deny")
+            for tool in policy.RUN_GITHUB_TOOLS_ASKS:
+                assert policy.decide(rules, tool, "owner/repo") == ("ask" if kind == "write" else "deny"), (kind, tool)
             # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
             # target, so even a bare `exit` allow would approve a file write unseen.
             project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
@@ -2602,14 +2651,27 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
     for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish"):
+    for tool in (*policy.GIT_TOOLS_READS, *policy.LEGACY_GIT_READS):
+        assert policy.decide(rules, tool, "*") == "allow", f"{tool} only reads"
+    for tool in ("git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify",
+                 "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_push_send",
+                 "git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_publish",
+                 "git_future_read", "git_worktree", "git_worktree_add", "git_worktree_remove"):
         assert policy.decide(rules, tool, "*") == "deny", tool
-    assert policy.decide(rules, "git_publish_preview", "*") != "deny", "previewing a publication only reads"
+    assert policy.decide(rules, "github_pr_create", "owner/repo") == "deny"
     write = policy.rules("write", None, {"main"})
-    for tool in ("git_commit", "git_rebase", "git_stack"):
-        assert policy.decide(write, tool, "*") != "deny", f"a build rewrites its own commits through {tool}"
+    assert [r for r in write if r["action"].startswith("git_") and r["action"] not in policy.TOOL_DENY] == [], \
+        "the person's global rules decide a write run's git tools"
+    for tool in ("git_commit_amend", "git_rebase_start", "git_push_send", "git_commit_verify", "git_commit",
+                 "git_rebase", "git_stack"):
+        assert policy.decide(write, tool, "*") != "deny", f"a build rewrites and pushes its own commits through {tool}"
+    for tool in policy.TOOL_DENY:
+        assert policy.decide(write, tool, "*") == "deny", tool
+    for tool in ("github_pr_create", "github_stack_link"):
+        assert policy.decide(write, tool, "owner/repo") == "ask", tool
+    assert policy.decide(write, "github_issue_create", "owner/repo") == "deny"
     reviewer = [{"action": "*", "resource": "*", "effect": "deny"}] + write
-    for tool in ("git_stack", "git_publish"):
+    for tool in ("git_push_send", "git_commit_create", "git_stack", "git_publish"):
         assert policy.decide(reviewer, tool, "*") == "deny", f"a write run must not reopen a subagent's own {tool} deny"
 
 
