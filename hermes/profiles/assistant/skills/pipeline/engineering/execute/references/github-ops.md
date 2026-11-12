@@ -156,7 +156,7 @@ Establish GitHub repositories with approved owner, visibility and history
 through `github_repo_create` (`skill_view(name="github-tools:repos")`,
 always on its own card): `template` for a starter, or an empty repository for
 an approved scratch or history-preserving path (the history is pushed into
-it). Clone through `ghq`, not an unregistered local `git init`; preserve
+it). Clone through `ghq`, never `git init`; preserve
 `upstream` when lineage is requested.
 Register/link with the `workspace_registry` actions `repo_set` then `link_repo` using
 the approved Group.
@@ -183,3 +183,7 @@ evidence to hand back, never its commands (a build run cannot load your
 skills, and the method is its own). Close the unit's
 issue and move the board as the table above says, never for a job the user
 excluded.
+
+A person's own landed task worktree is removed with `git_worktree_remove`
+(`skill_view(name="git-tools:worktree")`), never a terminal write. OpenCode
+session worktrees still go through `opencode_session cleanup`, not that tool.

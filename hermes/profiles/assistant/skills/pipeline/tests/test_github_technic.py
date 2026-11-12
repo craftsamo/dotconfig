@@ -14,6 +14,8 @@ from _pair import PUBLIC_ROOT
 TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/github"
 TRACKING = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/github-tracking"
 GUARD = PUBLIC_ROOT / "hermes/plugins/guards/github-tools-guard/gh_terminal.py"
+GIT_GUARD = PUBLIC_ROOT / "hermes/plugins/guards/git-tools-guard/git_terminal.py"
+SKILL_ROOT = TECHNIC.parents[1]
 BUILD_BRIEF = "history-repair.md"
 
 
@@ -82,6 +84,24 @@ class GithubTechnic(unittest.TestCase):
         for command in ("gh pr view 1", "gh pr checks 1", "gh run view 42", "gh issue list"):
             with self.subTest(command):
                 self.assertIsNone(gh_terminal.blocked(command))
+
+    def test_the_assistant_skills_need_no_blocked_terminal_git_command(self):
+        spec = importlib.util.spec_from_file_location("github_technic_git_guard", GIT_GUARD)
+        git_terminal = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(git_terminal)
+        self.assertTrue(git_terminal.blocked("git worktree remove task"))
+        for family in ("pipeline", "technic"):
+            for path in sorted((SKILL_ROOT / family).rglob("*.md")):
+                text = path.read_text()
+                for match in re.finditer(r"```[^\n]*\n(.*?)```|`([^`]+)`", text, re.DOTALL):
+                    code = match.group(1) if match.group(1) is not None else match.group(2)
+                    if not re.search(r"\bgit\s+", code):
+                        continue
+                    prefix = flat(text[:match.start()])
+                    if re.search(r"(?:\bnever|\bdo not|\btell the user to run)$", prefix, re.IGNORECASE):
+                        continue
+                    with self.subTest(path=path.relative_to(SKILL_ROOT), command=code):
+                        self.assertIsNone(git_terminal.blocked(code))
 
     def test_the_conventions_the_references_carry(self):
         pull_requests = flat(self.references["pull-requests.md"])

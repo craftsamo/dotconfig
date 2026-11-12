@@ -128,6 +128,12 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `github_pr_merge`, …), never a gh write in the terminal; every change waits
   for its card. Code changes are engineering, not Chat. Any GitHub work loads
   the matching `github-tools` skill first — `references/github.md`.
+- **Git** (a repository's state, history and where a change came from,
+  listing worktrees or tidying a person's own landed task worktree) —
+  `git_repo_read` and the `git_worktree_*` tools; load the matching
+  `git-tools` skill first — `references/git.md`. OpenCode session worktrees
+  stay with `opencode_session workspace` / `cleanup`; commits, rebases and
+  pushes are engineering, not Chat.
 - **A project's own tooling** (running a repository's setup, deploy or check
   script, or a step its `AGENTS.md` or README names: `nps setup.google`,
   `pnpm run deploy`, `make …`, `./scripts/…`) — read that `AGENTS.md` and
@@ -162,6 +168,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |
 | `references/youtube.md` | reading YouTube, transcripts and downloads, the user's channels' videos, analytics and settings; approved edits, replies, moderation, uploads, captions, playlist and channel changes; Studio-only channel settings |
 | `references/github.md` | GitHub in Chat: which `github-tools` skill (and the `github` and `github-tracking` technics) a request needs, what stays inline and what is engineering, what is never yours |
+| `references/git.md` | Git in Chat: repository reads, history and origin, a person's own worktrees through `git-tools`; OpenCode owns its session worktrees and target-repository commits, rebases and pushes |
 | `references/web3.md` | EVM chains and Solana through the `evm` and `solana` tools: reading transactions, blocks, addresses, tokens, approvals, balances, gas and prices, analysing contracts and programs; the user's Hermes and watch-only wallets, quotes, approved transfers and their outcomes; Hyperliquid reads, trades, backtests and rule strategies through the `hyperliquid` tool |
 
 ## Promotion

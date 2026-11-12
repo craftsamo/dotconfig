@@ -1139,6 +1139,13 @@ plugins:
         - releases
         - actions
         language: ja
+    git-tools:
+      settings:
+        toolsets:
+        - repo
+        - worktree
+        language: ja
+        worktree_root: ~/Worktrees
     signal-tools:
       settings:
         toolsets:
