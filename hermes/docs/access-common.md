@@ -1,8 +1,9 @@
 # Access plugins — common contract
 
 What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
-Google, GitHub, X, note, Substack, YouTube, Stripe and Cloudflare. Each `*-access` doc inherits this one
-and records only its own differences; read it first when changing or adding an
+Google, GitHub, Git, X, note, Substack, YouTube, Stripe and Cloudflare. Each
+`*-access` doc inherits this one and records only its own differences; read it
+first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Four kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
@@ -85,8 +86,9 @@ was changed.
   Cloudflare use the shared check `plugins/_shared/human_gate.py`
   (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal and GitHub packages ([signal-tools.md](signal-tools.md),
-  [github-tools.md](github-tools.md)); Substack and YouTube refuse through
+  third-party Signal, GitHub and Git packages
+  ([signal-tools.md](signal-tools.md), [github-tools.md](github-tools.md),
+  [git-tools.md](git-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, a Telegram or WhatsApp text
   send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
@@ -96,9 +98,9 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
-  Signal is the exception: the package's handler is not ours, so only the
-  guard's hook refuses, and the profile validator refuses a config that
-  enables the package without the guard.
+  Signal, GitHub and Git are the exceptions: their package handlers are not
+  ours, so only the guards' hooks refuse, and the profile validator refuses a
+  config that enables a package without its guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
   600 s so a card stays answerable on Telegram.
 - **Every card has one shape** ([below](#card-shape)), so the user reads
@@ -245,6 +247,10 @@ engine would skip the hook; file tools may still read the plugin source. It is
 a pattern match on the call's text, not a sandbox: the approval gate is a
 guarantee for the tool and a policy for everything else. The patterns live in
 each plugin's module (named in its doc); never copy them into docs.
+
+The third-party git package's guard also restricts terminal git and protects
+its installed directory, including real paths and profile copies; its scope
+and limits are in [git-tools.md](git-tools.md).
 
 A CLI the plugin owns (`gcloud`, `wrangler`, `stripe`, `signal-cli`, `wacli`)
 counts where a command runs it: `plugins/_shared/shell_commands.py` reads the
