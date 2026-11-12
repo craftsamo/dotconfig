@@ -597,9 +597,11 @@ Commands: [README "Commands"](README.md#commands).
   ([card shape](docs/access-common.md#card-shape)). A third-party plugin
   keeps its own card when that card shows what the call carries and pins it;
   a dotconfig guard then refuses its writes where no person can answer
-  (`guards/signal-tools-guard`, `guards/github-tools-guard`;
+  (`guards/signal-tools-guard`, `guards/github-tools-guard`,
+  `guards/git-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
-  [GitHub](docs/decisions/github-tools-plugin.md)).
+  [GitHub](docs/decisions/github-tools-plugin.md),
+  [Git](docs/decisions/git-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
   orders, Telegram and WhatsApp text sends,

@@ -51,6 +51,7 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `scripts/external-plugins.py` installs (`install`, live checkout only) and
   compares (`status`) it; `install.sh` leaves the directory alone. Never
   `hermes plugins install` one by hand at another commit. Current:
+  `git-tools` ([git-tools.md](../git-tools.md)),
   `github-tools` ([github-tools.md](../github-tools.md)) and
   `signal-tools` ([signal-tools.md](../signal-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
@@ -161,6 +162,9 @@ user keys.
 
 ### Guards
 
+- **guards/git-tools-guard** holds the third-party git package's human gate,
+  A2A and bypass refusals and terminal git policy:
+  [`../git-tools.md`](../git-tools.md).
 - **guards/skill-topology** blocks runtime writes into maintainer skill trees
   (any `skills/` path outside `learned/`, here and in the private overlay)
   through file tools and literal terminal writes, and refuses every

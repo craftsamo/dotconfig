@@ -157,7 +157,8 @@ context, and each turn re-sends agent, model, permissions and metadata and
 verifies the service applied them before the prompt. A plan is read-only and
 runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
-session a worktree of its own through the git-tools command line (`node
+session a worktree of its own through the [git-tools](git-tools.md) command
+line (`node
 <plugin>/dist/cli.js run git_worktree_add`, the installed `git-tools` plugin and
 Hermes' node; `opencode.git_tools_cli` replaces that command): it fetches and
 cuts a new branch (`task/issue-N` for a session bound to an issue unless the
