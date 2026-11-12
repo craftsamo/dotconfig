@@ -12,16 +12,16 @@ of our own: [decision](decisions/github-tools-plugin.md). Common rules:
 
 ## Shape
 
-| Piece                                                                                  | Home                                                                                                                   | Reader    |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------- |
-| Tools (`github_<area>_<verb>`), approval card, skills                                  | the package, installed at `~/.hermes/plugins/github-tools`                                                             | Assistant |
-| The pinned release                                                                     | `scripts/external-plugins.json`, installed by `scripts/external-plugins.py`                                            | people    |
-| Refusal where no person can answer, terminal and installed-copy guards, progress lines | `plugins/guards/github-tools-guard`                                                                                    | Assistant |
-| Settings (toolsets, card language)                                                     | `plugins.entries.github-tools.settings` in the Assistant's config                                                      | Assistant |
-| How the tools are used                                                                 | the package's skills, `github-tools:<toolset>` (`issues`, `pull-requests`, `projects`, `repos`, `releases`, `actions`) | Assistant |
-| What the user expects of tracking, pull requests and repositories                      | the Assistant's technics `github-tracking` and `github`                                                                | Assistant |
-| When the Assistant uses it in Chat                                                     | the Chat reference `github.md`                                                                                         | Assistant |
-| OpenCode                                                                               | `opencode/opencode.jsonc` (the npm package), writes denied in Hermes-driven runs ([opencode.md](opencode.md))          | OpenCode  |
+| Piece                                                                                  | Home                                                                                                          | Reader    |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------- |
+| Tools (`github_<area>_<verb>`), approval card, skills                                  | the package, installed at `~/.hermes/plugins/github-tools`                                                    | Assistant |
+| The pinned release                                                                     | `scripts/external-plugins.json`, installed by `scripts/external-plugins.py`                                   | people    |
+| Refusal where no person can answer, terminal and installed-copy guards, progress lines | `plugins/guards/github-tools-guard`                                                                           | Assistant |
+| Settings (toolsets, card language)                                                     | `plugins.entries.github-tools.settings` in the Assistant's config                                             | Assistant |
+| How the tools are used                                                                 | the package's skills, `github-tools:<name>`: one per toolset, and `planning`                                  | Assistant |
+| What the user expects of tracking, pull requests and repositories                      | the Assistant's technics `github-tracking` and `github`                                                       | Assistant |
+| When the Assistant uses it in Chat                                                     | the Chat reference `github.md`                                                                                | Assistant |
+| OpenCode                                                                               | `opencode/opencode.jsonc` (the npm package), writes denied in Hermes-driven runs ([opencode.md](opencode.md)) | OpenCode  |
 
 Only the Assistant has it. The settings enable all six toolsets (`issues`,
 `pull_requests`, `projects`, `repos`, `releases`, `actions`) with
