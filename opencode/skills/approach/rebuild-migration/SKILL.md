@@ -34,7 +34,8 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    independently verifiable, reviewable-PR-sized increment) → steps
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
-   via `approach-github-planning`, not local TODO files.
+   on GitHub (`github-planning`, then `approach-github-delivery`), not in
+   local TODO files.
 5. Hand off to execution: write the agreed plan in the reply and register
    its steps with `todowrite`, shaped `Phase{N}.{m} - <task> (executor)` —
    Phase and {m} as the global `<PlanHandoff>` defines them (a reviewable

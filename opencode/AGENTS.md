@@ -124,8 +124,9 @@ before designing:
 - Rebuild, restructure, or schema/data migration → `approach-rebuild-migration`
 - Improve structure without changing behavior → `approach-refactor`
 - Resolve a performance problem → `approach-performance`
-- Persist a durable, cross-session plan on GitHub Projects (layers on any of
-  the above) → `approach-github-planning`
+- Persist a durable, cross-session plan on GitHub (layers on any of the
+  above) → plan it with `github-planning`, then deliver each unit with
+  `approach-github-delivery`
 
 Refactor vs rebuild: behavior stays identical and the change is incremental →
 `approach-refactor`; the system or its data is replaced or moved wholesale →
