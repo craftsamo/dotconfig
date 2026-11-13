@@ -94,9 +94,8 @@ The guard (`discord-tools-guard`) adds, for every `discord_*` tool:
   an inbound A2A request.
 - **No way around the tools.** Terminal and file-tool calls are blocked when
   they run the package's CLI or name its state, plugin directory, launch
-  agents, logs, a `DISCORD_TOOLS_` variable, the Discord app's data (it holds
-  the account's token) or the retired plugin's state and token; paths are
-  also matched by their real path
+  agents, logs, a `DISCORD_TOOLS_` variable or the Discord app's data (it
+  holds the account's token); paths are also matched by their real path
   ([bypass guard](access-common.md#bypass-guard-ways-around-the-tool)). The
   download folder and the app's `discord://` links, which screen-listen opens,
   stay allowed.

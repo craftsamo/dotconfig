@@ -38,7 +38,7 @@ class Ctx:
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    for name in ("DISCORD_TOOLS_STATE_DIR", "HERMES_DISCORD_STATE", "XDG_STATE_HOME"):
+    for name in ("DISCORD_TOOLS_STATE_DIR", "XDG_STATE_HOME"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_tracked_cwd", lambda task_id="", session_id="": None)   # no terminal record
@@ -131,14 +131,11 @@ def test_other_tools_are_untouched(monkeypatch):
     "cat ~/Library/LaunchAgents/io.github.craft-agent.discord-tools.default.plist",
     "~/Library/Application\\ Support/io.github.craft-agent.discord-tools/discord-tools-sync-default node x.js",
     "echo $DISCORD_TOOLS_STATE_DIR",
+    "secret show DISCORD_USER_TOKEN -p hermes --scope discord-user",
     "ls ~/Library/Application\\ Support/discord",
     "ls ~/Library/Application\\ Support/discordcanary",
     "ls ~/Library/Application\\ Support/discordptb/Local\\ Storage",
     'cat "~/Library/Application Support/discord/Local Storage/leveldb/x.ldb"',
-    "echo $DISCORD_USER_TOKEN",
-    "cat ~/.local/state/hermes-discord/mirror.db",
-    "echo $HERMES_DISCORD_STATE",
-    "ls ~/.hermes/local/discord-user",
 ])
 def test_terminal_blocks_ways_around_the_tools(command):
     assert gate("terminal", command=command) == {"action": "block", "message": plugin.BYPASS_MESSAGE}
@@ -187,7 +184,6 @@ def test_terminal_allows_plain_work(command):
     "cat ~/.hermes/profiles/assistant/plugins/discord-t*ls/dist/cli.js",
     "(cd ~/.hermes/plugins && cat discord-tools/package.json)",
     "bash -c 'cd ~/.hermes/profiles/assistant/plugins; cat discord-tools/package.json'",
-    "cd ~/.local/state && cat hermes-discord/mirror.db",
 ])
 def test_terminal_blocks_single_line_forms(command):
     assert blocked(gate("terminal", command=command)), command
@@ -304,9 +300,7 @@ def test_file_tools_block_paths_by_text():
                        ("read_file", {"path": "~/Library/Application Support/discord/Local Storage/leveldb/x.ldb"}),
                        ("read_file", {"path": "~/Library/Application Support/discordcanary/Cookies"}),
                        ("read_file", {"path": "~/Library/Application Support/discordptb/Cookies"}),
-                       ("read_file", {"path": "~/Library/Application Support/io.github.craft-agent.discord-tools/x"}),
-                       ("read_file", {"path": "~/.local/state/hermes-discord/mirror.db"}),
-                       ("read_file", {"path": "~/.hermes/local/discord-user/token"})):
+                       ("read_file", {"path": "~/Library/Application Support/io.github.craft-agent.discord-tools/x"})):
         assert gate(tool, **args) == {"action": "block", "message": plugin.BYPASS_MESSAGE}, args
 
 
@@ -404,26 +398,6 @@ def test_discord_app_data_is_protected_through_a_link(isolated):
         link.symlink_to(support / name)
         assert blocked(gate("read_file", path=str(link / "Cookies"))), name
     assert gate("read_file", path=str(support / "Other")) is None
-
-
-def test_the_retired_plugin_state_is_protected_through_a_link(monkeypatch, isolated):
-    old_state = isolated / "home" / ".local" / "state" / "hermes-discord"
-    old_local = isolated / "home" / ".hermes" / "local" / "discord-user"
-    for directory in (old_state, old_local):
-        directory.mkdir(parents=True)
-    state_link = isolated / "old-state"
-    local_link = isolated / "old-local"
-    state_link.symlink_to(old_state)
-    local_link.symlink_to(old_local)
-    assert blocked(gate("read_file", path=str(state_link / "mirror.db")))
-    assert blocked(gate("read_file", path=str(local_link / "token")))
-    custom = isolated / "custom-old"
-    custom.mkdir()
-    custom_link = isolated / "custom-link"
-    custom_link.symlink_to(custom)
-    assert gate("read_file", path=str(custom_link / "mirror.db")) is None
-    monkeypatch.setenv("HERMES_DISCORD_STATE", str(custom))
-    assert blocked(gate("read_file", path=str(custom_link / "mirror.db")))
 
 
 def test_file_tools_read_the_download_dir(isolated):
