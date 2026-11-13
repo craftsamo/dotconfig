@@ -1,5 +1,10 @@
 # Discord access
 
+> [!NOTE]
+> Being replaced by the third-party package
+> ([discord-tools.md](discord-tools.md)). Once the Assistant has moved, this
+> plugin stays in the repository, disabled, until it is removed.
+
 The Assistant's access to the user's own Discord account — reading their DMs,
 group DMs and servers, keeping a chosen set of servers synced, and acting from
 the account (sending, reacting, pinning, editing and deleting their own messages,

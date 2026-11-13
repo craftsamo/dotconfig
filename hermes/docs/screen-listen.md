@@ -7,22 +7,22 @@ recorded as a session for hours and kept as a file the user can play back,
 transcribe and share. It is the audio half of "look at that stream for me"; the picture half is
 `computer_use` (a `capture` of the window), and joining the stream or channel
 in the first place is `computer_use` too, after a deep link opens it. Nothing here touches the
-Discord API, the user's Discord account ([discord-access.md](discord-access.md))
+Discord API, the user's Discord account ([discord-tools.md](discord-tools.md))
 or the Assistant's Discord bot. Read it when changing the plugin or its helper.
 Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                                                                                                                | Home                                                                  | Reader    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------- |
-| Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app                                                                                                                   | `engines/screen-listen/main.swift`, `Info.plist`                      | people    |
-| Built helper (ad-hoc signed, ignored)                                                                                                                                                                                                | `~/.hermes/local/screen-listen/ScreenListen.app`                      | plugin    |
-| Engine manager (`install`, `status`, `grant`, `grant-screen`, `grant-mic`)                                                                                                                                                           | `scripts/screen-listen.sh`                                            | people    |
-| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff                                                                                                                                                               | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
-| Recording sessions (start, status, stop, the kept files)                                                                                                                                                                             | `plugins/inspection/screen-listen/record.py`                          | Assistant |
-| Transcripts of kept recordings (a detached local-whisper job)                                                                                                                                                                        | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
-| When and how the Assistant uses it with `computer_use`: the procedure, plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:listen`                                 | Assistant |
-| Getting one app into the channel or stream and out again, one skill per app | the plugin skill `screen-listen:attend-<app>` (`attend-discord` today) | Assistant |
+| Piece                                                                                                                              | Home                                                                   | Reader    |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------- |
+| Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app                 | `engines/screen-listen/main.swift`, `Info.plist`                       | people    |
+| Built helper (ad-hoc signed, ignored)                                                                                              | `~/.hermes/local/screen-listen/ScreenListen.app`                       | plugin    |
+| Engine manager (`install`, `status`, `grant`, `grant-screen`, `grant-mic`)                                                         | `scripts/screen-listen.sh`                                             | people    |
+| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff                                                             | `plugins/inspection/screen-listen/__init__.py`, `listen.py`            | Assistant |
+| Recording sessions (start, status, stop, the kept files)                                                                           | `plugins/inspection/screen-listen/record.py`                           | Assistant |
+| Transcripts of kept recordings (a detached local-whisper job)                                                                      | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py`  | Assistant |
+| When and how the Assistant uses it with `computer_use`: the procedure, plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:listen`                                | Assistant |
+| Getting one app into the channel or stream and out again, one skill per app                                                        | the plugin skill `screen-listen:attend-<app>` (`attend-discord` today) | Assistant |
 
 ## Why a process tap, and why an app
 
@@ -126,7 +126,7 @@ than the host, silently from the plugin's side (`open` fails with -10825).
   or leaves anything; that choreography is the skill's (`screen-listen:listen`:
   the app-agnostic procedure — listen, record, transcribe, minutes, the
   boundaries — with the app's own steps in `screen-listen:attend-<app>`,
-  Discord today: resolve the channel with `discord_account`, open its deep
+  Discord today: resolve the channel with `discord_chat_read`, open its deep
   link in the background, join, watch, listen, report, leave; a second app is
   a second `attend-<app>` skill, named so the Assistant can reload it after
   a context compaction, not a second reference). The app skill reads the app's
