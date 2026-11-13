@@ -151,7 +151,7 @@ def test_the_example_assistant_receives_files_into_the_inbox():
     example = HERE.parents[2] / "profiles" / "assistant" / "config.example.yaml"
     config = yaml.safe_load(example.read_text(encoding="utf-8"))
     sources = {"google_access": "google", "whatsapp_access": "whatsapp",
-               "discord_access": "discord", "telegram_access": "telegram", "x_access": "x",
+               "discord_access": "discord", "x_access": "x",
                "youtube_access": "youtube"}
     for key, folder in sources.items():
         assert config[key]["download_dir"] == f"~/Workspaces/.inbox/{folder}", key

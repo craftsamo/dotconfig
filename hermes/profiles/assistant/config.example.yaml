@@ -1093,8 +1093,6 @@ whatsapp_access:
   download_dir: ~/Workspaces/.inbox/whatsapp
 discord_access:
   download_dir: ~/Workspaces/.inbox/discord
-telegram_access:
-  download_dir: ~/Workspaces/.inbox/telegram
 x_access:
   download_dir: ~/Workspaces/.inbox/x
 youtube_access:

@@ -37,7 +37,6 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
     def test_file_disposition_refs_read_the_public_layout_explicitly(self):
         layout = "~/.hermes/profiles/assistant/skills/pipeline/references/workspace-layout.md"
         refs = [ROOT / "chat" / "references" / f"{name}.md" for name in ("signal", "whatsapp", "x", "discord")]
-        refs.append(REPO / "hermes/plugins/messaging/telegram-access/skills/account/SKILL.md")
         for ref in refs:
             text = " ".join(ref.read_text(encoding="utf-8").split())
             self.assertNotIn("~/Workspaces/AGENTS.md", text, ref.name)
