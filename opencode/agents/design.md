@@ -22,6 +22,18 @@ permissions:
   - { action: telegram_account_read, resource: "*", effect: allow }
   - { action: telegram_chat_read, resource: "*", effect: allow }
   - { action: telegram_sync_read, resource: "*", effect: allow }
+  - { action: "discord_*", resource: "*", effect: deny }
+  # Each Discord read is named: discord_read_mark is a write that a
+  # `discord_*_read` glob would reopen.
+  - { action: discord_account_read, resource: "*", effect: allow }
+  - { action: discord_sync_read, resource: "*", effect: allow }
+  - { action: discord_chat_read, resource: "*", effect: allow }
+  - { action: discord_search_read, resource: "*", effect: allow }
+  - { action: discord_inbox_read, resource: "*", effect: allow }
+  - { action: discord_people_read, resource: "*", effect: allow }
+  - { action: discord_server_read, resource: "*", effect: allow }
+  - { action: discord_history_read, resource: "*", effect: allow }
+  - { action: discord_role_read, resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }
   - { action: "github_*_read", resource: "*", effect: allow }
   # The repository is read-only; the mocks go to a job's drafts directory
