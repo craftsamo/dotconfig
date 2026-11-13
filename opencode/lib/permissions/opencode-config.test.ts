@@ -306,7 +306,7 @@ describe("agent rules over a project's catch-all", () => {
   })
 
   test("a Telegram write asks in build and is denied in plan, where reads stay open", () => {
-    for (const tool of ["telegram_message_send", "telegram_file_send", "telegram_sync_add", "telegram_chat_mark_read"]) {
+    for (const tool of ["telegram_message_send", "telegram_file_send", "telegram_sync_add", "telegram_chat_mark_read", "telegram_grant_create"]) {
       expect([tool, decide("build", tool, "default/-100123")]).toEqual([tool, "ask"])
       expect([tool, decide("plan", tool, "default/-100123")]).toEqual([tool, "deny"])
     }
