@@ -37,7 +37,7 @@
     // release Hermes runs. Default toolsets only (files and actions stay off);
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
-    { "package": "@craftsamo/signal-tools@0.4.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/signal-tools@0.6.0", "options": { "language": "ja" } },
     // Telegram as a signed-in user (telegram-tools): reads and, after an
     // approval that shows what the call carries, sends.
     // The account, its sync service and mirror are shared with Hermes, so pin
