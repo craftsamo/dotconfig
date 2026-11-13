@@ -49,8 +49,8 @@ and `opencode.jsonc` to one version.
 ## Toolsets
 
 The Assistant has `account`, `sync`, `chats`, `search`, `inbox`, `people`,
-`sends`, `history`, `files`, `actions` and `roles`: everything the retired
-plugin could do. `threads` (creating threads and forum posts, joining and
+`sends`, `history`, `files`, `actions` and `roles`
+([decision](decisions/discord-tools-plugin.md)). `threads` (creating threads and forum posts, joining and
 leaving) and `grants` stay off. OpenCode keeps the upstream defaults:
 `account`, `sync`, `chats`, `search`, `inbox`, `people` and `sends`.
 `files` saves into `~/Workspaces/.inbox/discord/<channel>-<message>/`,
@@ -132,14 +132,13 @@ and `opencode service restart`.
 
 1. Install the plugin (above) and its Node runtime.
 2. Pipe the user token into `discord-tools-cli login --account default` from
-   the Keychain item the retired plugin used (`DISCORD_USER_TOKEN`, project
-   `hermes`, scope `discord-user`), never as an argument; the package checks
+   the Keychain item `DISCORD_USER_TOKEN` (project `hermes`, scope
+   `discord-user`, which no profile receives), never as an argument; the package checks
    it with Discord and keeps it in its token file. Then
    `discord-tools-cli service install --account default`.
 3. Add the servers and channels to follow with `discord_sync_add` (in the
    Assistant or OpenCode); DMs need no entry. History older than the first
-   sync comes back with `discord_chat_read` method `backfill`: the retired
-   plugin's mirror is not imported.
+   sync comes back with `discord_chat_read` method `backfill`.
 4. Enable `discord-tools` and `discord-tools-guard` in the Assistant's
    private `plugins.enabled` (the profile validator refuses the first without
    the second, and without the guard in `require_plugins`), with

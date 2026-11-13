@@ -82,10 +82,6 @@ TIERS: dict[str, dict[str, Rule]] = {
         "watermark_remove": Rule(STANDING, "watermark-off", "channel"),
         "moderate": Rule(STANDING, "moderate-hold", "channel"),
     },
-    "discord-access": {
-        "unreact": Rule(STANDING, "unreact-in", "channel"),
-        "unpin": Rule(STANDING, "unpin-in", "channel"),
-    },
     "note-access": {"create_draft": Rule(STANDING, "new-draft", "account")},
     "substack-access": {
         "create_draft": Rule(STANDING, "private-draft", "publication"),

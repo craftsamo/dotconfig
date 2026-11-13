@@ -45,10 +45,6 @@ EXPECTED = {
         "watermark_remove": ("standing", "watermark-off", SAFE_ONLY),
         "moderate": ("standing", "moderate-hold", SAFE_ONLY),
     },
-    "discord-access": {
-        "unreact": ("standing", "unreact-in", SAFE_ONLY),
-        "unpin": ("standing", "unpin-in", SAFE_ONLY),
-    },
     "note-access": {"create_draft": ("standing", "new-draft", SAFE_ONLY)},
     "substack-access": {
         "create_draft": ("standing", "private-draft", SAFE_ONLY),

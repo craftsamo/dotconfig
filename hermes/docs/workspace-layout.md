@@ -95,7 +95,7 @@ follows.
 | Repository scanner (`workspace-repos`)        | the root, and every area's Groups for their `github/`                                    |
 | Workspace registry (`workspace-registry`)     | the root (unless `WSREG_ROOT`), and the projects area for project Groups                 |
 | Signal, Telegram, WhatsApp senders            | the root, as the only place files are sent from                                          |
-| Discord, note, Substack, YouTube              | the root, as the attach root when the profile sets no `attach_roots`                     |
+| note, Substack, YouTube                       | the root, as the attach root when the profile sets no `attach_roots`                     |
 | Google Drive upload (`google-access`)         | the root, as the only place files are uploaded from, and `sensitive` to encrypt them     |
 | screen-listen                                 | `.inbox/recordings` under the root, when the profile sets no `record_dir`                |
 | Gateway launcher (`hermes-gateway-multiplex`) | the root as the working directory (`~/Workspaces`, then `$HOME`, when unreadable)        |
