@@ -1172,6 +1172,26 @@ plugins:
         require_plugins:
           - telegram-tools-guard
         language: ja
+    discord-tools:
+      settings:
+        toolsets:
+          - account
+          - sync
+          - chats
+          - search
+          - inbox
+          - people
+          - sends
+          - history
+          - files
+          - actions
+          - roles
+        download_dir: ~/Workspaces/.inbox/discord
+        send_dirs:
+          - ~/Workspaces
+        require_plugins:
+          - discord-tools-guard
+        language: ja
     web/cascade:
       settings:
         search:

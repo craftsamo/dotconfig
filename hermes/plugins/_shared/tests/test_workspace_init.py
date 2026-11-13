@@ -159,6 +159,8 @@ def test_the_example_assistant_receives_files_into_the_inbox():
     assert signal_tools["download_dir"] == "~/Workspaces/.inbox/signal"
     telegram_tools = config["plugins"]["entries"]["telegram-tools"]["settings"]
     assert telegram_tools["download_dir"] == "~/Workspaces/.inbox/telegram"
+    discord_tools = config["plugins"]["entries"]["discord-tools"]["settings"]
+    assert discord_tools["download_dir"] == "~/Workspaces/.inbox/discord"
     assert config["screen_listen"]["record_dir"] == "~/Workspaces/.inbox/recordings"
 
 
