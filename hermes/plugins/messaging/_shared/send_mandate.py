@@ -1,9 +1,9 @@
-"""send_mandate: the service-independent half of a send mandate for Telegram and WhatsApp.
+"""send_mandate: the service-independent half of a send mandate for WhatsApp.
 
 A send mandate is the user's standing approval for plain text sends to a few chats, made on a card of
 its own. It belongs to one service and one signed-in account and names: one to five chats (each by its
 id, with the name, kind and identity the card showed; never a bot or a broadcast channel), how many sends an hour
-it allows (at most the service's own ceiling; where that is below MAX_PER_HOUR, WhatsApp's, it bounds the
+it allows (at most the service's own ceiling; where that is below MAX_PER_HOUR, as WhatsApp's is, it bounds the
 account's total across its mandates in force), the longest text, a purpose in one line, and an end
 at most MAX_DAYS out. A send fits only
 when it is plain text to one of those chats from that account, within the length, with no file, no
@@ -24,8 +24,8 @@ before it goes out, whatever becomes of it. Without a readable MAC key no mandat
 nothing is counted. The ledger fails closed: a mandate whose opening row is missing, and any ledger
 that is not a plain file of this user (opened without following links), count as used up.
 
-Shared by telegram-access and whatsapp-access (each loads this file by path as
-``hermes_send_mandate``; it is not a plugin and has no manifest). Contract: docs/decisions/send-mandates.md.
+Used by whatsapp-access (which loads this file by path as ``hermes_send_mandate``; it is not a plugin and
+has no manifest). Contract: docs/decisions/send-mandates.md.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ mandate_store = _load("hermes_mandate_store", _PLUGINS_SHARED / "mandate_store.p
 mandate_ledger = _load("hermes_mandate_ledger", _PLUGINS_SHARED / "mandate_ledger.py")
 
 MAX_CHATS = 5
-MAX_PER_HOUR = 30   # the highest ceiling of any service, and what a ledger that cannot be vouched for counts as
+MAX_PER_HOUR = 30   # the bound no service's ceiling exceeds, and what a ledger that cannot be vouched for counts as
 MAX_CHARS = 1000
 MAX_DAYS = 30
 DAY = 86400
@@ -62,9 +62,6 @@ ACCOUNT_LABEL_LIMIT = 120
 HEAD_FILE = "head.json"   # the store's (plugins/_shared/mandate_store.py)
 
 SERVICES = {
-    "telegram": {"label": "Telegram", "state": "telegram-access", "scope": "telegram-access",
-                 "key_prefix": "TELEGRAM_MANDATE_KEY_", "kinds": ("self", "user", "group", "supergroup"),
-                 "max_per_hour": MAX_PER_HOUR},
     # An unofficial client: more automated sends raise the risk of the account being limited.
     "whatsapp": {"label": "WhatsApp", "state": "whatsapp-access", "scope": "whatsapp-access",
                  "key_prefix": "WHATSAPP_MANDATE_KEY_", "kinds": ("user", "group"), "max_per_hour": 5},
