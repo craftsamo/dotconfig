@@ -367,16 +367,16 @@ def keyfile(tmp_path, monkeypatch):
 
 def send_terms():
     chat = {"id": "1001", "name": "Alice", "kind": "user", "identity": "@alice"}
-    return sm.terms("telegram", "acct", [chat], 3, 100, 7, "Send the morning report")
+    return sm.terms("whatsapp", "acct", [chat], 3, 100, 7, "Send the morning report")
 
 
 def send_view():
-    return {"service": "telegram", "account": "acct", "chat": "1001", "text": "good morning", "files": 0,
+    return {"service": "whatsapp", "account": "acct", "chat": "1001", "text": "good morning", "files": 0,
             "reply": False}
 
 
 def send_count(home, mandate_id, now=None):
-    return mandate_ledger.count(sm.store("telegram"), home, KEY, "telegram-send-use", mandate_id,
+    return mandate_ledger.count(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id,
                                 time.time() if now is None else now, 3600, sm.USED_UP)
 
 
@@ -384,35 +384,35 @@ def test_send_mandates_write_the_rows_the_ledger_reads(keyfile, home):
     mandate_id = sm.create(home, send_terms())["id"]
     now = time.time()
     assert send_count(home, mandate_id, now) == 0
-    assert sm.use(home, "telegram", mandate_id, send_view(), now=now) is None
-    assert sm.use(home, "telegram", mandate_id, send_view(), now=now) is None
+    assert sm.use(home, "whatsapp", mandate_id, send_view(), now=now) is None
+    assert sm.use(home, "whatsapp", mandate_id, send_view(), now=now) is None
     assert send_count(home, mandate_id, now) == 2
-    path = home / "telegram-access" / "uses.jsonl"
+    path = home / "whatsapp-access" / "uses.jsonl"
     opening, first, _ = [json.loads(line) for line in path.read_text().splitlines()]
-    assert opening["open"] is True and first == mandate_ledger.row(KEY, "telegram-send-use", mandate_id, int(now))
+    assert opening["open"] is True and first == mandate_ledger.row(KEY, "whatsapp-send-use", mandate_id, int(now))
     path.write_text("")
     assert send_count(home, mandate_id, now) is sm.USED_UP
 
 
 def test_the_ledger_writes_the_rows_send_mandates_read(keyfile, home):
     mandate_id = sm.create(home, send_terms())["id"]
-    path = home / "telegram-access" / "uses.jsonl"
+    path = home / "whatsapp-access" / "uses.jsonl"
     path.unlink()
-    mandate_ledger.anchor(sm.store("telegram"), home, KEY, "telegram-send-use", mandate_id, int(time.time()))
-    assert sm._used(home, "telegram", mandate_id, time.time()) == 0
+    mandate_ledger.anchor(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id, int(time.time()))
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == 0
     now = time.time()
     for _ in range(3):
-        assert mandate_ledger.take(sm.store("telegram"), home, KEY, "telegram-send-use", mandate_id, now,
+        assert mandate_ledger.take(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id, now,
                                    3600, sm.USED_UP, lambda used: None) is None
-    assert sm._used(home, "telegram", mandate_id, now) == 3
-    assert "3 sends in the last hour" in sm.use(home, "telegram", mandate_id, send_view(), now=now)
-    assert sm.covering(home, "telegram", send_view(), now=now) == (
+    assert sm._used(home, "whatsapp", mandate_id, now) == 3
+    assert "3 sends in the last hour" in sm.use(home, "whatsapp", mandate_id, send_view(), now=now)
+    assert sm.covering(home, "whatsapp", send_view(), now=now) == (
         None, [f"{mandate_id}: 3 sends in the last hour; the mandate allows 3 an hour"])
 
 
 def test_send_mandates_keep_their_used_up_count(keyfile, home):
     mandate_id = sm.create(home, send_terms())["id"]
-    (home / "telegram-access" / "uses.jsonl").unlink()
-    assert sm._used(home, "telegram", mandate_id, time.time()) is sm.USED_UP
+    (home / "whatsapp-access" / "uses.jsonl").unlink()
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) is sm.USED_UP
     assert isinstance(sm.USED_UP, mandate_ledger.UsedUp) and sm.USED_UP == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, send_view()) == sm.LEDGER_USED_UP
+    assert sm.use(home, "whatsapp", mandate_id, send_view()) == sm.LEDGER_USED_UP

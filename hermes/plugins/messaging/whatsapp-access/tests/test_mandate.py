@@ -152,7 +152,6 @@ def test_a_mandate_is_made_on_its_own_card(isolated):
     assert body["chats"] == [{"id": ALICE, "name": "Alice", "kind": "user", "identity": "+819011111111"}]
     assert body["expires"] > time.time() + 6 * 86400
     assert (isolated / "whatsapp-access" / "head.json").is_file()
-    assert not (isolated / "telegram-access").exists()
 
 
 def test_every_mandate_card_has_a_fresh_key_and_asks_even_with_a_mandate_in_force():
@@ -592,12 +591,6 @@ def test_reads_are_unaffected_by_a_mandate(monkeypatch, isolated):
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "this is a cron job")
     assert hook("whatsapp", {"action": "contacts", "query": "ali"}) is None
     assert uses(isolated) == 0
-
-
-def test_a_telegram_mandate_covers_nothing_here(isolated):
-    chats = [{"id": ALICE, "name": "Alice", "kind": "user", "identity": "+819011111111"}]
-    sm.create(isolated, sm.terms("telegram", "work", chats, 5, 100, 7, "Reports"))
-    assert hook("whatsapp", SEND)["action"] == "approve"
 
 
 def test_the_engine_peeks_without_using_up_the_record(isolated):

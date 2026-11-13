@@ -1,4 +1,4 @@
-"""send_mandate: the terms, the card, the fit checks and the hourly ledger of a Telegram or WhatsApp
+"""send_mandate: the terms, the card, the fit checks and the hourly ledger of a WhatsApp
 send mandate, over a fake Keychain CLI; nothing outside the temporary folder is touched."""
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def home(tmp_path):
     return tmp_path / "profile"
 
 
-def terms(service="telegram", **over):
+def terms(service="whatsapp", **over):
     args = {"account": "acct", "chats": [ALICE], "per_hour": 3, "max_chars": 100, "days": 7,
             "purpose": "Send the morning report"}
     args.update(over)
@@ -69,12 +69,12 @@ def terms(service="telegram", **over):
                     args.pop("max_chars"), args.pop("days"), args.pop("purpose"), **args)
 
 
-def make(home, service="telegram", **over) -> str:
+def make(home, service="whatsapp", **over) -> str:
     return sm.create(home, terms(service, **over))["id"]
 
 
 def view(**over):
-    return {"service": "telegram", "account": "acct", "chat": "1001", "text": "good morning",
+    return {"service": "whatsapp", "account": "acct", "chat": "1001", "text": "good morning",
             "files": 0, "reply": False, **over}
 
 
@@ -82,7 +82,7 @@ def view(**over):
 
 def test_terms_are_read_and_the_end_is_fixed_now():
     t = terms(chats=[ALICE, TEAM], purpose="  Send the\n morning   report ", now=1_000_000)
-    assert t == {"service": "telegram", "account": "acct", "account_label": None, "chats": [ALICE, TEAM],
+    assert t == {"service": "whatsapp", "account": "acct", "account_label": None, "chats": [ALICE, TEAM],
                  "per_hour": 3, "max_chars": 100, "days": 7, "expires": 1_000_000 + 7 * 86400,
                  "purpose": "Send the morning report"}
 
@@ -105,6 +105,14 @@ def test_terms_of_an_unknown_service_are_refused():
         sm.store("discord")
 
 
+def test_telegram_is_not_a_service_any_more():
+    assert list(sm.SERVICES) == ["whatsapp"]
+    with pytest.raises(sm.MandateError, match="service is one of: whatsapp"):
+        terms("telegram")
+    with pytest.raises(sm.MandateError, match="service is one of: whatsapp"):
+        sm.store("telegram")
+
+
 def test_signal_is_not_a_service_any_more():
     assert "signal" not in sm.SERVICES
     with pytest.raises(sm.MandateError, match="service is one of"):
@@ -114,8 +122,8 @@ def test_signal_is_not_a_service_any_more():
 
 
 @pytest.mark.parametrize("field,bad,message", [
-    ("per_hour", 0, "per_hour is a whole number from 1 to 30"),
-    ("per_hour", 31, "per_hour is a whole number from 1 to 30"),
+    ("per_hour", 0, "per_hour is a whole number from 1 to 5"),
+    ("per_hour", 6, "per_hour is a whole number from 1 to 5"),
     ("per_hour", True, "per_hour is a whole number"),
     ("per_hour", 2.0, "per_hour is a whole number"),
     ("per_hour", "3", "per_hour is a whole number"),
@@ -141,19 +149,18 @@ def test_each_bound_of_the_terms_is_held(field, bad, message):
         terms(**{field: bad})
 
 
-@pytest.mark.parametrize("value", [1, 30])
-def test_the_bounds_themselves_are_allowed(value):
-    t = terms(per_hour=value, days=value, max_chars=value * 33)
-    assert (t["per_hour"], t["days"]) == (value, value)
+@pytest.mark.parametrize("per_hour,days", [(1, 1), (5, 30)])
+def test_the_bounds_themselves_are_allowed(per_hour, days):
+    t = terms(per_hour=per_hour, days=days, max_chars=days * 33)
+    assert (t["per_hour"], t["days"]) == (per_hour, days)
     assert terms(max_chars=1000)["max_chars"] == 1000
 
 
-@pytest.mark.parametrize("service,ceiling", [("telegram", 30), ("whatsapp", 5)])
-def test_the_hourly_ceiling_is_the_services_own(service, ceiling):
-    assert sm.SERVICES[service]["max_per_hour"] == ceiling <= sm.MAX_PER_HOUR
-    assert terms(service, per_hour=ceiling)["per_hour"] == ceiling
-    with pytest.raises(sm.MandateError, match=f"per_hour is a whole number from 1 to {ceiling}"):
-        terms(service, per_hour=ceiling + 1)
+def test_the_hourly_ceiling_is_the_services_own():
+    assert sm.SERVICES["whatsapp"]["max_per_hour"] == 5 <= sm.MAX_PER_HOUR
+    assert terms("whatsapp", per_hour=5)["per_hour"] == 5
+    with pytest.raises(sm.MandateError, match="per_hour is a whole number from 1 to 5"):
+        terms("whatsapp", per_hour=6)
 
 
 def test_a_service_below_the_absolute_ceiling_names_its_own_in_the_refusal():
@@ -163,9 +170,6 @@ def test_a_service_below_the_absolute_ceiling_names_its_own_in_the_refusal():
         terms("whatsapp", per_hour=30)
     with pytest.raises(sm.MandateError, match="per_hour is a whole number from 1 to 5"):
         terms("whatsapp", per_hour=0)
-    with pytest.raises(sm.MandateError) as refused:   # Telegram's refusal is the words it always was
-        terms("telegram", per_hour=31)
-    assert str(refused.value) == "per_hour is a whole number from 1 to 30"
 
 
 def test_whatsapp_terms_are_read_like_the_others():
@@ -193,21 +197,18 @@ def test_a_purpose_longer_than_the_limit_only_before_collapse_is_allowed():
     assert len(terms(purpose="x" * 200)["purpose"]) == 200
 
 
-@pytest.mark.parametrize("service,kind,allowed", [
-    ("telegram", "self", True), ("telegram", "user", True), ("telegram", "group", True),
-    ("telegram", "supergroup", True), ("telegram", "bot", False), ("telegram", "channel", False),
-    ("telegram", "", False), ("telegram", None, False), ("telegram", "forum", False),
-    ("whatsapp", "user", True), ("whatsapp", "group", True), ("whatsapp", "self", False),
-    ("whatsapp", "supergroup", False), ("whatsapp", "bot", False), ("whatsapp", "channel", False),
-    ("whatsapp", "broadcast", False), ("whatsapp", "lid", False), ("whatsapp", "newsletter", False),
+@pytest.mark.parametrize("kind,allowed", [
+    ("user", True), ("group", True), ("self", False), ("supergroup", False), ("bot", False),
+    ("channel", False), ("broadcast", False), ("lid", False), ("newsletter", False), ("", False),
+    (None, False), ("forum", False),
 ])
-def test_chat_kinds_are_held_per_service(service, kind, allowed):
+def test_chat_kinds_are_held(kind, allowed):
     chats = [chat(1, "X", kind)]
     if allowed:
-        assert terms(service, chats=chats)["chats"][0]["kind"] == kind
+        assert terms(chats=chats)["chats"][0]["kind"] == kind
     else:
         with pytest.raises(sm.MandateError):
-            terms(service, chats=chats)
+            terms(chats=chats)
 
 
 def test_a_bot_or_a_channel_is_refused_in_words():
@@ -260,7 +261,6 @@ def test_same_terms_ignore_only_the_end():
                          ("account_label", "Rui (@rui)"), ("chats", [TEAM]), ("chats", [ALICE, TEAM]),
                          ("chats", [{**ALICE, "identity": "@mallory"}]), ("chats", [{**ALICE, "name": "Mom"}])):
         assert not sm.same_terms(a, terms(**{field: other, "now": 1_000})), field
-    assert not sm.same_terms(a, terms("whatsapp", now=1_000))
 
 
 # --- the card -------------------------------------------------------------------------------------
@@ -268,7 +268,7 @@ def test_same_terms_ignore_only_the_end():
 def test_the_card_shows_every_bound():
     t = terms(chats=[ALICE, TEAM], now=time.time())
     lines = sm.card(t, SAY).splitlines()
-    assert lines[0] == "Telegram · Send mandate"
+    assert lines[0] == "WhatsApp · Send mandate"
     assert lines[1] == "🚨 Plain text sends to these chats skip the card"
     assert "Chat: Alice (user, @alice)" in lines and "Chat: Team (group, id -2002)" in lines
     assert "Account: acct" in lines
@@ -280,17 +280,18 @@ def test_the_card_shows_every_bound():
 
 
 def test_the_card_names_its_service_and_a_single_day():
-    assert sm.card(terms("whatsapp", days=1), SAY).splitlines()[0] == "WhatsApp · Send mandate"
-    assert "(1 day)" in sm.card(terms(days=1), SAY)
+    card = sm.card(terms("whatsapp", days=1), SAY)
+    assert card.splitlines()[0] == "WhatsApp · Send mandate"
+    assert "(1 day)" in card
 
 
 def test_long_names_and_purposes_shrink_until_the_card_fits():
-    chats = [chat(n, f"{n} " + "Name " * 40, "supergroup") for n in range(5)]
+    chats = [chat(n, f"{n} " + "Name " * 40, "group") for n in range(5)]
     t = terms(chats=chats, purpose="Reason " * 28)
     text = sm.card(t, SAY)
     assert cards.units(text) <= cards.budget()
     assert text.count("Chat: ") == 5 and "…" in text
-    assert all(f"(supergroup, id {n})" in text for n in range(5))
+    assert all(f"(group, id {n})" in text for n in range(5))
     assert "Up to: 3 an hour, 100 characters each" in text
 
 
@@ -337,37 +338,24 @@ def test_control_and_bidi_characters_in_an_identity_are_spelled_out():
 
 def test_a_mandate_is_made_listed_and_revoked(keyfile, home):
     made = sm.create(home, terms(chats=[ALICE, TEAM], account_label="Rui (@rui)"))
-    assert made["chats"] == ["Alice (@alice)", "Team (id -2002)"] and made["service"] == "telegram"
+    assert made["chats"] == ["Alice (@alice)", "Team (id -2002)"] and made["service"] == "whatsapp"
     assert (made["per_hour"], made["max_chars"], made["purpose"]) == (3, 100, "Send the morning report")
     assert set(made) == {"id", "until", "chats", "per_hour", "max_chars", "purpose", "service"}
-    body, = sm.active(home, "telegram")
+    body, = sm.active(home, "whatsapp")
     assert body["id"] == made["id"] and body["account"] == "acct" and body["chats"] == [ALICE, TEAM]
     assert body["account_label"] == "Rui (@rui)"
     assert sm.summary(body) == made
-    assert sm.revoke(home, "telegram", made["id"]) == {"revoked": made["id"]}
-    assert sm.active(home, "telegram") == []
-    assert sm.revoke(home, "telegram", made["id"]) == {"revoked": made["id"], "note": "it was not in force"}
+    assert sm.revoke(home, "whatsapp", made["id"]) == {"revoked": made["id"]}
+    assert sm.active(home, "whatsapp") == []
+    assert sm.revoke(home, "whatsapp", made["id"]) == {"revoked": made["id"], "note": "it was not in force"}
 
 
 def test_a_mandate_lives_in_its_services_state(keyfile, home):
     make(home)
-    make(home, "whatsapp", per_hour=5)
-    assert (home / "telegram-access" / "head.json").is_file()
     assert (home / "whatsapp-access" / "head.json").is_file()
-    assert sm.store("telegram").mac_kind == "telegram-send-mandate"
     assert sm.store("whatsapp").max_days == 30
     assert (sm.store("whatsapp").mac_kind, sm.store("whatsapp").key_prefix, sm.store("whatsapp").scope) == (
         "whatsapp-send-mandate", "WHATSAPP_MANDATE_KEY_", "whatsapp-access")
-
-
-def test_a_mandate_of_one_service_is_invisible_to_the_other(keyfile, home):
-    telegram, whatsapp = make(home), make(home, "whatsapp")
-    assert [m["id"] for m in sm.active(home, "telegram")] == [telegram]
-    assert [m["id"] for m in sm.active(home, "whatsapp")] == [whatsapp]
-    assert sm.revoke(home, "whatsapp", telegram) == {"revoked": telegram, "note": "it was not in force"}
-    assert [m["id"] for m in sm.active(home, "telegram")] == [telegram]
-    assert sm.covering(home, "whatsapp", view(service="whatsapp")) == (whatsapp, [])
-    assert sm.covering(home, "telegram", view(service="whatsapp"))[0] is None
 
 
 def test_whatsapps_ceiling_is_the_accounts_total_across_its_mandates_in_force(keyfile, home):
@@ -413,35 +401,28 @@ def test_check_account_ceiling_looks_before_the_card(keyfile, home):
     assert sm.account_ceiling_refusal(terms("whatsapp", per_hour=3), []) is None
 
 
-def test_telegram_keeps_its_ceiling_per_mandate(keyfile, home):
-    ids = {make(home, "telegram", per_hour=30) for _ in range(3)}
-    assert {m["id"] for m in sm.active(home, "telegram")} == ids
-    sm.check_account_ceiling(home, terms("telegram", per_hour=30))
-    assert sm.account_ceiling_refusal(terms("telegram", per_hour=30), sm.active(home, "telegram")) is None
-
-
 def test_a_mandate_ends_when_its_card_said(keyfile, home):
     t = terms()
     sm.create(home, t)
-    assert sm.active(home, "telegram", now=t["expires"] - 1)
-    assert sm.active(home, "telegram", now=t["expires"]) == []
+    assert sm.active(home, "whatsapp", now=t["expires"] - 1)
+    assert sm.active(home, "whatsapp", now=t["expires"]) == []
 
 
 def test_the_history_file_does_not_decide(keyfile, home):
     mandate_id = make(home)
-    sm.revoke(home, "telegram", mandate_id)
-    with open(home / "telegram-access" / "mandates.jsonl", "a") as handle:
+    sm.revoke(home, "whatsapp", mandate_id)
+    with open(home / "whatsapp-access" / "mandates.jsonl", "a") as handle:
         handle.write(json.dumps({"event": "made", "mandate": mandate_id, "time": int(time.time())}) + "\n")
-    assert sm.active(home, "telegram") == []
-    assert sm.use(home, "telegram", mandate_id, view()) == f"mandate {mandate_id} is no longer in force"
+    assert sm.active(home, "whatsapp") == []
+    assert sm.use(home, "whatsapp", mandate_id, view()) == f"mandate {mandate_id} is no longer in force"
 
 
 def test_without_a_key_nothing_is_in_force(keyfile, home):
     mandate_id = make(home)
     keyfile.unlink()
-    assert sm.active(home, "telegram") == []
-    assert sm.covering(home, "telegram", view()) == (None, [])
-    assert sm.use(home, "telegram", mandate_id, view()) == sm.NO_KEY
+    assert sm.active(home, "whatsapp") == []
+    assert sm.covering(home, "whatsapp", view()) == (None, [])
+    assert sm.use(home, "whatsapp", mandate_id, view()) == sm.NO_KEY
     assert uses(home) == []
 
 
@@ -450,14 +431,11 @@ def test_a_service_that_never_made_a_mandate_does_not_ask_the_keychain(tmp_path,
     keyfile = tmp_path / "keyfile"
     keyfile.write_text(KEY.hex() + "\n")
     monkeypatch.setattr(mandate_store, "SECRET", fake_cli(tmp_path / "secret", keyfile, calls))
-    assert sm.covering(home, "telegram", view()) == (None, [])
-    assert sm.covering(home, "whatsapp", view(service="whatsapp")) == (None, [])
+    assert sm.covering(home, "whatsapp", view()) == (None, [])
     assert not calls.exists()
     make(home)
     calls.unlink()
-    assert sm.covering(home, "whatsapp", view(service="whatsapp")) == (None, [])   # the other service has no head
-    assert not calls.exists()
-    assert sm.covering(home, "telegram", view())[0] is not None and calls.exists()
+    assert sm.covering(home, "whatsapp", view())[0] is not None and calls.exists()
 
 
 # --- does a send fit --------------------------------------------------------------------------------
@@ -475,8 +453,8 @@ def test_a_plain_send_to_a_named_chat_fits(mandate):
 
 
 @pytest.mark.parametrize("over,used,reason", [
-    ({"service": "whatsapp"}, 0, "the mandate is for telegram, not whatsapp"),
-    ({"service": None}, 0, "the mandate is for telegram"),
+    ({"service": "discord"}, 0, "the mandate is for whatsapp, not discord"),
+    ({"service": None}, 0, "the mandate is for whatsapp"),
     ({"account": "other"}, 0, "another account"),
     ({"account": None}, 0, "another account"),
     ({"chat": "3003"}, 0, "not one the mandate names"),
@@ -507,32 +485,32 @@ def test_the_first_reason_wins(mandate):
 
 
 def test_covering_picks_the_first_fitting_mandate_and_reports_the_misses(keyfile, home):
-    make(home, max_chars=5)
-    make(home, chats=[TEAM])
-    make(home, max_chars=500)
-    make(home, max_chars=600)
+    make(home, per_hour=1, max_chars=5)   # whatsapp bounds the account's total: 4 × 1 stays within its 5
+    make(home, per_hour=1, chats=[TEAM])
+    make(home, per_hour=1, max_chars=500)
+    make(home, per_hour=1, max_chars=600)
     # The head lists the ids sorted, so the order of the mandates in force is what ``active`` returns.
-    order = [m["id"] for m in sm.active(home, "telegram")]
-    by_id = {m["id"]: m for m in sm.active(home, "telegram")}
-    found, misses = sm.covering(home, "telegram", view(text="x" * 50))
+    order = [m["id"] for m in sm.active(home, "whatsapp")]
+    by_id = {m["id"]: m for m in sm.active(home, "whatsapp")}
+    found, misses = sm.covering(home, "whatsapp", view(text="x" * 50))
     fitting = [i for i in order if sm.fits(by_id[i], view(text="x" * 50)) is None]
     assert found == fitting[0] and len(fitting) == 2
     assert [m.split(": ", 1)[0] for m in misses] == order[:order.index(found)]
     assert all(m.split(": ", 1)[1] == sm.fits(by_id[m.split(": ", 1)[0]], view(text="x" * 50)) for m in misses)
-    none, all_misses = sm.covering(home, "telegram", view(text="x" * 5000))
+    none, all_misses = sm.covering(home, "whatsapp", view(text="x" * 5000))
     assert none is None and [m.split(": ", 1)[0] for m in all_misses] == order
 
 
 def test_covering_counts_the_hour_per_mandate(keyfile, home):
     ids = [make(home, per_hour=1), make(home, per_hour=1)]
     now = time.time()
-    first, misses = sm.covering(home, "telegram", view(), now=now)
+    first, misses = sm.covering(home, "whatsapp", view(), now=now)
     assert first in ids and misses == []
-    assert sm.use(home, "telegram", first, view(), now=now) is None
-    second, misses = sm.covering(home, "telegram", view(), now=now)
+    assert sm.use(home, "whatsapp", first, view(), now=now) is None
+    second, misses = sm.covering(home, "whatsapp", view(), now=now)
     assert second == next(i for i in ids if i != first)
-    assert sm.use(home, "telegram", second, view(), now=now) is None
-    none, misses = sm.covering(home, "telegram", view(), now=now)
+    assert sm.use(home, "whatsapp", second, view(), now=now) is None
+    none, misses = sm.covering(home, "whatsapp", view(), now=now)
     assert none is None and len(misses) == 2
     assert all(m.endswith("1 sends in the last hour; the mandate allows 1 an hour") for m in misses)
 
@@ -540,7 +518,7 @@ def test_covering_counts_the_hour_per_mandate(keyfile, home):
 # --- the hourly ledger ------------------------------------------------------------------------------
 
 def ledger(home):
-    return home / "telegram-access" / "uses.jsonl"
+    return home / "whatsapp-access" / "uses.jsonl"
 
 
 def rows(home):
@@ -555,133 +533,132 @@ def uses(home):
 def test_the_hours_count_is_held_and_the_slot_frees_after_an_hour(keyfile, home):
     mandate_id = make(home, per_hour=2)
     now = time.time()
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is None
-    assert sm.use(home, "telegram", mandate_id, view(), now=now + 10) is None
-    refused = sm.use(home, "telegram", mandate_id, view(), now=now + 20)
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now + 10) is None
+    refused = sm.use(home, "whatsapp", mandate_id, view(), now=now + 20)
     assert refused == "2 sends in the last hour; the mandate allows 2 an hour"
     assert len(uses(home)) == 2
-    assert sm.covering(home, "telegram", view(), now=now + 20)[0] is None
+    assert sm.covering(home, "whatsapp", view(), now=now + 20)[0] is None
     # The first row leaves the window at now + 3600, the second ten seconds later.
-    assert sm.use(home, "telegram", mandate_id, view(), now=now + 3599) is not None
-    assert sm.use(home, "telegram", mandate_id, view(), now=now + 3601) is None
-    assert sm.use(home, "telegram", mandate_id, view(), now=now + 3602) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now + 3599) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now + 3601) is None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now + 3602) is not None
     assert len(uses(home)) == 3
 
 
 def test_a_send_that_does_not_fit_is_not_counted(keyfile, home):
     mandate_id = make(home, per_hour=2, max_chars=10)
-    assert "allows 10" in sm.use(home, "telegram", mandate_id, view(text="x" * 11))
-    assert sm.use(home, "telegram", mandate_id, view(chat="3003")) is not None
-    assert sm.use(home, "telegram", mandate_id, view(files=1)) is not None
+    assert "allows 10" in sm.use(home, "whatsapp", mandate_id, view(text="x" * 11))
+    assert sm.use(home, "whatsapp", mandate_id, view(chat="3003")) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view(files=1)) is not None
     assert uses(home) == []
 
 
 def test_a_use_row_is_authenticated_and_private(keyfile, home):
     mandate_id = make(home)
     now = time.time()
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is None
     row, = uses(home)
     assert set(row) == {"mandate", "time", "mac"} and row["mandate"] == mandate_id and row["time"] == int(now)
-    assert row["mac"] == mandate_store.mac(KEY, "telegram-send-use", row)
+    assert row["mac"] == mandate_store.mac(KEY, "whatsapp-send-use", row)
 
     def mode(path):
         return stat.S_IMODE(os.stat(path).st_mode)
 
-    assert mode(home / "telegram-access" / "uses.jsonl") == 0o600
-    assert mode(home / "telegram-access") == 0o700
+    assert mode(home / "whatsapp-access" / "uses.jsonl") == 0o600
+    assert mode(home / "whatsapp-access") == 0o700
 
 
 def test_the_ledger_is_appended_not_rewritten(keyfile, home):
     mandate_id = make(home)
-    sm.use(home, "telegram", mandate_id, view())
-    path = home / "telegram-access" / "uses.jsonl"
+    sm.use(home, "whatsapp", mandate_id, view())
+    path = home / "whatsapp-access" / "uses.jsonl"
     first = path.read_text()
-    sm.use(home, "telegram", mandate_id, view())
+    sm.use(home, "whatsapp", mandate_id, view())
     assert path.read_text().startswith(first) and len(uses(home)) == 2
 
 
 def append_raw(home, text):
-    with open(home / "telegram-access" / "uses.jsonl", "a") as handle:
+    with open(home / "whatsapp-access" / "uses.jsonl", "a") as handle:
         handle.write(text + "\n")
 
 
 def test_rows_that_are_not_this_mandates_own_count_for_nothing(keyfile, home):
     mandate_id, other_id = make(home, per_hour=1), make(home, per_hour=1)
     now = int(time.time())
-    # A bad MAC, another mandate's valid row, a row MAC'd as the other service, a changed time, a wrong key,
+    # A bad MAC, another mandate's valid row, a row MAC'd as another kind, a changed time, a wrong key,
     # a row with extras, a bool time, junk and a blank line.
     good = {"mandate": other_id, "time": now}
     append_raw(home, json.dumps({"mandate": mandate_id, "time": now, "mac": "0" * 64}))
-    append_raw(home, json.dumps({**good, "mac": mandate_store.mac(KEY, "telegram-send-use", good)}))
-    other_service_row = {"mandate": mandate_id, "time": now}
-    append_raw(home, json.dumps({**other_service_row,
-                                 "mac": mandate_store.mac(KEY, "whatsapp-send-use", other_service_row)}))
+    append_raw(home, json.dumps({**good, "mac": mandate_store.mac(KEY, "whatsapp-send-use", good)}))
+    other_kind_row = {"mandate": mandate_id, "time": now}
+    append_raw(home, json.dumps({**other_kind_row,
+                                 "mac": mandate_store.mac(KEY, "whatsapp-send-mandate", other_kind_row)}))
     older = {"mandate": mandate_id, "time": now - 5}
-    append_raw(home, json.dumps({**older, "time": now, "mac": mandate_store.mac(KEY, "telegram-send-use", older)}))
+    append_raw(home, json.dumps({**older, "time": now, "mac": mandate_store.mac(KEY, "whatsapp-send-use", older)}))
     wrong_key = {"mandate": mandate_id, "time": now}
-    append_raw(home, json.dumps({**wrong_key, "mac": mandate_store.mac(b"\x01" * 32, "telegram-send-use", wrong_key)}))
+    append_raw(home, json.dumps({**wrong_key, "mac": mandate_store.mac(b"\x01" * 32, "whatsapp-send-use", wrong_key)}))
     extra = {"mandate": mandate_id, "time": now, "note": "x"}
-    append_raw(home, json.dumps({**extra, "mac": mandate_store.mac(KEY, "telegram-send-use", extra)}))
+    append_raw(home, json.dumps({**extra, "mac": mandate_store.mac(KEY, "whatsapp-send-use", extra)}))
     flag = {"mandate": mandate_id, "time": True}
-    append_raw(home, json.dumps({**flag, "mac": mandate_store.mac(KEY, "telegram-send-use", flag)}))
+    append_raw(home, json.dumps({**flag, "mac": mandate_store.mac(KEY, "whatsapp-send-use", flag)}))
     append_raw(home, "not json")
     append_raw(home, "[1, 2]")
     append_raw(home, "")
-    assert sm._used(home, "telegram", mandate_id, now) == 0
-    assert sm._used(home, "telegram", other_id, now) == 1
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is None
-    assert sm._used(home, "telegram", mandate_id, now) == 1
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is not None
+    assert sm._used(home, "whatsapp", mandate_id, now) == 0
+    assert sm._used(home, "whatsapp", other_id, now) == 1
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is None
+    assert sm._used(home, "whatsapp", mandate_id, now) == 1
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is not None
 
 
 def test_a_torn_last_line_is_skipped_and_the_valid_rows_still_count(keyfile, home):
     mandate_id = make(home, per_hour=1)
     now = time.time()
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is None
-    with open(home / "telegram-access" / "uses.jsonl", "a") as handle:
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is None
+    with open(home / "whatsapp-access" / "uses.jsonl", "a") as handle:
         handle.write('{"mandate": "' + mandate_id)
-    assert sm.use(home, "telegram", mandate_id, view(), now=now) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view(), now=now) is not None
 
 
 def test_a_replaced_key_forgets_the_old_rows_with_the_mandates(keyfile, home):
     mandate_id = make(home, per_hour=1)
-    sm.use(home, "telegram", mandate_id, view())
+    sm.use(home, "whatsapp", mandate_id, view())
     new_key = bytes(reversed(range(32)))
-    assert sm._used(home, "telegram", mandate_id, time.time(), new_key) == sm.MAX_PER_HOUR
+    assert sm._used(home, "whatsapp", mandate_id, time.time(), new_key) == sm.MAX_PER_HOUR
     keyfile.write_text(new_key.hex())
-    assert sm.active(home, "telegram") == []
+    assert sm.active(home, "whatsapp") == []
 
 
 def test_use_refuses_a_mandate_that_is_gone(keyfile, home):
-    mandate_id = make(home)
-    assert sm.use(home, "telegram", "m00000000", view()) == "mandate m00000000 is no longer in force"
-    assert sm.use(home, "whatsapp", mandate_id, view(service="whatsapp")) == f"mandate {mandate_id} is no longer in force"
-    t = terms()
+    make(home, per_hour=2)
+    assert sm.use(home, "whatsapp", "m00000000", view()) == "mandate m00000000 is no longer in force"
+    t = terms(per_hour=2)
     ended = sm.create(home, t)["id"]
-    assert sm.use(home, "telegram", ended, view(), now=t["expires"]) == f"mandate {ended} is no longer in force"
+    assert sm.use(home, "whatsapp", ended, view(), now=t["expires"]) == f"mandate {ended} is no longer in force"
 
 
 def test_a_mandate_revoked_between_covering_and_use_is_refused(keyfile, home):
     mandate_id = make(home)
-    assert sm.covering(home, "telegram", view()) == (mandate_id, [])
-    sm.revoke(home, "telegram", mandate_id)
-    assert sm.use(home, "telegram", mandate_id, view()) == f"mandate {mandate_id} is no longer in force"
+    assert sm.covering(home, "whatsapp", view()) == (mandate_id, [])
+    sm.revoke(home, "whatsapp", mandate_id)
+    assert sm.use(home, "whatsapp", mandate_id, view()) == f"mandate {mandate_id} is no longer in force"
     assert uses(home) == []
 
 
 def test_use_checks_the_send_again_against_the_mandate(keyfile, home):
     mandate_id = make(home, max_chars=10)
-    assert sm.covering(home, "telegram", view(text="short"))[0] == mandate_id
-    assert "allows 10" in sm.use(home, "telegram", mandate_id, view(text="a longer text than the mandate allows"))
-    assert "another account" in sm.use(home, "telegram", mandate_id, view(account="other"))
+    assert sm.covering(home, "whatsapp", view(text="short"))[0] == mandate_id
+    assert "allows 10" in sm.use(home, "whatsapp", mandate_id, view(text="a longer text than the mandate allows"))
+    assert "another account" in sm.use(home, "whatsapp", mandate_id, view(account="other"))
 
 
 def test_use_refuses_when_the_key_cannot_be_read(keyfile, home):
     mandate_id = make(home)
     keyfile.write_text("garbled")
-    assert sm.use(home, "telegram", mandate_id, view()) == sm.NO_KEY
+    assert sm.use(home, "whatsapp", mandate_id, view()) == sm.NO_KEY
     keyfile.unlink()
-    assert sm.use(home, "telegram", mandate_id, view()) == sm.NO_KEY
+    assert sm.use(home, "whatsapp", mandate_id, view()) == sm.NO_KEY
     assert uses(home) == []
 
 
@@ -692,11 +669,12 @@ def test_use_refuses_when_the_row_cannot_be_written(keyfile, home, monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr(sm, "_append", fail)
-    assert sm.use(home, "telegram", mandate_id, view()) == "the send could not be counted: disk full"
+    assert sm.use(home, "whatsapp", mandate_id, view()) == "the send could not be counted: disk full"
 
 
 def test_use_of_an_unknown_service_refuses(home):
     assert "service is one of" in sm.use(home, "discord", "m1a2b3c4d", view())
+    assert "service is one of" in sm.use(home, "telegram", "m1a2b3c4d", view())
 
 
 def test_threads_racing_the_last_slots_win_exactly_per_hour_times(keyfile, home):
@@ -707,7 +685,7 @@ def test_threads_racing_the_last_slots_win_exactly_per_hour_times(keyfile, home)
 
     def send():
         gate.wait()
-        results.append(sm.use(home, "telegram", mandate_id, view(), now=now))
+        results.append(sm.use(home, "whatsapp", mandate_id, view(), now=now))
 
     threads = [threading.Thread(target=send) for _ in range(10)]
     for thread in threads:
@@ -723,7 +701,7 @@ def test_threads_racing_the_last_slots_win_exactly_per_hour_times(keyfile, home)
 
 def opening(mandate_id, at, key=KEY, **over):
     row = {"mandate": mandate_id, "time": at, "open": True, **over}
-    return {**row, "mac": mandate_store.mac(key, "telegram-send-use", row)}
+    return {**row, "mac": mandate_store.mac(key, "whatsapp-send-use", row)}
 
 
 def test_a_mandate_is_anchored_by_one_authenticated_opening_row(keyfile, home):
@@ -732,59 +710,56 @@ def test_a_mandate_is_anchored_by_one_authenticated_opening_row(keyfile, home):
     row, = rows(home)
     assert set(row) == {"mandate", "time", "open", "mac"} and row["open"] is True and row["mandate"] == mandate_id
     assert before <= row["time"] <= int(time.time()) and row == opening(mandate_id, row["time"])
-    assert sm._used(home, "telegram", mandate_id, time.time()) == 0   # an opening row is not a use
-    assert sm.use(home, "telegram", mandate_id, view()) is None
-    assert sm.use(home, "telegram", mandate_id, view()) is not None   # per_hour 1: the opening row took no slot
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == 0   # an opening row is not a use
+    assert sm.use(home, "whatsapp", mandate_id, view()) is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None   # per_hour 1: the opening row took no slot
     assert len(rows(home)) == 2 and len(uses(home)) == 1
 
 
 def test_a_deleted_ledger_blocks_every_mandate_it_anchored(keyfile, home):
-    old = make(home)
+    old = make(home, per_hour=2)
     ledger(home).unlink()
-    assert sm.covering(home, "telegram", view()) == (None, [f"{old}: {sm.LEDGER_USED_UP}"])
-    assert sm.use(home, "telegram", old, view()) is not None
+    assert sm.covering(home, "whatsapp", view()) == (None, [f"{old}: {sm.LEDGER_USED_UP}"])
+    assert sm.use(home, "whatsapp", old, view()) is not None
     assert not ledger(home).exists()
-    new = make(home)   # a new mandate is anchored afresh
-    assert sm.use(home, "telegram", new, view()) is None
-    assert sm.use(home, "telegram", old, view()) is not None
+    new = make(home, per_hour=2)   # a new mandate is anchored afresh
+    assert sm.use(home, "whatsapp", new, view()) is None
+    assert sm.use(home, "whatsapp", old, view()) is not None
 
 
 def test_an_emptied_ledger_blocks(keyfile, home):
     mandate_id = make(home)
-    assert sm.use(home, "telegram", mandate_id, view()) is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is None
     ledger(home).write_text("")
-    assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     assert ledger(home).read_text() == ""
 
 
 def test_a_ledger_that_cannot_be_vouched_for_says_so_instead_of_naming_a_count(keyfile, home):
     mandate_id = make(home, per_hour=3)
-    assert sm.use(home, "telegram", mandate_id, view()) is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is None
     for damage, reason in ((lambda: ledger(home).write_text(""), sm.LEDGER_USED_UP),     # emptied
                            (lambda: ledger(home).unlink(), sm.LEDGER_USED_UP),           # gone
                            (lambda: keyfile.write_text("garbled"), sm.NO_KEY)):          # no key to vouch with
         damage()
-        assert sm.use(home, "telegram", mandate_id, view()) == reason
+        assert sm.use(home, "whatsapp", mandate_id, view()) == reason
     assert "cannot be read" in sm.LEDGER_USED_UP and "counts as used up" in sm.LEDGER_USED_UP
     assert "sends in the last hour" not in sm.LEDGER_USED_UP
 
 
-def test_a_missing_opening_row_says_so_for_every_service(keyfile, home):
-    for service in ("telegram", "whatsapp"):
-        mandate_id = make(home, service, per_hour=2)
-        (home / f"{service}-access" / "uses.jsonl").write_text("")
-        assert sm.use(home, service, mandate_id, view(service=service)) == sm.LEDGER_USED_UP
-        assert sm.covering(home, service, view(service=service)) == (None, [f"{mandate_id}: {sm.LEDGER_USED_UP}"])
+def test_a_missing_opening_row_says_so(keyfile, home):
+    mandate_id = make(home, per_hour=2)
+    ledger(home).write_text("")
+    assert sm.use(home, "whatsapp", mandate_id, view()) == sm.LEDGER_USED_UP
+    assert sm.covering(home, "whatsapp", view()) == (None, [f"{mandate_id}: {sm.LEDGER_USED_UP}"])
 
 
-def test_a_real_count_that_reaches_the_absolute_ceiling_still_names_the_mandates_own_count(keyfile, home):
-    mandate_id = make(home, per_hour=sm.MAX_PER_HOUR)
-    now = time.time()
-    for n in range(sm.MAX_PER_HOUR):
-        assert sm.use(home, "telegram", mandate_id, view(), now=now + n) is None
-    refused = sm.use(home, "telegram", mandate_id, view(), now=now + 40)
-    assert refused == f"{sm.MAX_PER_HOUR} sends in the last hour; the mandate allows {sm.MAX_PER_HOUR} an hour"
+def test_a_real_count_equal_to_the_absolute_ceiling_still_names_a_count(mandate):
+    assert sm.USED_UP == sm.MAX_PER_HOUR
+    assert sm.fits(mandate, view(), used=sm.USED_UP) == sm.LEDGER_USED_UP
+    assert sm.fits(mandate, view(), used=sm.MAX_PER_HOUR) == (
+        f"{sm.MAX_PER_HOUR} sends in the last hour; the mandate allows 2 an hour")
 
 
 def test_a_whatsapp_hour_is_used_up_at_five(keyfile, home):
@@ -802,8 +777,8 @@ def test_a_ledger_replaced_by_a_link_to_a_device_blocks_and_nothing_is_written_t
     mandate_id = make(home)
     ledger(home).unlink()
     ledger(home).symlink_to("/dev/null")
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
-    assert sm.covering(home, "telegram", view())[0] is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
+    assert sm.covering(home, "whatsapp", view())[0] is None
     assert ledger(home).is_symlink() and os.stat("/dev/null").st_size == 0
 
 
@@ -813,7 +788,7 @@ def test_a_ledger_replaced_by_a_link_to_a_copy_blocks_even_when_the_copy_is_inta
     copy.write_text(ledger(home).read_text())
     ledger(home).unlink()
     ledger(home).symlink_to(copy)
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     assert copy.read_text().count("\n") == 1 and ledger(home).is_symlink()
 
 
@@ -821,7 +796,7 @@ def test_a_dangling_link_in_place_of_the_ledger_is_not_followed_to_create_a_file
     mandate_id = make(home)
     ledger(home).unlink()
     ledger(home).symlink_to(tmp_path / "elsewhere.jsonl")
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     assert not (tmp_path / "elsewhere.jsonl").exists()
 
 
@@ -830,34 +805,34 @@ def test_a_ledger_that_is_not_a_plain_file_of_this_user_blocks(keyfile, home, mo
     original = ledger(home).read_text()
     real_getuid = os.getuid
     monkeypatch.setattr(os, "getuid", lambda: real_getuid() + 1)   # the file is now another user's
-    assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     monkeypatch.setattr(os, "getuid", real_getuid)
     assert ledger(home).read_text() == original
     ledger(home).unlink()
     ledger(home).mkdir()   # a directory
-    assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     ledger(home).rmdir()
     os.mkfifo(ledger(home))   # a pipe: never opened for reading to block on
-    assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
 
 
 def test_an_unreadable_ledger_blocks(keyfile, home):
     mandate_id = make(home)
     ledger(home).chmod(0)
     try:
-        assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
-        assert sm.use(home, "telegram", mandate_id, view()) is not None
+        assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
+        assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     finally:
         ledger(home).chmod(0o600)
 
 
 def test_a_forged_opening_row_does_not_anchor(keyfile, home):
-    mandate_id = make(home)
+    mandate_id = make(home, per_hour=2)
     now = int(time.time())
-    other_id = make(home)
+    other_id = make(home, per_hour=2)
     forgeries = [
         {"mandate": mandate_id, "time": now, "open": True, "mac": "0" * 64},
         opening(mandate_id, now, key=b"\x01" * 32),
@@ -867,32 +842,32 @@ def test_a_forged_opening_row_does_not_anchor(keyfile, home):
         {**opening(mandate_id, now), "time": now + 1},             # a time the MAC does not cover
     ]
     bare = {"mandate": mandate_id, "time": now}                    # a use row is not an opening
-    forgeries.append({**bare, "mac": mandate_store.mac(KEY, "telegram-send-use", bare)})
+    forgeries.append({**bare, "mac": mandate_store.mac(KEY, "whatsapp-send-use", bare)})
     forgeries.append({"mandate": mandate_id, "time": now, "open": 1, "mac": opening(mandate_id, now)["mac"]})
     ledger(home).write_text("".join(json.dumps(row) + "\n" for row in forgeries))
-    assert sm._used(home, "telegram", mandate_id, now) == sm.MAX_PER_HOUR
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
-    found, misses = sm.covering(home, "telegram", view())
+    assert sm._used(home, "whatsapp", mandate_id, now) == sm.MAX_PER_HOUR
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
+    found, misses = sm.covering(home, "whatsapp", view())
     assert found == other_id and all(m.startswith(mandate_id) for m in misses)   # only its own row anchors
     assert len(ledger(home).read_text().splitlines()) == len(forgeries)
 
 
-def test_an_opening_row_of_another_service_does_not_anchor(keyfile, home):
+def test_an_opening_row_of_another_kind_does_not_anchor(keyfile, home):
     mandate_id = make(home)
     row = {"mandate": mandate_id, "time": int(time.time()), "open": True}
-    ledger(home).write_text(json.dumps({**row, "mac": mandate_store.mac(KEY, "whatsapp-send-use", row)}) + "\n")
-    assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
+    ledger(home).write_text(json.dumps({**row, "mac": mandate_store.mac(KEY, "whatsapp-send-mandate", row)}) + "\n")
+    assert sm._used(home, "whatsapp", mandate_id, time.time()) == sm.MAX_PER_HOUR
 
 
 def test_documented_limit_removing_use_rows_from_an_intact_ledger_is_not_detected(keyfile, home):
     """A ledger that keeps its opening row but loses its use rows reads as unused: the file guard and the
     30-day ceiling bound that edit, not the MACs (docs/decisions/send-mandates.md)."""
     mandate_id = make(home, per_hour=1)
-    assert sm.use(home, "telegram", mandate_id, view()) is None
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
     first = ledger(home).read_text().splitlines()[0]
     ledger(home).write_text(first + "\n")
-    assert sm.use(home, "telegram", mandate_id, view()) is None
+    assert sm.use(home, "whatsapp", mandate_id, view()) is None
 
 
 def test_a_mandate_that_cannot_be_anchored_is_revoked_and_nothing_is_made(keyfile, home, tmp_path):
@@ -900,7 +875,7 @@ def test_a_mandate_that_cannot_be_anchored_is_revoked_and_nothing_is_made(keyfil
     ledger(home).symlink_to(tmp_path / "elsewhere.jsonl")
     with pytest.raises(sm.MandateError, match="could not be recorded in its ledger.*nothing was made, it was revoked"):
         sm.create(home, terms())
-    assert sm.active(home, "telegram") == [] and not (tmp_path / "elsewhere.jsonl").exists()
+    assert sm.active(home, "whatsapp") == [] and not (tmp_path / "elsewhere.jsonl").exists()
 
 
 def test_a_mandate_whose_anchor_and_revoke_both_fail_says_which_to_revoke(keyfile, home, monkeypatch):
@@ -913,6 +888,6 @@ def test_a_mandate_whose_anchor_and_revoke_both_fail_says_which_to_revoke(keyfil
     with pytest.raises(sm.MandateError, match=said):
         sm.create(home, terms())
     # Not anchored, so it is used up whatever the head says.
-    mandate_id, = [m["id"] for m in sm.active(home, "telegram")]
-    assert sm.use(home, "telegram", mandate_id, view()) is not None
+    mandate_id, = [m["id"] for m in sm.active(home, "whatsapp")]
+    assert sm.use(home, "whatsapp", mandate_id, view()) is not None
 

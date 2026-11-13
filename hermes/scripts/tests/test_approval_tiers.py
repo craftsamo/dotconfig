@@ -45,7 +45,6 @@ EXPECTED = {
         "watermark_remove": ("standing", "watermark-off", SAFE_ONLY),
         "moderate": ("standing", "moderate-hold", SAFE_ONLY),
     },
-    "telegram-access": {"send": ("standing", "send-self", SAFE_ONLY)},
     "discord-access": {
         "unreact": ("standing", "unreact-in", SAFE_ONLY),
         "unpin": ("standing", "unpin-in", SAFE_ONLY),

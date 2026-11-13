@@ -12,7 +12,7 @@ never touches the policy, and it adds what that plugin does not do:
   a named read counts as a write, so a tool the plugin adds later fails closed.
 - the terminal and file tools may not reach the Telegram account around its tools: the plugin's CLI and
   MCP server, its state (the session's auth key, the API credentials, the mirror), logs and launch agents,
-  the old ``telegram-access`` plugin's state, mandates and launcher, and Telegram Desktop's data, and
+  and Telegram Desktop's data, and
   nothing inside a ``.unpacked`` folder of a received archive may be run. The terminal keeps its directory
   between calls, so a terminal call is also judged by where it runs (its ``workdir``, else the session's
   recorded directory) and every word of the command is resolved against that directory.
@@ -43,12 +43,6 @@ RESOLVE_MAX = 4096          # a longer argument is not a path worth resolving
 STATE_ENV = "TELEGRAM_TOOLS_STATE_DIR"
 STATE_NAME = "telegram-tools"
 LOG_NAME = "io.github.craft-agent.telegram-tools"
-HERMES_HOME_ENV = "HERMES_HOME"
-OLD_STATE_ENV = "HERMES_TELEGRAM_STATE"
-OLD_STATE_NAME = "hermes-telegram"
-OLD_MANDATES = "telegram-access"
-OLD_LAUNCHER = "telegram-access-launchctl.sh"
-OLD_LOG = "telegram-access-sync.log"
 
 # Progress lines: the declared choices of a tool's `method`, and a fixed label for each other tool.
 METHODS = {
@@ -71,7 +65,7 @@ LABELS = {
 
 # Ways around the tools: the CLIs where a command runs them (shell_commands; `_CLI`, the name as a word
 # anywhere, judges a line that cannot be read that way), the state, logs, launch agents and env of the
-# plugin, its install, Telegram Desktop's data, and the old plugin's state, mandates and launcher.
+# plugin, its install and Telegram Desktop's data.
 CLIS = ("telegram-tools-cli", "telegram-tools")
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map(re.escape, CLIS))
                   + r")(?=$|[\s;&|()`'\"])")
@@ -79,27 +73,21 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map
 # `telegram-tools` as a whole path component (or a word) is the plugin's directory wherever it sits, so
 # `state//telegram-tools`, `state/./telegram-tools`, a quoted component or a bare `telegram-tools` after a
 # `cd` are caught; `telegram-tools-guard`, `telegram-tools.md` and `feat-hermes-telegram-tools` are not.
-# The old plugin's mandates are `<home>/telegram-access/` of the root or a profile home (and, by their
-# file names, wherever a relative path hides the home); its source (`plugins/messaging/telegram-access/`)
-# and `docs/telegram-access.md` stay readable.
 _PATHS = re.compile(r"state/telegram-tools|io\.github\.craft-agent\.telegram-tools|TELEGRAM_TOOLS_"
                     r"|\.hermes/plugins/telegram-tools|@craftsamo/telegram-tools|telegram-tools/dist/"
-                    r"|hermes-telegram(?!-tools)|HERMES_TELEGRAM_|telegram-access-launchctl|telegram-access-sync"
-                    r"|local\.hermes\.telegram-access|(?:\.hermes|HERMES_HOME\}?|profiles/[^/\s'\"]+)/telegram-access"
-                    r"(?![\w.-])|(?<!messaging/)(?<![\w.-])telegram-access/(?:mandates|head\.json|uses\.jsonl)"
                     r"|ru\.keepcoder\.Telegram|Application(?:\\? |%20)Support/Telegram(?:\\? |%20)Desktop"
                     r"|(?:^|[/\s'\"=;&|()])telegram-tools(?=/|$|[\s'\"`;&|()])",
                     re.IGNORECASE)
 # Directory and file names that belong to the account wherever they sit (the package installed under a
-# profile's own plugins, a copy of its state, the old launcher), compared lower-case against each
+# profile's own plugins, a copy of its state), compared lower-case against each
 # component of a resolved path.
-PROTECTED_PARTS = (STATE_NAME, LOG_NAME, OLD_STATE_NAME, OLD_LAUNCHER, OLD_LOG)
+PROTECTED_PARTS = (STATE_NAME, LOG_NAME)
 _GLOB = re.compile(r"[*?\[]")
 GLOB_LITERALS = 4           # a glob component names a directory only with this much fixed text
 BYPASS_MESSAGE = (
     "The Telegram account is reached only through its telegram_* tools, never through the terminal or "
-    "file tools: the telegram-tools CLI, its state, logs and launch agents, the old telegram-access "
-    "plugin's state, and Telegram Desktop's data are off limits there. Use the telegram_* tools; setting "
+    "file tools: the telegram-tools CLI, its state, logs and launch agents, and Telegram Desktop's "
+    "data are off limits there. Use the telegram_* tools; setting "
     "up the account and its services is the user's job."
 )
 CWD_MESSAGE = (
@@ -209,26 +197,14 @@ def _state_root() -> str:
     return os.path.expanduser(os.path.join("~", ".local", "state", STATE_NAME))
 
 
-def _old_state_root() -> str:
-    """Where the old telegram-access plugin kept its state: its env var, else
-    ~/.local/state/hermes-telegram."""
-    configured = os.environ.get(OLD_STATE_ENV)
-    if configured:
-        return os.path.expanduser(configured)
-    return os.path.expanduser(os.path.join("~", ".local", "state", OLD_STATE_NAME))
-
-
 def _protected_roots() -> set[tuple[str, ...]]:
     """The directories the Telegram account lives in, as given and as resolved, as lower-case path
     components; read at each call."""
     home = os.path.expanduser("~")
     roots = {
         _state_root(),
-        _old_state_root(),
         os.path.join(home, ".hermes", "plugins", STATE_NAME),
         os.path.join(home, "Library", "Logs", LOG_NAME),
-        os.path.join(home, ".hermes", OLD_MANDATES),
-        os.path.join(os.path.expanduser(os.environ.get(HERMES_HOME_ENV) or "~/.hermes"), OLD_MANDATES),
         os.path.join(home, "Library", "Application Support", "Telegram Desktop"),
         *glob.glob(os.path.join(glob.escape(home), "Library", "Group Containers", "*.ru.keepcoder.Telegram")),
     }
@@ -238,14 +214,11 @@ def _protected_roots() -> set[tuple[str, ...]]:
 def _names_protected(text: str, roots: set[tuple[str, ...]], cwd: str | None = None) -> bool:
     """Whether the path ``text`` names (against ``cwd`` when relative) is, or is inside, a protected root
     or a directory named like one: a copy of the package under another profile's plugins, say, a launch
-    agent's file, or the old mandates of any profile home (``profiles/<name>/telegram-access``). A glob
-    counts when one of its components could name a protected directory."""
+    agent's file. A glob counts when one of its components could name a protected directory."""
     names = _names(_resolved(text, cwd))
     if any(_name_matches(name, part) for name in names for part in PROTECTED_PARTS):
         return True
     if any(_agent_file(name) for name in names):
-        return True
-    if any(_name_matches(a, "profiles") and _name_matches(c, OLD_MANDATES) for a, c in zip(names, names[2:])):
         return True
     return any(len(names) >= len(root) and all(_name_matches(n, r) for n, r in zip(names, root))
                for root in roots)

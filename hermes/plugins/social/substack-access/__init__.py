@@ -156,7 +156,7 @@ UNATTENDED = ("not done: Substack writes need a person to approve each one, and 
 def _unattended() -> bool:
     """A context with no person to approve: cron, programmatic platforms and single queries.
     Hermes' gate consults stored "always" approvals before its cron rule, so the plugin refuses
-    writes there itself (as telegram-access)."""
+    writes there itself."""
     try:
         from tools import approval_context as ctx
         checks = [getattr(ctx, name) for name in ("_is_cron_approval_context",

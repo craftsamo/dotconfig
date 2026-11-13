@@ -135,21 +135,3 @@ restart the gateway and `opencode service restart`.
    `platform_toolsets`, never `a2a`.
 4. Restart the gateway; `telegram-tools-cli service status --account default`
    checks the service, and the Assistant's `telegram_account_read` the account.
-
-Moving from the old `telegram-access` plugin uses a fresh session, not an
-import, and carries its excluded chats over to `exclude_chats`:
-
-1. Stop its sync agent with `launchd/telegram-access-launchctl.sh uninstall`.
-2. Run `telegram-tools-cli login --account default` and scan the QR code; the
-   old session is not imported.
-3. Run `telegram-tools-cli service install --account default --channels --keep-disappearing`.
-4. Re-add the old supergroup and channel sync selection with
-   `telegram_sync_add`.
-5. Enable the package and guard in the private config as above, leaving
-   `telegram-access` disabled, and restart the gateway and
-   `opencode service restart`.
-6. Revoke the old session with `launchd/telegram-access-launchctl.sh logout`.
-
-The mirror is not migrated: Telegram keeps history server-side and `fetch`
-brings it back. Kept disappearing media from the old mirror and its deletion
-records are lost.

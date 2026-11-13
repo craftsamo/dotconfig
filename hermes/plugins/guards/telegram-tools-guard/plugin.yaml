@@ -4,6 +4,6 @@ description: >-
   Guard for the third-party telegram-tools plugin. Blocks its writes where no
   person can answer an approval card and for inbound A2A requests, and blocks
   the terminal and file tools from reaching the Telegram account around its
-  tools (its CLI, state, logs and launch agents, the old telegram-access
-  plugin's state, and Telegram Desktop's data).
+  tools (its CLI, state, logs and launch agents, and Telegram
+  Desktop's data).
 kind: standalone

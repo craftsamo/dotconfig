@@ -163,7 +163,6 @@ def _load(name, path):
 
 
 BOUNDARIES = [
-    ("messaging/telegram-access/tg.py", "send_root", "TelegramError"),
     ("messaging/whatsapp-access/wa.py", "send_root", "WhatsAppError"),
     ("messaging/discord-access/access.py", "default_attach_root", "DiscordError"),
     ("social/note-access/na.py", "default_attach_root", "NoteError"),

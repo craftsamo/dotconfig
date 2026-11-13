@@ -33,7 +33,7 @@ class Ctx:
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    for name in ("TELEGRAM_TOOLS_STATE_DIR", "XDG_STATE_HOME", "HERMES_HOME", "HERMES_TELEGRAM_STATE"):
+    for name in ("TELEGRAM_TOOLS_STATE_DIR", "XDG_STATE_HOME"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_tracked_cwd", lambda task_id="", session_id="": None)   # no terminal record
@@ -120,15 +120,6 @@ def test_other_tools_are_untouched(monkeypatch):
     "cat ~/Library/LaunchAgents/io.github.craft-agent.telegram-tools.default.plist",
     "~/Library/Application\\ Support/io.github.craft-agent.telegram-tools/telegram-tools-sync-default node x.js",
     "echo $TELEGRAM_TOOLS_STATE_DIR",
-    "ls ~/.local/state/hermes-telegram",
-    "sqlite3 $HERMES_TELEGRAM_STATE/mirror.db .dump",
-    "ls ~/.hermes/telegram-access",
-    "cat ~/.hermes/profiles/assistant/telegram-access/head.json",
-    "cat $HERMES_HOME/telegram-access/mandates/a.json",
-    "cat ${HERMES_HOME}/telegram-access/uses.jsonl",
-    "~/.config/hermes/launchd/telegram-access-launchctl.sh status",
-    "bash hermes/launchd/telegram-access-launchctl.sh login",
-    "tail ~/Library/Logs/telegram-access-sync.log",
     "ls ~/Library/Application\\ Support/Telegram\\ Desktop",
     "ls ~/Library/Group\\ Containers/AB12CD34EF.ru.keepcoder.Telegram",
 ])
@@ -145,10 +136,6 @@ def test_terminal_blocks_ways_around_the_tools(command):
     "ls /work/feat-telegram-tools-hermes/hermes",
     "cat /Users/x/Worktrees/dotconfig/feat-hermes-telegram-tools/hermes/docs/telegram-tools.md",
     "cat docs/telegram-tools.md",
-    "cat docs/telegram-access.md",
-    "ls hermes/plugins/messaging/telegram-access",
-    "cat hermes/plugins/messaging/telegram-access/tg.py",
-    "cat ~/.hermes/plugins/messaging/telegram-access/tg.py",
     "ls ~/.hermes/profiles/assistant/skills",
     "ls ~/.local/state",
     "ls ~/.local/state/*",
@@ -181,8 +168,6 @@ def test_terminal_allows_plain_work(command):
     "cat ~/.hermes/profiles/assistant/plugins/telegram-t*ls/dist/cli.js",
     "(cd ~/.hermes/plugins && cat telegram-tools/package.json)",
     "bash -c 'cd ~/.hermes/profiles/assistant/plugins; cat telegram-tools/package.json'",
-    "cd ~/.hermes/profiles && cat assistant/telegram-access/head.json",
-    "cat ~/.hermes/profiles/*/telegram-acce*/head.json",
 ])
 def test_terminal_blocks_single_line_forms(command):
     assert blocked(gate("terminal", command=command)), command
@@ -207,7 +192,6 @@ def test_the_terminal_directory_kept_between_calls_is_judged(monkeypatch, isolat
     tracked(monkeypatch, home / ".local" / "state")
     assert blocked(gate("terminal", command="cd telegram-tools"))           # call 2
     assert blocked(gate("terminal", command="sqlite3 telegram-tools/default/mirror.sqlite"))
-    assert blocked(gate("terminal", command="ls hermes-telegram"))
     assert gate("terminal", command="ls") is None
 
 
@@ -223,16 +207,6 @@ def test_a_terminal_inside_a_protected_directory_is_blocked(monkeypatch, isolate
     (isolated / "shortcut").symlink_to(install)
     tracked(monkeypatch, isolated / "shortcut")
     assert blocked(gate("terminal", command="ls"))
-
-
-def test_a_terminal_inside_the_old_state_or_mandates_is_blocked(monkeypatch, isolated):
-    old = isolated / "home" / ".local" / "state" / "hermes-telegram"
-    mandates = isolated / "home" / ".hermes" / "profiles" / "assistant" / "telegram-access"
-    old.mkdir(parents=True)
-    mandates.mkdir(parents=True)
-    for cwd in (old, mandates):
-        tracked(monkeypatch, cwd)
-        assert gate("terminal", command="ls") == {"action": "block", "message": plugin.CWD_MESSAGE}
 
 
 def test_a_workdir_replaces_the_recorded_directory(monkeypatch, isolated):
@@ -308,17 +282,11 @@ def test_file_tools_block_paths_by_text():
                        ("search_files", {"pattern": "x", "path": "~/Library/Logs/io.github.craft-agent.telegram-tools"}),
                        ("read_file", {"path": "~/.local/state/telegram-tools/app.json"}),
                        ("read_file", {"path": "~/Library/Application Support/Telegram Desktop/tdata/key_datas"}),
-                       ("read_file", {"path": "~/Library/Group Containers/AB12CD34EF.ru.keepcoder.Telegram/x"}),
-                       ("read_file", {"path": "~/Library/Logs/telegram-access-sync.log"}),
-                       ("read_file", {"path": "~/.config/hermes/launchd/telegram-access-launchctl.sh"}),
-                       ("read_file", {"path": "~/.hermes/telegram-access/mandates/a.json"}),
-                       ("patch", {"path": "/tmp/x", "patch": "*** Update File: ~/.local/state/hermes-telegram/a"})):
+                       ("read_file", {"path": "~/Library/Group Containers/AB12CD34EF.ru.keepcoder.Telegram/x"})):
         assert gate(tool, **args) == {"action": "block", "message": plugin.BYPASS_MESSAGE}, args
 
 
-def test_file_tools_read_the_old_plugin_source_and_docs():
-    assert gate("read_file", path="~/.hermes/plugins/messaging/telegram-access/tg.py") is None
-    assert gate("read_file", path="hermes/docs/telegram-access.md") is None
+def test_file_tools_read_the_inbox():
     assert gate("search_files", pattern="x", path="~/Workspaces/.inbox/telegram") is None
 
 
@@ -387,31 +355,6 @@ def test_the_state_dir_variable_wins_over_xdg(monkeypatch, isolated):
     monkeypatch.setenv("XDG_STATE_HOME", str(isolated / "xdg"))
     assert blocked(gate("read_file", path=str(custom / "default" / "session.sqlite")))
     assert gate("read_file", path=str(isolated / "xdg" / "other.txt")) is None
-
-
-def test_the_old_state_variable_moves_the_old_state_root(monkeypatch, isolated):
-    old = isolated / "old-state"
-    old.mkdir()
-    link = isolated / "elsewhere"
-    link.symlink_to(old)
-    assert gate("read_file", path=str(link / "mirror.db")) is None
-    monkeypatch.setenv("HERMES_TELEGRAM_STATE", str(old))
-    assert blocked(gate("read_file", path=str(link / "mirror.db")))
-    assert gate("read_file", path=str(isolated / "old-state-notes.txt")) is None
-
-
-def test_the_old_mandates_are_protected_through_a_link(monkeypatch, isolated):
-    profile = isolated / "profile-home"
-    (profile / "telegram-access").mkdir(parents=True)
-    link = isolated / "shortcut"
-    link.symlink_to(profile / "telegram-access")
-    assert gate("read_file", path=str(link / "head.json")) is None      # a home that is not the running one
-    monkeypatch.setenv("HERMES_HOME", str(profile))
-    assert blocked(gate("read_file", path=str(link / "head.json")))
-    assert gate("read_file", path=str(profile / "config.yaml")) is None
-    named = isolated / "home" / ".hermes" / "profiles" / "work" / "telegram-access"
-    named.mkdir(parents=True)
-    assert blocked(gate("read_file", path=str(named / "head.json")))    # any profile home, without the variable
 
 
 def test_the_installed_plugin_is_protected_through_a_link(isolated):
