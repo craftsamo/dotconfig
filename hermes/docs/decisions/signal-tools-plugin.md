@@ -34,6 +34,12 @@ npm, and both share one linked device, one sync service and one mirror.
   without it. What depends on how this setup runs (YOLO used for reads, peers
   that cannot answer a card, the runtime's private preview table) stays here
   and out of the package.
+- **The package itself refuses writes while the guard is not loaded.**
+  Enabled is not loaded: a guard that fails to load would leave the package
+  running unguarded. The package's `require_plugins` setting names the guard,
+  and while Hermes has not loaded it every write is refused before it is
+  approved. The pin's `requires_setting` makes the validator refuse a config
+  that does not name the guard there.
 
 ## Why
 
