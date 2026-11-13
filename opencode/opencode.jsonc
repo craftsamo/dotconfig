@@ -46,6 +46,13 @@
     // on later needs no new rule. channels and keep_disappearing match the
     // settings the shared sync service is installed with.
     { "package": "@craftsamo/telegram-tools@0.5.0", "options": { "language": "ja", "channels": true, "keep_disappearing": true } },
+    // Discord as a signed-in user (discord-tools): reads and, after an
+    // approval that shows what the call carries, sends.
+    // The account, its sync service and mirror are shared with Hermes, so pin
+    // the same release Hermes runs. Default toolsets only (history, files,
+    // actions, threads and roles stay off); the permission rules below cover
+    // every tool, so turning one on later needs no new rule.
+    { "package": "@craftsamo/discord-tools@1.2.0", "options": { "language": "ja" } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
@@ -386,6 +393,59 @@
           "resource": "*",
           "effect": "allow"
         },
+        // Discord: reads only, each named: discord_read_mark is a write (it marks
+        // chats read on the account) and a later release may add another write a
+        // `discord_*_read` glob would reopen.
+        {
+          "action": "discord_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "discord_account_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_sync_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_chat_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_search_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_inbox_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_people_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_server_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_history_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "discord_role_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         // GitHub: reads only.
         {
           "action": "github_*",
@@ -442,6 +502,7 @@
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "telegram-*", "effect": "allow" },
+        { "action": "skill", "resource": "discord-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
@@ -470,6 +531,7 @@
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "telegram-*", "effect": "allow" },
+        { "action": "skill", "resource": "discord-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
@@ -2358,6 +2420,13 @@
       "resource": "telegram-*",
       "effect": "allow"
     },
+    // discord-tools' skills (discord-chats, discord-sends, …): how to use its
+    // tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "discord-*",
+      "effect": "allow"
+    },
     // github-tools' skills (github-issues, github-projects, …): how to use its
     // tools; the writes still ask on their own.
     {
@@ -2496,6 +2565,15 @@
     // agents deny the writes, and Hermes' run rulesets deny the whole action.
     {
       "action": "telegram_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // Discord tools (@craftsamo/discord-tools): the same as Telegram. Reads
+    // never ask; every write asserts this action with the account and chat it
+    // touches and a description of the change, so it asks here. Read-only
+    // agents deny the writes, and Hermes' run rulesets deny the whole action.
+    {
+      "action": "discord_*",
       "resource": "*",
       "effect": "ask"
     },

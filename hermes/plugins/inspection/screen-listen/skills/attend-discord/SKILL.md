@@ -13,11 +13,11 @@ metadata:
 
 How the Discord app on this Mac is opened, joined, muted, watched and left,
 for the procedure in `screen-listen:listen`. Names and ids come from
-`discord_account` (`guilds`, `channels`; a voice channel is `kind: voice`, a
+`discord_chat_read` (`servers`, `channels`; a voice channel is `kind: voice`, a
 stage `kind: stage`); nothing here touches the Discord API or the user's token.
 
 The app is logged in to whatever account the person uses in it, which may not
-be the account `discord_account` reads; the Mac joins as the app's account,
+be the account the `discord_*` tools read; the Mac joins as the app's account,
 and that is the name others see.
 
 ## Open

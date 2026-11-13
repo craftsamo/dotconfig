@@ -76,9 +76,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
   mentions, friends, syncing a server, sending, reacting, pinning, editing or
   deleting their own message, managing a server's roles) — only through the
-  `discord_account` tool, never the terminal or Discord in the browser. Any
-  Discord account work loads `skill_view(name="discord-access:account")` first —
-  `references/discord.md`.
+  `discord_*` tools, never the terminal or Discord in the browser; every write
+  waits for approval on its card. Any Discord account work loads the matching
+  `discord-tools:<toolset>` skill first — `references/discord.md`.
 - **The user's own Telegram account** (their chats, groups and channels,
   syncing a supergroup or channel, sending a message or a workspace file — not
   this chat with you) — only through the `telegram_*` tools, never the
@@ -162,7 +162,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
 | `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:account` skill) |
 | `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
-| `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-access:account` skill): what stays inline, the test server, files and reports |
+| `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-tools:*` skills): what stays inline, the test server, files and reports |
 | `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-tools:*` skills): what stays inline, choosing the chat, files and reports |
 | `references/x.md` | reading X as the sub-account, verifying posts, downloading a post's media, and when an X Article draft may be finished in the browser |
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |

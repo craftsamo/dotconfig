@@ -31,5 +31,14 @@
     "skills": ["account", "chats", "sync", "sends", "files", "actions"],
     "requires": ["telegram-tools-guard"],
     "requires_setting": "require_plugins"
+  },
+  "discord-tools": {
+    "repo": "craft-agent/discord-tools",
+    "version": "1.2.0",
+    "commit": "9d2ae4fb9341716643a0bfeb4610d0bc0011cdc9",
+    "npm": "@craftsamo/discord-tools",
+    "skills": ["account", "sync", "chats", "search", "inbox", "people", "sends", "history", "files", "actions", "threads", "roles"],
+    "requires": ["discord-tools-guard"],
+    "requires_setting": "require_plugins"
   }
 }
