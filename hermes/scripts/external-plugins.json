@@ -17,11 +17,12 @@
   },
   "signal-tools": {
     "repo": "craft-agent/signal-tools",
-    "version": "0.4.0",
-    "commit": "4fc01820e50a78fa1c051f2fbe1b0ae90c4626f5",
+    "version": "0.6.0",
+    "commit": "3ed6282e1af0bf4f6d9d4a823f7bba2e487c21bb",
     "npm": "@craftsamo/signal-tools",
     "skills": ["account", "chats", "contacts", "sends", "files", "actions"],
-    "requires": ["signal-tools-guard"]
+    "requires": ["signal-tools-guard"],
+    "requires_setting": "require_plugins"
   },
   "telegram-tools": {
     "repo": "craft-agent/telegram-tools",

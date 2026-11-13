@@ -92,17 +92,18 @@ def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     assert ("discord-tools", "discord-tools-guard") in required
     config = tmp_path / "config.yaml"
     base = "skills:\n  create_dir: skills/learned\nplugins:\n  enabled:\n  - skill-topology\n"
-    config.write_text(base + "  - signal-tools\n", encoding="utf-8")
+    config.write_text(base + "  - github-tools\n", encoding="utf-8")
     errors: list[str] = []
     validator.validate_plugin_enabled("assistant", config, errors)
-    assert errors == [f"signal-tools is enabled without signal-tools-guard: {config}"]
-    config.write_text(base + "  - signal-tools\n  - signal-tools-guard\n", encoding="utf-8")
+    assert errors == [f"github-tools is enabled without github-tools-guard: {config}"]
+    config.write_text(base + "  - github-tools\n  - github-tools-guard\n", encoding="utf-8")
     errors = []
     validator.validate_plugin_enabled("assistant", config, errors)
     assert errors == []
 
 
 def test_a_plugin_names_its_guard_in_the_setting_that_requires_it(tmp_path):
+    assert MANIFEST["signal-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["telegram-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["discord-tools"]["requires_setting"] == "require_plugins"
     config = tmp_path / "config.yaml"

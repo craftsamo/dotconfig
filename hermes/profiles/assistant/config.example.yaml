@@ -1155,6 +1155,8 @@ plugins:
         download_dir: ~/Workspaces/.inbox/signal
         send_dirs:
           - ~/Workspaces
+        require_plugins:
+          - signal-tools-guard
         language: ja
     telegram-tools:
       settings:

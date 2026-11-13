@@ -18,7 +18,7 @@ Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md
 | Tools, approval card, skills, sync service, mirror                             | the package, installed at `~/.hermes/plugins/signal-tools`                                             | Assistant, launchd |
 | The pinned release                                                             | `scripts/external-plugins.json`, installed by `scripts/external-plugins.py`                            | people             |
 | Refusal where no person can answer, bypass and unpacked guards, progress lines | `plugins/guards/signal-tools-guard`                                                                    | Assistant          |
-| Settings (toolsets, download and send folders, card language)                  | `plugins.entries.signal-tools.settings` in the Assistant's config                                      | Assistant          |
+| Settings (toolsets, download and send folders, required guard, card language)  | `plugins.entries.signal-tools.settings` in the Assistant's config                                      | Assistant          |
 | How the tools are used                                                         | the package's skills, `signal-tools:<toolset>` (`account`, `chats`, `contacts`, `sends`, `files`)      | Assistant          |
 | When the Assistant uses it in Chat                                             | the Chat reference `signal.md`                                                                         | Assistant          |
 | OpenCode                                                                       | `opencode/opencode.jsonc` (the npm package), denied in Hermes-driven runs ([opencode.md](opencode.md)) | OpenCode           |
@@ -48,7 +48,18 @@ what others have already read. `files` saves into `~/Workspaces/.inbox/signal`
 and sends only from `~/Workspaces` (the working directory) and the folders
 `send_dirs` names, so a received file can be sent on. Archives are unpacked
 into `<name>.unpacked/` beside them, the folder name the shared unpacked guard
-keys on.
+keys on. The `grants` toolset stays off and `unattended` unset: Signal has no
+send mandates, so no write runs where no person can answer the card.
+
+`require_plugins` names `signal-tools-guard`: while Hermes has not loaded the
+guard, the package refuses every write before it is approved, so a guard that
+fails to load stops the writes rather than leaving them unguarded. The profile
+validator refuses a config that enables the package without naming the guard
+there ([decision](decisions/signal-tools-plugin.md)).
+
+Keep every `SIGNAL_TOOLS_*` environment variable unset. The Hermes adapter
+emits no flag for a `false` or empty setting, so an environment variable would
+override the config rather than being cancelled by it.
 
 ## Approval
 
@@ -107,7 +118,8 @@ npm version in `opencode.jsonc` together, run `install`, then
    linked-device slot.
 2. Install the plugin (above) and enable `signal-tools` and
    `signal-tools-guard` in the Assistant's `plugins.enabled` (the profile
-   validator refuses the first without the second), with the toolsets in
+   validator refuses the first without the second, and without the guard in
+   `require_plugins`), with the toolsets in
    `toolsets` and the `cli`, `telegram` and `discord` lists of
    `platform_toolsets`, never `a2a` (`signal-tools-account`, `-chats`,
    `-contacts`, `-sends`, `-files`).
