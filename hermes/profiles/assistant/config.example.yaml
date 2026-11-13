@@ -1158,6 +1158,22 @@ plugins:
         send_dirs:
           - ~/Workspaces
         language: ja
+    telegram-tools:
+      settings:
+        toolsets:
+          - account
+          - chats
+          - sync
+          - sends
+          - files
+        download_dir: ~/Workspaces/.inbox/telegram
+        send_dirs:
+          - ~/Workspaces
+        channels: true
+        keep_disappearing: true
+        require_plugins:
+          - telegram-tools-guard
+        language: ja
     web/cascade:
       settings:
         search:

@@ -1,19 +1,19 @@
-# Telegram and WhatsApp sends without a card only inside a send mandate
+# WhatsApp sends without a card only inside a send mandate
 
 Status: in force
-Owner doc: docs/telegram-access.md and docs/whatsapp-access.md "Send mandates"
+Owner doc: docs/whatsapp-access.md "Send mandates"
 
 ## Decision
 
 A text send runs without its approval card only when it fits one send mandate
-the user approved on a card of its own. A mandate belongs to one service
-(Telegram or WhatsApp) and one signed-in account, and names:
+the user approved on a card of its own. A mandate belongs to WhatsApp and one
+signed-in account, and names:
 
 - the chats it covers, one to five, each by its id with the name, kind and
   identity the card showed (a group or a person; never a broadcast channel); the
   identity is the handle the plugin's send card shows, and the account is named
   as that card names it;
-- how many sends an hour it allows (1 to 30; WhatsApp 1 to 5, the account's
+- how many sends an hour it allows (1 to 5, the account's
   total across its mandates) and the longest
   text (at most 1000 characters);
 - a purpose in one line, and an end at most 30 days out.
@@ -24,7 +24,7 @@ count is not used up. Anything else asks on its card as before. A mandate is
 never made by another mandate, and revoking one needs no card and ends it at
 once.
 
-WhatsApp differs in three ways. Its hourly ceiling is 5, not 30, and it is the
+The hourly ceiling is 5, and it is the
 account's: the `per_hour` of all the mandates in force for one account together
 may not pass 5, checked when a mandate is made (under the store's lock, and once
 before the card), so a second mandate on the same chat adds no sends. A chat is
@@ -33,7 +33,7 @@ a group (`…@g.us`, shown by its JID) and nothing else: no `@lid` contact, whos
 number is hidden so the card could not say who it is; no newsletter or
 broadcast list. The plugin cannot read the account's own JID, so a mandate may
 name the account's own chat; wacli refuses a text to the linked account itself,
-so such a send is counted and not sent. The rest is as above.
+so such a send is counted and not sent.
 
 The hook decides a send is covered and records which mandate; the handler
 checks again at the write that the mandate is still in force, that the chat and
@@ -62,7 +62,7 @@ and its sends do not read the Keychain.
   file, a message from someone else), so they always ask.
 - A broadcast channel reaches an audience the user cannot list on a card.
 - WhatsApp is reached through an unofficial client, where more automated sends
-  raise the risk of the account being limited, so its hourly ceiling is lower;
+  raise the risk of the account being limited, so its hourly ceiling stays low;
   a contact with a hidden number has no handle the user could check on the card,
   so it never joins a mandate.
 - Counting before the send, and also when it fails or is uncertain, keeps the
@@ -85,6 +85,6 @@ and its sends do not read the Keychain.
 - Keep the MAC key anywhere a profile receives, or open the state directory to
   file or terminal calls.
 - Remove the 30-day ceiling: a forgotten mandate should lapse on its own.
-- Lift WhatsApp's hourly ceiling to the 30 of Telegram, count it per
+- Lift WhatsApp's hourly ceiling above 5, count it per
   mandate instead of per account, or add a hidden-number contact, a channel or a
   broadcast list to a WhatsApp mandate.

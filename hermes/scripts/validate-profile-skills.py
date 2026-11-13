@@ -638,11 +638,23 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
             f"skills.create_dir must be {LEARNED_CREATE_DIR!r}, got {create_dir!r}: {config}"
         )
     # A third-party plugin whose writes only a dotconfig guard holds is enabled with that guard.
+    # A package that can refuse its own writes while a plugin is not loaded
+    # (`requires_setting`) names its guard there too: enabled is not loaded.
     if isinstance(enabled, list):
+        entries = (data.get("plugins") or {}).get("entries") or {}
         for plugin, entry in external_plugins().items():
+            if plugin not in enabled:
+                continue
             for needed in entry.get("requires", ()):
-                if plugin in enabled and needed not in enabled:
+                if needed not in enabled:
                     errors.append(f"{plugin} is enabled without {needed}: {config}")
+            setting = entry.get("requires_setting")
+            if setting:
+                settings = ((entries.get(plugin) or {}).get("settings") or {})
+                listed = settings.get(setting)
+                for needed in entry.get("requires", ()):
+                    if not isinstance(listed, list) or needed not in listed:
+                        errors.append(f"{plugin} does not name {needed} in {setting}: {config}")
 
 
 def validate_profile_configs(profile: str, profile_root: Path, errors: list[str]) -> None:

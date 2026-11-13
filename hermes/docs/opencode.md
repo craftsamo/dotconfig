@@ -291,8 +291,8 @@ the person's agent rules), anything naming `deploy`, `publish`, `secret`,
 `--remote` or `--prod` (a project's task runner can reach those past every other
 rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (every shell push,
 `gh stack push`, `submit` and `sync` included, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
-aliases and extensions, edits under `.git/`, the Signal tools `signal_*` with
-their reads, the github-tools writes `github_*` but its read tools,
+aliases and extensions, edits under `.git/`, the Signal and Telegram tools
+`signal_*` and `telegram_*` with their reads, the github-tools writes `github_*` but its read tools,
 and in a write run asks for `github_pr_create`, `github_stack_link` and
 `github_pr_edit` for a PR's labels, assignees, reviewers and milestone only,
 with board arguments refused), and last the person's own denies
@@ -307,8 +307,8 @@ though an identifier spelled like one (`gh_api`) does not. They guard a
 cooperative agent's spellings, not a sandbox: several spaces between gh's
 words are not covered, and the ruleset (a couple of thousand rules, re-sent
 every turn) is capped by a test.
-The Signal tools are denied whole, reads included, which also hides them from
-the run: the Assistant reaches the person's account through its own plugin and
+The Signal and Telegram tools are denied whole, reads included, which also hides them from
+the run: the Assistant reaches the person's accounts through its own plugins and
 cards, and a run's ask would reach only the caller, who must never approve a send.
 The gated git writes, per-command configuration (`git -c`, `--config-env`)
 and branch moves ask in a write run and are denied in a read-only one, whose

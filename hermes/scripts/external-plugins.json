@@ -22,5 +22,14 @@
     "npm": "@craftsamo/signal-tools",
     "skills": ["account", "chats", "contacts", "sends", "files", "actions"],
     "requires": ["signal-tools-guard"]
+  },
+  "telegram-tools": {
+    "repo": "craft-agent/telegram-tools",
+    "version": "0.5.0",
+    "commit": "3da495777756d35225dedf7ba9f971105e59a096",
+    "npm": "@craftsamo/telegram-tools",
+    "skills": ["account", "chats", "sync", "sends", "files", "actions"],
+    "requires": ["telegram-tools-guard"],
+    "requires_setting": "require_plugins"
   }
 }

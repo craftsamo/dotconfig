@@ -4,7 +4,9 @@
 ``external-plugins.json`` lists each third-party plugin by name with its GitHub ``repo``, the
 released ``version``, the full ``commit`` that release was cut at, the ``skills`` it ships (the
 profile validator accepts a ``skill_view`` naming them), the dotconfig plugins it ``requires``
-(the validator refuses a profile that enables it without them) and, when OpenCode loads the same
+(the validator refuses a profile that enables it without them), the package setting that refuses
+its writes while one of them is not loaded (``requires_setting``; the validator refuses a profile
+that does not name them there) and, when OpenCode loads the same
 release from npm, the ``npm`` package. install.sh cannot link these: their source is not in this
 repository, so the runtime's own installer clones them at the pinned commit into
 ``<HERMES_HOME>/plugins/<name>`` (keeping ``.git``) and records the pin under the plugin's name in
@@ -80,6 +82,9 @@ def validate_manifest(data: Any) -> dict[str, dict[str, Any]]:
             names = entry.get(key, [])
             if not (isinstance(names, list) and all(isinstance(n, str) and NAME_RE.match(n) for n in names)):
                 raise ManifestError(f"{name}: {key} must be a list of names")
+        setting = entry.get("requires_setting")
+        if setting is not None and not (isinstance(setting, str) and NAME_RE.match(setting)):
+            raise ManifestError(f"{name}: requires_setting must be a setting name")
     return data
 
 

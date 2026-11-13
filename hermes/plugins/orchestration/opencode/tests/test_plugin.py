@@ -2542,6 +2542,9 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                 assert policy.decide(rules, tool, "*") == "deny", (kind, tool, "workspace owns worktrees")
             for tool in ("signal_chat_read", "signal_message_send", "signal_file_send", "signal_message_delete"):
                 assert policy.decide(rules, tool, "default/group:abc") == "deny", (kind, tool)
+            for tool in ("telegram_chat_read", "telegram_account_read", "telegram_message_send",
+                         "telegram_file_send", "telegram_sync_add", "telegram_chat_mark_read"):
+                assert policy.decide(rules, tool, "default/-100123") == "deny", (kind, tool)
             for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):

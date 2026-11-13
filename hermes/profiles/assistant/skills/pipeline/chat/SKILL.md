@@ -81,9 +81,10 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `references/discord.md`.
 - **The user's own Telegram account** (their chats, groups and channels,
   syncing a supergroup or channel, sending a message or a workspace file — not
-  this chat with you) — only through the `telegram_account` tool, never the
-  terminal or a Telegram app. Any Telegram account work loads
-  `skill_view(name="telegram-access:account")` first — `references/telegram.md`.
+  this chat with you) — only through the `telegram_*` tools, never the
+  terminal or a Telegram app; every send waits for approval on its card. Any
+  Telegram account work loads the matching `telegram-tools:<toolset>` skill
+  first — `references/telegram.md`.
 - **X (Twitter)** (the user's posts and mentions, a post or thread, a
   profile, a post's media, checking posts' real authors and counts) —
   read-only, only through the `x` tool, never the terminal or x.com in the
@@ -162,7 +163,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:account` skill) |
 | `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
 | `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-access:account` skill): what stays inline, the test server, files and reports |
-| `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-access:account` skill): what stays inline, choosing the chat, files and reports |
+| `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-tools:*` skills): what stays inline, choosing the chat, files and reports |
 | `references/x.md` | reading X as the sub-account, verifying posts, downloading a post's media, and when an X Article draft may be finished in the browser |
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |

@@ -38,6 +38,14 @@
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
     { "package": "@craftsamo/signal-tools@0.4.0", "options": { "language": "ja" } },
+    // Telegram as a signed-in user (telegram-tools): reads and, after an
+    // approval that shows what the call carries, sends.
+    // The account, its sync service and mirror are shared with Hermes, so pin
+    // the same release Hermes runs. Default toolsets only (files and actions
+    // stay off); the permission rules below cover every tool, so turning one
+    // on later needs no new rule. channels and keep_disappearing match the
+    // settings the shared sync service is installed with.
+    { "package": "@craftsamo/telegram-tools@0.5.0", "options": { "language": "ja", "channels": true, "keep_disappearing": true } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
@@ -356,6 +364,28 @@
           "resource": "*",
           "effect": "allow"
         },
+        // Telegram: reads only, each named: telegram_chat_mark_read is a write
+        // (it sends read receipts) that a `telegram_*_read` glob would reopen.
+        {
+          "action": "telegram_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "telegram_account_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "telegram_chat_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "telegram_sync_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         // GitHub: reads only.
         {
           "action": "github_*",
@@ -411,6 +441,7 @@
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
+        { "action": "skill", "resource": "telegram-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
@@ -438,6 +469,7 @@
         { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
+        { "action": "skill", "resource": "telegram-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
@@ -2319,6 +2351,13 @@
       "resource": "signal-*",
       "effect": "allow"
     },
+    // telegram-tools' skills (telegram-chats, telegram-sends, …): how to use
+    // its tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "telegram-*",
+      "effect": "allow"
+    },
     // github-tools' skills (github-issues, github-projects, …): how to use its
     // tools; the writes still ask on their own.
     {
@@ -2448,6 +2487,15 @@
     // Hermes' run rulesets deny the whole action.
     {
       "action": "signal_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // Telegram tools (@craftsamo/telegram-tools): the same as Signal. Reads
+    // never ask; every write asserts this action with the account and chat it
+    // touches and a description of the change, so it asks here. Read-only
+    // agents deny the writes, and Hermes' run rulesets deny the whole action.
+    {
+      "action": "telegram_*",
       "resource": "*",
       "effect": "ask"
     },

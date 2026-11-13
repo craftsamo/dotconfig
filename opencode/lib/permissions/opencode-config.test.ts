@@ -305,6 +305,32 @@ describe("agent rules over a project's catch-all", () => {
     expect(decide("build", "skill", "signal-sends")).toBe("allow")
   })
 
+  test("a Telegram write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of ["telegram_message_send", "telegram_file_send", "telegram_sync_add", "telegram_chat_mark_read", "telegram_grant_create"]) {
+      expect([tool, decide("build", tool, "default/-100123")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "default/-100123")]).toEqual([tool, "deny"])
+    }
+    expect(decide("plan", "telegram_chat_read", "*")).toBe("allow")
+    expect(decide("build", "skill", "telegram-sends")).toBe("allow")
+    expect(decide("plan", "skill", "telegram-chats")).toBe("allow")
+  })
+
+  test("read-only primaries read Telegram but never mark a chat read", async () => {
+    for (const agent of ["design", "review", "debug"]) {
+      const text = await Bun.file(join(import.meta.dir, `../../agents/${agent}.md`)).text()
+      const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+      const effect = (tool: string) => {
+        let result = "ask"
+        for (const r of own) if (matches(r.action, tool, false) && matches(r.resource, "default/-100123", false)) result = r.effect
+        return result
+      }
+      for (const tool of ["telegram_account_read", "telegram_chat_read", "telegram_sync_read"])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "allow"])
+      for (const tool of ["telegram_chat_mark_read", "telegram_message_send", "telegram_sync_add"])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
+    }
+  })
+
   test("a GitHub write asks in build and is denied in plan, where reads stay open", () => {
     for (const tool of ["github_issue_create", "github_issue_edit", "github_pr_create", "github_pr_merge", "github_project_item_edit"]) {
       expect([tool, decide("build", tool, "owner/repo")]).toEqual([tool, "ask"])
