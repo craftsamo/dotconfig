@@ -36,8 +36,8 @@ may limit or ban an account it finds using one; the person accepted that risk
 
 One implementation serves both harnesses: the Hermes plugin spawns Node on the
 package's built `dist/cli.js`, and the OpenCode plugin uses the same account
-state. The package never uses `~/.wacli`, so moving from `whatsapp-access` means
-pairing a new linked device (a phone takes at most four). A label such as
+state. The package never uses `~/.wacli`; each account pairs its own linked
+device (a phone takes at most four). A label such as
 `default` or `work` holds one account under
 `~/.local/state/whatsapp-tools/<label>/` (mode 0700): `wacli/` (session keys,
 mirror and media), `service.sock`, `outbox/`, `service.lock` and `service.json`;
@@ -97,8 +97,7 @@ Every write is held by the package's own `pre_tool_call` card, which pins what
 it showed into the call and fails the call as `stale` if what it showed changed
 since. An "always" or "session" answer covers the tool and its chat, not the
 exact request: a write the user wants asked again is answered "once". There are
-no send mandates and no grants (the old plugin's mandates are not carried
-over); writes need a person who can answer the card.
+no send mandates and no grants; writes need a person who can answer the card.
 
 The guard (`whatsapp-tools-guard`) adds, for every `whatsapp_*` tool:
 
@@ -113,10 +112,9 @@ The guard (`whatsapp-tools-guard`) adds, for every `whatsapp_*` tool:
 - **No way around the tools.** Terminal and file-tool calls are blocked when
   they run `whatsapp-tools-cli`, `whatsapp-tools` or `wacli`, or name the
   package's state, plugin directory, launch agents, launchers, logs, a
-  `WHATSAPP_TOOLS_` or `WACLI_` variable, `~/.wacli`, WhatsApp Desktop's data, or
-  the old `whatsapp-access` plugin's state, mandates and launcher (until it is
-  removed); paths are also matched by their real path and against the
-  terminal's working directory
+  `WHATSAPP_TOOLS_` or `WACLI_` variable, `~/.wacli` or WhatsApp Desktop's
+  data; paths are also matched by their real path and against the terminal's
+  working directory
   ([bypass guard](access-common.md#bypass-guard-ways-around-the-tool)). The
   download folder (`~/Workspaces/.inbox/whatsapp`), `whatsapp://` links and
   `open -b net.whatsapp.WhatsApp` stay allowed.
@@ -153,8 +151,8 @@ restart the gateway and `opencode service restart`.
 
 1. Install the plugin (`scripts/external-plugins.py install`), `wacli` (>= 0.26,
    `brew install openclaw/tap/wacli`) and its Node runtime; check that the phone
-   has a free linked-device slot (four at most — the package never uses
-   `~/.wacli`, so moving pairs a new device).
+   has a free linked-device slot (four at most; the package never uses
+   `~/.wacli`).
 2. Pair each account label: `whatsapp-tools-cli pair --account <label>` (by QR,
    or add `--phone <n>` for a pairing code and
    `--full-history [--history-days <n>]` when older history is needed), then
@@ -167,6 +165,3 @@ restart the gateway and `opencode service restart`.
    lists of `platform_toolsets`, never `a2a`.
 4. Restart the gateway; `whatsapp-tools-cli service status --account <label>`
    checks the service, and the Assistant's `whatsapp_account_read` the account.
-5. Once cut over, retire the old plugin's sync agents with
-   `launchd/whatsapp-access-launchctl.sh uninstall <account>` and unlink the
-   old device on the phone.

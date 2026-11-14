@@ -59,7 +59,6 @@ EXPECTED = {
     "workspace/workspace-drafts": {"inventory": {"assistant"}},
     "workspace/workspace-registry": {"manage": {"assistant"}},
     "inspection/screen-listen": {"listen": {"assistant"}, "attend-discord": {"assistant"}},
-    "messaging/whatsapp-access": {"account": {"assistant"}, "count-activity": {"assistant"}},
     "orchestration/opencode": {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}},
 }
 

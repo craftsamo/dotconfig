@@ -45,8 +45,8 @@ brew "imagemagick" # magick/convert: resize, crop, .ico, composite, format conve
 brew "webp"        # cwebp: WebP encoding for size-capped exports
 brew "librsvg"     # rsvg-convert: high-quality SVG raster (+ ImageMagick SVG delegate)
 
-# --- Hermes Agent: whatsapp-access plugin (see hermes/docs/whatsapp-access.md) ---
-brew "openclaw/tap/wacli" # WhatsApp linked-device CLI: local mirror + send
+# --- Hermes Agent: whatsapp-tools plugin (see hermes/docs/whatsapp-tools.md) ---
+brew "openclaw/tap/wacli" # WhatsApp linked-device CLI whatsapp-tools runs
 
 # --- Hermes Agent: signal-tools plugin (see hermes/docs/signal-tools.md) ---
 brew "signal-cli"  # Signal linked-device CLI (native build) the package's sync service drives

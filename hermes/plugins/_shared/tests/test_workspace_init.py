@@ -150,8 +150,7 @@ def test_the_example_assistant_receives_files_into_the_inbox():
     yaml = pytest.importorskip("hermes_yaml")     # the runtime's loader, as test_example_configs uses
     example = HERE.parents[2] / "profiles" / "assistant" / "config.example.yaml"
     config = yaml.safe_load(example.read_text(encoding="utf-8"))
-    sources = {"google_access": "google", "whatsapp_access": "whatsapp",
-               "x_access": "x", "youtube_access": "youtube"}
+    sources = {"google_access": "google", "x_access": "x", "youtube_access": "youtube"}
     for key, folder in sources.items():
         assert config[key]["download_dir"] == f"~/Workspaces/.inbox/{folder}", key
     signal_tools = config["plugins"]["entries"]["signal-tools"]["settings"]

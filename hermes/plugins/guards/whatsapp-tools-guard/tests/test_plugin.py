@@ -1,6 +1,5 @@
 import importlib.util
 from pathlib import Path
-import tempfile
 
 import pytest
 
@@ -19,8 +18,7 @@ WRITES = (
     "whatsapp_chat_unread",
 )
 CHAT_READS = {"method": "search", "query": "private words"}
-ENV_NAMES = ("WHATSAPP_TOOLS_STATE_DIR", "WHATSAPP_TOOLS_GRANTS_DIR", "XDG_STATE_HOME", "HERMES_HOME",
-             "HERMES_WHATSAPP_STATE")
+ENV_NAMES = ("WHATSAPP_TOOLS_STATE_DIR", "WHATSAPP_TOOLS_GRANTS_DIR", "XDG_STATE_HOME")
 
 
 class Ctx:
@@ -41,7 +39,6 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     for name in ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_tracked_cwd", lambda task_id="", session_id="": None)   # no terminal record
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)     # a person is there to answer cards
@@ -141,19 +138,6 @@ def test_other_tools_are_untouched(monkeypatch):
     "ls ~/Library/Containers/net.whatsapp.WhatsApp/Data",
     "ls ~/Library/Application\\ Support/WhatsApp",
     'cat "~/Library/Application Support/WhatsApp/ChatStorage.sqlite"',
-    "ls ~/.local/state/hermes-whatsapp",
-    "sqlite3 $HERMES_WHATSAPP_STATE/outbox/x .dump",
-    "ls $TMPDIR/hermes-wacli",
-    "ls ~/.hermes/whatsapp-access",
-    "cat ~/.hermes/profiles/assistant/whatsapp-access/head.json",
-    "cat $HERMES_HOME/whatsapp-access/mandates/a.json",
-    "cat ${HERMES_HOME}/whatsapp-access/uses.jsonl",
-    "secret show WHATSAPP_MANDATE_KEY_work",
-    "~/.config/hermes/launchd/whatsapp-access-launchctl.sh status",
-    "bash hermes/launchd/whatsapp-access-launchctl.sh pair work +15551234567",
-    "tail ~/Library/Logs/whatsapp-access-sync-work.log",
-    "launchctl print gui/501/local.hermes.whatsapp-access.sync.work",
-    "~/Library/Application\\ Support/hermes-whatsapp-access-sync node x.js",
 ])
 def test_terminal_blocks_ways_around_the_tools(command):
     assert gate("terminal", command=command) == {"action": "block", "message": plugin.BYPASS_MESSAGE}
@@ -176,11 +160,6 @@ def test_terminal_blocks_ways_around_the_tools(command):
     "ls /work/feat-whatsapp-tools-hermes/hermes",
     "cat /Users/x/Worktrees/dotconfig/feat-hermes-whatsapp-tools/hermes/docs/whatsapp-tools.md",
     "cat docs/whatsapp-tools.md",
-    "cat docs/whatsapp-access.md",
-    "ls hermes/plugins/messaging/whatsapp-access",
-    "cat hermes/plugins/messaging/whatsapp-access/wa.py",
-    "cat ~/.hermes/plugins/messaging/whatsapp-access/wa.py",
-    "cat hermes/docs/whatsapp-access.md",
     "ls ~/.hermes/profiles/assistant/skills",
     "ls ~/.local/state",
     "ls ~/.local/state/*",
@@ -214,11 +193,6 @@ def test_terminal_allows_plain_work(command):
     "cat ~/.hermes/profiles/assistant/plugins/whatsapp-t*ls/dist/cli.js",
     "(cd ~/.hermes/plugins && cat whatsapp-tools/package.json)",
     "bash -c 'cd ~/.hermes/profiles/assistant/plugins; cat whatsapp-tools/package.json'",
-    "cd ~/.hermes/profiles && cat assistant/whatsapp-access/head.json",
-    "cat ~/.hermes/profiles/*/whatsapp-acce*/head.json",
-    "tail ~/Library/Logs/whatsapp-access-sy*",
-    "cat ~/.config/hermes/launchd/whatsapp-access-launch*",
-    "ls ~/.local/state/hermes-whats*",
 ])
 def test_terminal_blocks_single_line_forms(command):
     assert blocked(gate("terminal", command=command)), command
@@ -243,7 +217,6 @@ def test_the_terminal_directory_kept_between_calls_is_judged(monkeypatch, isolat
     tracked(monkeypatch, home / ".local" / "state")
     assert blocked(gate("terminal", command="cd whatsapp-tools"))           # call 2
     assert blocked(gate("terminal", command="sqlite3 whatsapp-tools/default/wacli/wacli.db"))
-    assert blocked(gate("terminal", command="ls hermes-whatsapp"))
     assert gate("terminal", command="ls") is None
 
 
@@ -271,22 +244,11 @@ def test_a_terminal_inside_the_client_store_or_the_app_data_is_blocked(monkeypat
         assert gate("terminal", command="ls") == {"action": "block", "message": plugin.CWD_MESSAGE}, directory
 
 
-def test_a_terminal_inside_the_old_state_or_mandates_is_blocked(monkeypatch, isolated):
-    old = isolated / "home" / ".local" / "state" / "hermes-whatsapp"
-    mandates = isolated / "home" / ".hermes" / "profiles" / "assistant" / "whatsapp-access"
-    scratch = isolated / "tmp" / "hermes-wacli"
-    for cwd in (old, mandates, scratch):
-        cwd.mkdir(parents=True)
-        tracked(monkeypatch, cwd)
-        assert gate("terminal", command="ls") == {"action": "block", "message": plugin.CWD_MESSAGE}, cwd
-
-
-def test_a_terminal_in_the_inbox_or_the_old_source_is_not_blocked(monkeypatch, isolated):
-    for cwd in (isolated / "home" / "Workspaces" / ".inbox" / "whatsapp",
-                isolated / "home" / ".hermes" / "plugins" / "messaging" / "whatsapp-access"):
-        cwd.mkdir(parents=True)
-        tracked(monkeypatch, cwd)
-        assert gate("terminal", command="ls") is None, cwd
+def test_a_terminal_in_the_inbox_is_not_blocked(monkeypatch, isolated):
+    inbox = isolated / "home" / "Workspaces" / ".inbox" / "whatsapp"
+    inbox.mkdir(parents=True)
+    tracked(monkeypatch, inbox)
+    assert gate("terminal", command="ls") is None
 
 
 def test_a_workdir_replaces_the_recorded_directory(monkeypatch, isolated):
@@ -365,11 +327,7 @@ def test_file_tools_block_paths_by_text():
                        ("read_file", {"path": "~/Library/Application Support/WhatsApp/ChatStorage.sqlite"}),
                        ("read_file", {"path": "~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/x"}),
                        ("read_file", {"path": "~/Library/Containers/net.whatsapp.WhatsApp/Data/x"}),
-                       ("read_file", {"path": "~/Library/Application Support/io.github.craft-agent.whatsapp-tools/x"}),
-                       ("read_file", {"path": "~/Library/Logs/whatsapp-access-sync-work.log"}),
-                       ("read_file", {"path": "~/.config/hermes/launchd/whatsapp-access-launchctl.sh"}),
-                       ("read_file", {"path": "~/.hermes/whatsapp-access/mandates/a.json"}),
-                       ("patch", {"path": "/tmp/x", "patch": "*** Update File: ~/.local/state/hermes-whatsapp/a"})):
+                       ("read_file", {"path": "~/Library/Application Support/io.github.craft-agent.whatsapp-tools/x"})):
         assert gate(tool, **args) == {"action": "block", "message": plugin.BYPASS_MESSAGE}, args
 
 
@@ -379,15 +337,9 @@ def test_file_tools_read_the_inbox():
     assert gate("read_file", path="~/Workspaces/whatsapp.md") is None
 
 
-def test_file_tools_read_the_old_plugin_source_and_docs():
-    assert gate("read_file", path="~/.hermes/plugins/messaging/whatsapp-access/wa.py") is None
-    assert gate("read_file", path="hermes/plugins/messaging/whatsapp-access/wa.py") is None
-    assert gate("read_file", path="hermes/docs/whatsapp-access.md") is None
-    assert gate("search_files", pattern="x", path="hermes/plugins/messaging/whatsapp-access") is None
-
-
 def test_file_tools_read_this_guard_and_a_worktree_with_the_package_name_in_it():
     assert gate("read_file", path="hermes/plugins/guards/whatsapp-tools-guard/__init__.py") is None
+    assert gate("read_file", path="hermes/docs/whatsapp-tools.md") is None
     path = "/x/Worktrees/dotconfig/feat-hermes-whatsapp-tools/hermes/docs/whatsapp-tools.md"
     assert gate("read_file", path=path) is None
     assert gate("terminal", command=f"cat {path}") is None
@@ -513,40 +465,6 @@ def test_whatsapp_desktop_data_is_protected_through_a_link(isolated):
         assert blocked(gate("read_file", path=str(link / "account-1"))), name
     assert gate("read_file", path=str(library / "Application Support" / "Other")) is None
     assert gate("read_file", path=str(library / "Group Containers" / "group.com.example.shared")) is None
-
-
-def test_the_old_state_variable_moves_the_old_state_root(monkeypatch, isolated):
-    old = isolated / "old-state"
-    old.mkdir()
-    link = isolated / "elsewhere"
-    link.symlink_to(old)
-    assert gate("read_file", path=str(link / "outbox")) is None
-    monkeypatch.setenv("HERMES_WHATSAPP_STATE", str(old))
-    assert blocked(gate("read_file", path=str(link / "outbox")))
-    assert gate("read_file", path=str(isolated / "old-state-notes.txt")) is None
-
-
-def test_the_old_scratch_dir_is_protected_through_a_link(isolated):
-    scratch = isolated / "tmp" / "hermes-wacli"
-    scratch.mkdir(parents=True)
-    link = isolated / "shortcut"
-    link.symlink_to(scratch)
-    assert blocked(gate("read_file", path=str(link / "work.lock")))
-    assert gate("read_file", path=str(isolated / "tmp" / "other.lock")) is None
-
-
-def test_the_old_mandates_are_protected_through_a_link(monkeypatch, isolated):
-    profile = isolated / "profile-home"
-    (profile / "whatsapp-access").mkdir(parents=True)
-    link = isolated / "shortcut"
-    link.symlink_to(profile / "whatsapp-access")
-    assert gate("read_file", path=str(link / "head.json")) is None      # a home that is not the running one
-    monkeypatch.setenv("HERMES_HOME", str(profile))
-    assert blocked(gate("read_file", path=str(link / "head.json")))
-    assert gate("read_file", path=str(profile / "config.yaml")) is None
-    named = isolated / "home" / ".hermes" / "profiles" / "work" / "whatsapp-access"
-    named.mkdir(parents=True)
-    assert blocked(gate("read_file", path=str(named / "head.json")))    # any profile home, without the variable
 
 
 def test_file_tools_read_the_download_dir(isolated):

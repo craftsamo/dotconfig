@@ -5,10 +5,9 @@ Google, GitHub, Git, X, note, Substack, YouTube, Stripe and Cloudflare. Each
 `*-access` doc inherits this one and records only its own differences; read it
 first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Three kinds of write skip their card only inside a
+doc ([web3.md](web3.md)). Two kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
-([hyperliquid.md](hyperliquid.md)), a text send on
-WhatsApp ([whatsapp-access.md](whatsapp-access.md)) and a
+([hyperliquid.md](hyperliquid.md)) and a
 gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -91,8 +90,7 @@ was changed.
   [github-tools.md](github-tools.md),
   [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, a WhatsApp text
-  send, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
+  inside a mandate (Hyperliquid, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
   scope of the plugin's own, which no profile receives.

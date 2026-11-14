@@ -107,8 +107,6 @@ account also refuse a task worktree; each launcher says which).
 
 - Signal's sync service belongs to the third-party package and is managed by
   its own `service` commands — [docs/signal-tools.md](../signal-tools.md).
-- `launchd/whatsapp-access-launchctl.sh {pair,install,uninstall,restart,status}`
-  — one agent per named account; [docs/whatsapp-access.md](../whatsapp-access.md).
 
 ### Engine and access scripts
 

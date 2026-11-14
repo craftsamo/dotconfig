@@ -21,16 +21,14 @@ mirror.
   `approval_tier.py` default, which repeats only the exact request. Saved
   answers are listed and revocable; the user answers "once" to a write they want
   asked again.
-- **No WhatsApp send mandates, and no grants.** Mandates of the old
-  `whatsapp-access` plugin are not carried over, and the `grants`
+- **No WhatsApp send mandates, and no grants.** The `grants`
   toolset stays off with `unattended` unset. Writes need a person who can answer
   the card; a standing answer never allows a write where nobody can answer.
 - **The guard is ours.** `plugins/guards/whatsapp-tools-guard` refuses writes
   where no person can answer and every call from an inbound A2A request, blocks
   the ways around the tools (the package's CLI, `wacli` itself, `~/.wacli`, the
-  package's state, logs and launch agents, WhatsApp Desktop's data, and the old
-  plugin's state, mandates and launcher until it is removed), runs the unpacked
-  guard and draws the progress lines. It names the reads explicitly
+  package's state, logs and launch agents, and WhatsApp Desktop's data), runs the
+  unpacked guard and draws the progress lines. It names the reads explicitly
   (`whatsapp_account_read`, `whatsapp_chat_read`, `whatsapp_contact_read`,
   `whatsapp_grant_read`), so a new tool fails closed as a write. A block from
   any plugin wins over the package's approve. The package's handler does not
@@ -51,10 +49,9 @@ mirror.
   (mode 0700), just as the old plugin kept them on disk under `~/.wacli`, so no
   Keychain layout changes; the guard refuses terminal and file-tool access to
   the state root, `~/.wacli` and WhatsApp Desktop's data.
-- **Moving needs a new pairing.** The package never uses `~/.wacli`, so moving
-  means pairing a new linked device (a phone takes at most four); the old plugin
-  stays installed until cutover, then its sync agents are retired and the old
-  device unlinked before the old plugin is removed in a later change.
+- **Moving needed a new pairing.** The package never uses `~/.wacli`, so moving
+  meant pairing a new linked device (a phone takes at most four); the old
+  plugin was removed after cutover.
 - **Actions are on for the Assistant.** `actions` (archive, mark read, mute,
   pin, delete, edit, react) is enabled alongside `account`, `chats`,
   `contacts`, `history`, `sends` and `files` by the person's decision, each
@@ -76,5 +73,3 @@ this repository keeps only the guard for how the Assistant runs here.
   `opencode/opencode.jsonc` together; a test keeps them equal.
 - The package's skills are its own; this repository adds only the Chat reference
   that says when the Assistant uses WhatsApp.
-- When `whatsapp-access` is removed in a later change, its send mandates and
-  `plugins/messaging/_shared/send_mandate.py` are retired with it.

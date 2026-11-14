@@ -1,5 +1,5 @@
 """mandate_ledger: the use ledger of a mandate is counted, anchored and fails closed the same way for every
-plugin, and the send mandates' ledger is the one the code before the split wrote and read."""
+plugin."""
 
 from __future__ import annotations
 
@@ -14,24 +14,16 @@ import time
 
 import pytest
 
-PLUGINS = Path(__file__).resolve().parents[2]
-
-
-def load(name: str, path: Path, register: bool = True):
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, path)
+if "hermes_mandate_ledger" not in sys.modules:
+    spec = importlib.util.spec_from_file_location(
+        "hermes_mandate_ledger",
+        Path(__file__).resolve().parents[1] / "mandate_ledger.py",
+    )
     module = importlib.util.module_from_spec(spec)
-    if register:
-        sys.modules[name] = module
+    sys.modules["hermes_mandate_ledger"] = module
     spec.loader.exec_module(module)
-    return module
-
-
-mandate_ledger = load("hermes_mandate_ledger", PLUGINS / "_shared" / "mandate_ledger.py")
+mandate_ledger = sys.modules["hermes_mandate_ledger"]
 mandate_store = mandate_ledger.mandate_store
-# Loaded apart from the other tests' copy, which keeps its own module name free.
-sm = load("hermes_send_mandate_for_ledger_test", PLUGINS / "messaging" / "_shared" / "send_mandate.py", register=False)
 
 KEY = bytes(range(32))
 KIND = "demo-use"
@@ -347,72 +339,3 @@ def test_threads_racing_the_last_slots_win_exactly_the_limit_times(home, folder)
         thread.join()
     assert len(results) == 10 and results.count(None) == LIMIT
     assert count(home, now=now) == LIMIT and len(rows(home)) == 1 + LIMIT
-
-
-# --- the send mandates' ledger --------------------------------------------------------------------
-
-@pytest.fixture
-def keyfile(tmp_path, monkeypatch):
-    keyfile = tmp_path / "keyfile"
-    keyfile.write_text(KEY.hex() + "\n")
-    cli = tmp_path / "secret"
-    cli.write_text("#!/bin/sh\n"
-                   f"[ \"$1\" = get ] && [ -f {keyfile} ] && cat {keyfile} && exit 0\n"
-                   "exit 1\n")
-    cli.chmod(0o755)
-    for module in {mandate_store, sm.mandate_store}:
-        monkeypatch.setattr(module, "SECRET", cli)
-    return keyfile
-
-
-def send_terms():
-    chat = {"id": "1001", "name": "Alice", "kind": "user", "identity": "@alice"}
-    return sm.terms("whatsapp", "acct", [chat], 3, 100, 7, "Send the morning report")
-
-
-def send_view():
-    return {"service": "whatsapp", "account": "acct", "chat": "1001", "text": "good morning", "files": 0,
-            "reply": False}
-
-
-def send_count(home, mandate_id, now=None):
-    return mandate_ledger.count(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id,
-                                time.time() if now is None else now, 3600, sm.USED_UP)
-
-
-def test_send_mandates_write_the_rows_the_ledger_reads(keyfile, home):
-    mandate_id = sm.create(home, send_terms())["id"]
-    now = time.time()
-    assert send_count(home, mandate_id, now) == 0
-    assert sm.use(home, "whatsapp", mandate_id, send_view(), now=now) is None
-    assert sm.use(home, "whatsapp", mandate_id, send_view(), now=now) is None
-    assert send_count(home, mandate_id, now) == 2
-    path = home / "whatsapp-access" / "uses.jsonl"
-    opening, first, _ = [json.loads(line) for line in path.read_text().splitlines()]
-    assert opening["open"] is True and first == mandate_ledger.row(KEY, "whatsapp-send-use", mandate_id, int(now))
-    path.write_text("")
-    assert send_count(home, mandate_id, now) is sm.USED_UP
-
-
-def test_the_ledger_writes_the_rows_send_mandates_read(keyfile, home):
-    mandate_id = sm.create(home, send_terms())["id"]
-    path = home / "whatsapp-access" / "uses.jsonl"
-    path.unlink()
-    mandate_ledger.anchor(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id, int(time.time()))
-    assert sm._used(home, "whatsapp", mandate_id, time.time()) == 0
-    now = time.time()
-    for _ in range(3):
-        assert mandate_ledger.take(sm.store("whatsapp"), home, KEY, "whatsapp-send-use", mandate_id, now,
-                                   3600, sm.USED_UP, lambda used: None) is None
-    assert sm._used(home, "whatsapp", mandate_id, now) == 3
-    assert "3 sends in the last hour" in sm.use(home, "whatsapp", mandate_id, send_view(), now=now)
-    assert sm.covering(home, "whatsapp", send_view(), now=now) == (
-        None, [f"{mandate_id}: 3 sends in the last hour; the mandate allows 3 an hour"])
-
-
-def test_send_mandates_keep_their_used_up_count(keyfile, home):
-    mandate_id = sm.create(home, send_terms())["id"]
-    (home / "whatsapp-access" / "uses.jsonl").unlink()
-    assert sm._used(home, "whatsapp", mandate_id, time.time()) is sm.USED_UP
-    assert isinstance(sm.USED_UP, mandate_ledger.UsedUp) and sm.USED_UP == sm.MAX_PER_HOUR
-    assert sm.use(home, "whatsapp", mandate_id, send_view()) == sm.LEDGER_USED_UP

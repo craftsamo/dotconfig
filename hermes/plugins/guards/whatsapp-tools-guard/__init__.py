@@ -12,8 +12,7 @@ never touches the policy, and it adds what that plugin does not do:
   fails closed.
 - the terminal and file tools may not reach the WhatsApp account around its tools: the plugin's CLI and
   ``wacli``, the Go client that holds the linked device's keys, the plugin's state (the keys, the mirror,
-  the grants), logs and launch agents, ``wacli``'s own store, the old ``whatsapp-access`` plugin's state,
-  mandates and launcher, and WhatsApp Desktop's data, and
+  the grants), logs and launch agents, ``wacli``'s own store, and WhatsApp Desktop's data, and
   nothing inside a ``.unpacked`` folder of a received archive may be run. The terminal keeps its directory
   between calls, so a terminal call is also judged by where it runs (its ``workdir``, else the session's
   recorded directory) and every word of the command is resolved against that directory.
@@ -35,7 +34,6 @@ from pathlib import Path
 import re
 import shlex
 import sys
-import tempfile
 
 PLUGINS = Path(__file__).resolve().parents[2]
 PREFIX = "whatsapp_"
@@ -50,15 +48,6 @@ WACLI_STORE = ".wacli"
 APP_SUPPORT_NAME = "WhatsApp"
 APP_CONTAINER = "net.whatsapp.WhatsApp"
 APP_GROUP_CONTAINERS = "*.net.whatsapp.*"
-# The old whatsapp-access plugin, guarded until it is removed; a later change drops these with it.
-HERMES_HOME_ENV = "HERMES_HOME"
-OLD_STATE_ENV = "HERMES_WHATSAPP_STATE"
-OLD_STATE_NAME = "hermes-whatsapp"
-OLD_TMP_NAME = "hermes-wacli"
-OLD_MANDATES = "whatsapp-access"
-OLD_LAUNCHER = "whatsapp-access-launchctl.sh"
-OLD_LOG_PREFIX = "whatsapp-access-sync-"
-OLD_LOG_SUFFIX = ".log"
 
 # Progress lines: the declared choices of a tool's `method`, and a fixed label for each other tool.
 METHODS = {
@@ -85,8 +74,7 @@ LABELS = {
 
 # Ways around the tools: the CLIs where a command runs them (shell_commands; `_CLI`, the name as a word
 # anywhere, judges a line that cannot be read that way), the state, logs, launch agents and env of the
-# plugin, its install, `wacli`'s store, WhatsApp Desktop's data, and the old plugin's state, mandates and
-# launcher.
+# plugin, its install, `wacli`'s store and WhatsApp Desktop's data.
 CLIS = ("whatsapp-tools-cli", "whatsapp-tools", "wacli")
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map(re.escape, CLIS))
                   + r")(?=$|[\s;&|()`'\"])")
@@ -97,32 +85,24 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map
 # A bare `whatsapp` component, `whatsapp://` links and the app's bare bundle id are never matched: the
 # download folder is `.inbox/whatsapp`, the chat reference is `whatsapp.md` and the terminal opens links
 # through `open -b net.whatsapp.WhatsApp`; the app's data is matched by its containers and support folder.
-# The old plugin's mandates are `<home>/whatsapp-access/` of the root or a profile home (and, by their
-# file names, wherever a relative path hides the home); its source (`plugins/messaging/whatsapp-access/`)
-# and `docs/whatsapp-access.md` stay readable.
 _PATHS = re.compile(r"state/whatsapp-tools|io\.github\.craft-agent\.whatsapp-tools|WHATSAPP_TOOLS_"
                     r"|\.hermes/plugins/whatsapp-tools|@craftsamo/whatsapp-tools|whatsapp-tools/dist/"
                     r"|\.wacli(?![\w-])|WACLI_|wacli-sync|local\.wacli"
                     r"|Containers/(?:[^/\s'\"]*\.)?net\.whatsapp\."
                     r"|Application(?:\\? |%20)Support/WhatsApp(?=/|$|[\s'\"`;&|()])"
-                    r"|(?:^|[/\s'\"=;&|()])whatsapp-tools(?=/|$|[\s'\"`;&|()])"
-                    r"|hermes-whatsapp(?!-tools)|hermes-wacli|HERMES_WHATSAPP_|WHATSAPP_MANDATE_KEY"
-                    r"|whatsapp-access-launchctl|whatsapp-access-sync|local\.hermes\.whatsapp-access"
-                    r"|(?:\.hermes|HERMES_HOME\}?|profiles/[^/\s'\"]+)/whatsapp-access(?![\w.-])"
-                    r"|(?<!messaging/)(?<![\w.-])whatsapp-access/(?:mandates|head\.json|uses\.jsonl)",
+                    r"|(?:^|[/\s'\"=;&|()])whatsapp-tools(?=/|$|[\s'\"`;&|()])",
                     re.IGNORECASE)
 # Directory and file names that belong to the account wherever they sit (the package installed under a
-# profile's own plugins, a copy of its state, the old plugin's state and launcher), compared lower-case
-# against each component of a resolved path.
-PROTECTED_PARTS = (STATE_NAME, LOG_NAME, OLD_STATE_NAME, OLD_TMP_NAME, OLD_LAUNCHER)
+# profile's own plugins, a copy of its state), compared lower-case against each component of a resolved
+# path.
+PROTECTED_PARTS = (STATE_NAME, LOG_NAME)
 _GLOB = re.compile(r"[*?\[]")
 GLOB_LITERALS = 4           # a glob component names a directory only with this much fixed text
 BYPASS_MESSAGE = (
     "The WhatsApp account is reached only through its whatsapp_* tools, never through the terminal or "
     "file tools: the whatsapp-tools CLI and wacli, its state (the linked device's keys, the mirror, "
-    "grants), logs and launch agents, the old whatsapp-access plugin's state, and WhatsApp Desktop's "
-    "data are off limits there. Use the whatsapp_* tools; setting up the account and its services is "
-    "the user's job."
+    "grants), logs and launch agents, and WhatsApp Desktop's data are off limits there. Use the "
+    "whatsapp_* tools; setting up the account and its services is the user's job."
 )
 CWD_MESSAGE = (
     "The terminal's working directory is inside the WhatsApp account's files (the whatsapp-tools package, "
@@ -219,13 +199,6 @@ def _agent_file(name: str) -> bool:
     return name.startswith(f"{LOG_NAME}.")
 
 
-def _old_log(name: str) -> bool:
-    """A sync log of the old plugin: ``whatsapp-access-sync-<account>.log``."""
-    if _GLOB.search(name):
-        return _wildcard(name) and fnmatch.fnmatchcase(f"{OLD_LOG_PREFIX}x{OLD_LOG_SUFFIX}", name)
-    return name.startswith(OLD_LOG_PREFIX) and name.endswith(OLD_LOG_SUFFIX)
-
-
 def _state_root() -> str:
     """Where whatsapp-tools keeps its state: its env var, else $XDG_STATE_HOME/whatsapp-tools when that
     is absolute (as the package reads it), else ~/.local/state/whatsapp-tools."""
@@ -236,15 +209,6 @@ def _state_root() -> str:
     if xdg and os.path.isabs(xdg):
         return os.path.join(xdg, STATE_NAME)
     return os.path.expanduser(os.path.join("~", ".local", "state", STATE_NAME))
-
-
-def _old_state_root() -> str:
-    """Where the old whatsapp-access plugin kept its outbox: its env var, else
-    ~/.local/state/hermes-whatsapp."""
-    configured = os.environ.get(OLD_STATE_ENV)
-    if configured:
-        return os.path.expanduser(configured)
-    return os.path.expanduser(os.path.join("~", ".local", "state", OLD_STATE_NAME))
 
 
 def _protected_roots() -> set[tuple[str, ...]]:
@@ -262,10 +226,6 @@ def _protected_roots() -> set[tuple[str, ...]]:
         os.path.join(support, APP_SUPPORT_NAME),
         os.path.join(library, "Containers", APP_CONTAINER),
         *glob.glob(os.path.join(glob.escape(library), "Group Containers", APP_GROUP_CONTAINERS)),
-        _old_state_root(),
-        os.path.join(tempfile.gettempdir(), OLD_TMP_NAME),
-        os.path.join(home, ".hermes", OLD_MANDATES),
-        os.path.join(os.path.expanduser(os.environ.get(HERMES_HOME_ENV) or "~/.hermes"), OLD_MANDATES),
     }
     grants = os.environ.get(GRANTS_ENV)
     if grants:
@@ -275,15 +235,12 @@ def _protected_roots() -> set[tuple[str, ...]]:
 
 def _names_protected(text: str, roots: set[tuple[str, ...]], cwd: str | None = None) -> bool:
     """Whether the path ``text`` names (against ``cwd`` when relative) is, or is inside, a protected root
-    or a directory named like one: a copy of the package under another profile's plugins, say, a launch
-    agent's file, or the old mandates of any profile home (``profiles/<name>/whatsapp-access``). A glob
-    counts when one of its components could name a protected directory."""
+    or a directory named like one: a copy of the package under another profile's plugins, say, or a launch
+    agent's file. A glob counts when one of its components could name a protected directory."""
     names = _names(_resolved(text, cwd))
     if any(_name_matches(name, part) for name in names for part in PROTECTED_PARTS):
         return True
-    if any(_agent_file(name) or _old_log(name) for name in names):
-        return True
-    if any(_name_matches(a, "profiles") and _name_matches(c, OLD_MANDATES) for a, c in zip(names, names[2:])):
+    if any(_agent_file(name) for name in names):
         return True
     return any(len(names) >= len(root) and all(_name_matches(n, r) for n, r in zip(names, root))
                for root in roots)
