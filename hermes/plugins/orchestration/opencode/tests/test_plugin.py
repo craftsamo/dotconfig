@@ -2549,6 +2549,10 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                          "discord_message_send", "discord_file_send", "discord_read_mark",
                          "discord_role_assign", "discord_sync_add"):
                 assert policy.decide(rules, tool, "default/1400000000000000401") == "deny", (kind, tool)
+            for tool in ("cloudflare_zone_read", "cloudflare_dns_read", "cloudflare_account_read",
+                         "cloudflare_dns_record_add", "cloudflare_dns_record_delete",
+                         "cloudflare_zone_cache_purge_all", "cloudflare_grant_create"):
+                assert policy.decide(rules, tool, "example.com") == "deny", (kind, tool)
             for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):
