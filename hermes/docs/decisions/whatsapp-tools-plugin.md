@@ -27,9 +27,8 @@ mirror.
 - **The guard is ours.** `plugins/guards/whatsapp-tools-guard` refuses writes
   where no person can answer and every call from an inbound A2A request, blocks
   the ways around the tools (the package's CLI, `wacli` itself, `~/.wacli`, the
-  package's state, logs and launch agents, WhatsApp Desktop's data, and the old
-  plugin's state, mandates and launcher until it is removed), runs the unpacked
-  guard and draws the progress lines. It names the reads explicitly
+  package's state, logs and launch agents, and WhatsApp Desktop's data), runs the
+  unpacked guard and draws the progress lines. It names the reads explicitly
   (`whatsapp_account_read`, `whatsapp_chat_read`, `whatsapp_contact_read`,
   `whatsapp_grant_read`), so a new tool fails closed as a write. A block from
   any plugin wins over the package's approve. The package's handler does not

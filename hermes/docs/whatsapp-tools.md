@@ -112,10 +112,9 @@ The guard (`whatsapp-tools-guard`) adds, for every `whatsapp_*` tool:
 - **No way around the tools.** Terminal and file-tool calls are blocked when
   they run `whatsapp-tools-cli`, `whatsapp-tools` or `wacli`, or name the
   package's state, plugin directory, launch agents, launchers, logs, a
-  `WHATSAPP_TOOLS_` or `WACLI_` variable, `~/.wacli`, WhatsApp Desktop's data, or
-  the old `whatsapp-access` plugin's state, mandates and launcher (until it is
-  removed); paths are also matched by their real path and against the
-  terminal's working directory
+  `WHATSAPP_TOOLS_` or `WACLI_` variable, `~/.wacli` or WhatsApp Desktop's
+  data; paths are also matched by their real path and against the terminal's
+  working directory
   ([bypass guard](access-common.md#bypass-guard-ways-around-the-tool)). The
   download folder (`~/Workspaces/.inbox/whatsapp`), `whatsapp://` links and
   `open -b net.whatsapp.WhatsApp` stay allowed.
