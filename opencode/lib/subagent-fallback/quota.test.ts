@@ -528,6 +528,7 @@ describe("Quota 6 public JSON", () => {
 
 describe("Antigravity groups", () => {
   const FLASH = { providerID: "google", id: "antigravity-gemini-3.8-flash-low" }
+  const HYDROGEN = { providerID: "google", id: "antigravity-gemini-4-hydrogen-low" }
   const ARGON = { providerID: "google", id: "antigravity-gemini-4-argon-high" }
   const OPUS = { providerID: "google", id: "antigravity-claude-opus-5-5-high" }
   const OSS = { providerID: "google", id: "antigravity-gpt-oss-120b-medium" }
@@ -552,10 +553,12 @@ describe("Antigravity groups", () => {
     ])
     expect(antigravityFamily(FLASH)).toBe("gemini-flash")
     expect(antigravityFamily(ARGON)).toBe("gemini-pro")
+    expect(antigravityFamily(HYDROGEN)).toBe("gemini-pro")
     expect(antigravityFamily(OPUS)).toBe("claude")
     expect(antigravityFamily(OSS)).toBeUndefined()
     expect(readAntigravity(s, FLASH, NOW, 10).state).toBe("available")
     expect(readAntigravity(s, ARGON, NOW, 10).state).toBe("available")
+    expect(readAntigravity(s, HYDROGEN, NOW, 10).state).toBe("available")
     expect(readAntigravity(s, OPUS, NOW, 10)).toEqual({
       state: "exhausted",
       observedAt: NOW,
@@ -567,6 +570,15 @@ describe("Antigravity groups", () => {
     const s = snapshot([group("Gemini_Pro", 7, later)])
     expect(readAntigravity(s, ARGON, NOW, 10).state).toBe("exhausted")
     expect(readAntigravity(s, ARGON, NOW, 0).state).toBe("available")
+  })
+  test("Hydrogen follows the Pro reserve even when the Flash group is available", () => {
+    const s = snapshot([
+      group("Gemini_Pro", 7, later),
+      group("Gemini_Flash", 99, later),
+    ])
+    expect(readAntigravity(s, HYDROGEN, NOW, 10).state).toBe("exhausted")
+    expect(readAntigravity(s, HYDROGEN, NOW, 0).state).toBe("available")
+    expect(readAntigravity(s, FLASH, NOW, 10).state).toBe("available")
   })
   test("spent holds until its reset at any age; anything else needs fresh data", () => {
     const old = (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000

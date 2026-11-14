@@ -100,15 +100,14 @@
         // or a window limit, through the steps that run the same model. The
         // first step's model is the one the agent file names.
         //
-        // Gemini Flash on Antigravity leads the explore tiers below max, the
+        // Gemini 4 Hydrogen on Antigravity leads the explore tiers below max, the
         // worker, the refactorer and the searcher, and backs up the deep
         // searcher; Claude closes every route: Claude on Antigravity first
         // (its own quota group, Sonnet or Opus; it has no Haiku and no xhigh),
         // then the saved logins, then the paid credit lanes as the very last
-        // stops. worker-deep reverses the lead order: its hard implementation
-        // is where Flash falls furthest behind, so the Sonnet logins come
-        // first, then Claude on Antigravity, then Sol, then Flash, then the
-        // lanes.
+        // stops. worker-deep keeps its Sonnet-first policy for hard implementation:
+        // the Sonnet logins come first, then Claude on Antigravity, then Sol,
+        // then Hydrogen, then the lanes.
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
@@ -120,7 +119,7 @@
             "anthropic-credit-sub/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
-            "google/antigravity-gemini-3.8-flash-high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "openai/gpt-6.1-sol#high",
             "google/antigravity-claude-sonnet-5-5-high",
             "anthropic/claude-sonnet-5-5-sub#high",
@@ -130,7 +129,7 @@
             "anthropic-credit-sub/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
-            "google/antigravity-gemini-3.8-flash-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
@@ -149,7 +148,7 @@
             "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "worker": [
-            "google/antigravity-gemini-3.8-flash-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
@@ -159,7 +158,7 @@
             "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "refactorer": [
-            "google/antigravity-gemini-3.8-flash-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
@@ -173,13 +172,13 @@
             "anthropic/claude-sonnet-5-5-main#high",
             "google/antigravity-claude-sonnet-5-5-high",
             "openai/gpt-6.1-sol#high",
-            "google/antigravity-gemini-3.8-flash-high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high",
             "anthropic-credit-sub/claude-sonnet-5-5#high"
           ],
           "explore-spark": [
-            "google/antigravity-gemini-3.8-flash-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna-fast#low",
             "anthropic/claude-haiku-5-5-sub#low",
             "anthropic/claude-haiku-5-5-main#low",
@@ -188,7 +187,7 @@
             "anthropic-credit-sub/claude-haiku-5-5#low"
           ],
           "explore-small": [
-            "google/antigravity-gemini-3.8-flash-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna#low",
             "anthropic/claude-haiku-5-5-sub#low",
             "anthropic/claude-haiku-5-5-main#low",
@@ -225,13 +224,13 @@
           "searcher-deep": [
             "xai/grok-4.7#medium",
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-gemini-3.8-flash-high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium"
           ],
           "searcher": [
-            "google/antigravity-gemini-3.8-flash-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "xai/grok-4.7#low",
             "openai/gpt-6.1-sol#low",
             "anthropic/claude-haiku-5-5-sub#low",

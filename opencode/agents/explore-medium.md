@@ -1,7 +1,7 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: google/antigravity-gemini-3.8-flash-medium
+model: google/antigravity-gemini-4-hydrogen-medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

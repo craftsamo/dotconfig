@@ -285,7 +285,7 @@ before a new specialist launch and follows the role's **route**: the models
 
 ```jsonc
 "explore-small": [
-  "google/antigravity-gemini-3.8-flash-low",
+  "google/antigravity-gemini-4-hydrogen-low",
   "openai/gpt-6-luna#low",
   "anthropic/claude-haiku-5-5-sub#low",
   "anthropic/claude-haiku-5-5-main#low",
@@ -352,24 +352,26 @@ leaves no rows. Any newer reading of the login replaces it. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
-| Role                    | Steps, in order                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| explore-max             | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                        |
-| explore-high            | flash high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
-| explore-medium          | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| reviewer                | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                |
-| worker                  | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| refactorer              | flash medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| worker-deep             | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → flash high                         |
-| explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
-| explore-small           | flash low → gpt-6-luna low → claude-haiku-5-5 low                                                |
-| verifier                | gpt-6-luna low → claude-haiku-5-5 low                                                            |
-| debugger, reviewer-deep | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                          |
-| searcher-deep           | grok-4.7 medium → gpt-6.1-sol medium → flash high → agy sonnet medium → claude-sonnet-5-5 medium |
-| searcher                | flash low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
+| Role                    | Steps, in order                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| explore-max             | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                           |
+| explore-high            | hydrogen high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
+| explore-medium          | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| reviewer                | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                   |
+| worker                  | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| refactorer              | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| worker-deep             | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → hydrogen high                         |
+| explore-spark           | hydrogen low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
+| explore-small           | hydrogen low → gpt-6-luna low → claude-haiku-5-5 low                                                |
+| verifier                | gpt-6-luna low → claude-haiku-5-5 low                                                               |
+| debugger, reviewer-deep | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                             |
+| searcher-deep           | grok-4.7 medium → gpt-6.1-sol medium → hydrogen high → agy sonnet medium → claude-sonnet-5-5 medium |
+| searcher                | hydrogen low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
 
-"flash" is Gemini 3.8 Flash on Antigravity, whose efforts are models of their
-own (`antigravity-gemini-3.8-flash-low`, `-medium`, `-high`); "agy sonnet" and
+"hydrogen" is Gemini 4 Hydrogen on Antigravity, whose efforts are models of their
+own (`antigravity-gemini-4-hydrogen-low`, `-medium`, `-high`); the pinned
+Antigravity plugin routes it through the Gemini Pro quota group, not Gemini
+Flash. "agy sonnet" and
 "agy opus" are Claude on Antigravity the same way
 (`antigravity-claude-sonnet-5-5-medium`, `antigravity-claude-opus-5-5-high`,
 …), drawing on the Antigravity Claude group that Sonnet and Opus share. It
@@ -379,14 +381,13 @@ an included pool whose group resets every five hours, then the Sub
 and Main logins, then the paid lanes (Team, Main, Sub) as the very last
 stops; the searchers have no lane. Native model IDs are
 explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
-`claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini Flash leads
+`claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini 4 Hydrogen leads
 the explore tiers below max, the worker, the refactorer and the searcher:
-its Antigravity group resets daily and keeps the ChatGPT window and the
-Claude logins for the work behind it. worker-deep reverses that lead order:
-the hard implementation it gets is where Flash falls furthest behind the
-other two on agentic coding benchmarks, so its Sonnet logins come first, then
-Claude on Antigravity, then Sol, then Flash, and the paid lanes still close
-it. Claude on Antigravity follows the logins there rather than leading, so
+it keeps the ChatGPT window and the Claude logins for the work behind it.
+worker-deep retains its Sonnet-first policy for hard implementation: its
+Sonnet logins come first, then Claude on Antigravity, then Sol, then Hydrogen,
+and the paid lanes still close it. Claude on Antigravity follows the logins
+there rather than leading, so
 the first step (the model its agent file names) stays a Claude login's, and
 such a child still moves to the other login on a window limit. explore-max stays on Sol
 since its xhigh runs are long and rare. ChatGPT's fast mode (the `-fast` models, priority processing

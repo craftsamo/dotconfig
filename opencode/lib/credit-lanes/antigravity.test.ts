@@ -50,6 +50,9 @@ describe("classifyFamily & summarizeAvailableModels", () => {
     expect(classifyFamily("gemini-4-argon-high", "Gemini 4 Argon")).toBe(
       "gemini-pro",
     )
+    expect(classifyFamily("gemini-4-hydrogen-medium", "Gemini 4 Hydrogen")).toBe(
+      "gemini-pro",
+    )
     expect(classifyFamily("gemini-3.8-flash-medium", "Gemini 3.8 Flash")).toBe(
       "gemini-flash",
     )

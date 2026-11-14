@@ -1,7 +1,7 @@
 ---
 description: "Implements already-designed code changes from an exact spec: bulk edits, boilerplate, rote refactors, and routine implementation whose files, signatures and behavior the caller fixed. It makes no design decisions. Use worker-deep when the logic inside is hard. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: google/antigravity-gemini-3.8-flash-medium
+model: google/antigravity-gemini-4-hydrogen-medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

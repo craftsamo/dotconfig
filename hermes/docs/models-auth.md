@@ -94,7 +94,7 @@ Provider facts:
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
   ChatGPT subscription is sized for OpenCode (`debugger`, `reviewer`,
-  `reviewer-deep`, `explore-max`, a backup step behind Gemini Flash or Grok
+  `reviewer-deep`, `explore-max`, a backup step behind Gemini 4 Hydrogen or Grok
   for the other explore tiers, the worker and the searchers, plus the
   `alternate` of the Assistant's OpenCode roles) and shares one Plus allowance
   with Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a

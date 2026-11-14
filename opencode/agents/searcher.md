@@ -1,7 +1,7 @@
 ---
 description: "Fast web research subagent: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: google/antigravity-gemini-3.8-flash-low
+model: google/antigravity-gemini-4-hydrogen-low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
