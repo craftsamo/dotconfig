@@ -89,7 +89,7 @@ every mandate leaves the head file, so from then on each write reads the key.
 - Counting before the send, and also when it fails or is uncertain, keeps the
   hourly bound whatever happens to the request.
 - A deleted, emptied or replaced ledger reads as used up, never as unused.
-- The 7-day ceiling is lower than the 30 of the GitHub and send mandates
+- The 7-day ceiling is lower than the 30-day default
   because a zone change reaches every visitor at once; a forgotten mandate
   should lapse on its own.
 

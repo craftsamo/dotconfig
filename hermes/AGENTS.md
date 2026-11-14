@@ -343,7 +343,7 @@ skills.
   make Hermes load it as a plugin — never add one. `mandate_store.py` is the
   one place mandates are stored and authenticated (the MAC'd files, the head
   that alone decides what is in force, the Keychain key read on every check,
-  the day ceiling each store sets: 30, and 7 for gcloud); a consumer passes its own `Store` and never writes those
+  the day ceiling each store sets: 30 by default, and 7 for gcloud); a consumer passes its own `Store` and never writes those
   files itself, and the on-disk format stays as it is, or every mandate in force
   stops verifying; `mandate_ledger.py` is likewise the one place a mandate's
   uses are counted (the `uses.jsonl` rows, their MAC and the fail-closed reads),
@@ -618,11 +618,10 @@ Commands: [README "Commands"](README.md#commands).
   [Cloudflare](docs/decisions/cloudflare-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
-  orders, WhatsApp text sends,
-  gcloud commands): it
+  orders, gcloud commands): it
   runs with no card, so the mandate's own bounds, re-checked and counted at the write,
   are the control — never let anything but such a card widen them
-  ([sends](docs/decisions/send-mandates.md),
+  ([Hyperliquid](docs/decisions/hyperliquid-mandates.md),
   [gcloud](docs/decisions/gcloud-mandates.md)).
 
 ## Commits

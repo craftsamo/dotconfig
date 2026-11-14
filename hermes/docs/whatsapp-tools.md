@@ -97,8 +97,7 @@ Every write is held by the package's own `pre_tool_call` card, which pins what
 it showed into the call and fails the call as `stale` if what it showed changed
 since. An "always" or "session" answer covers the tool and its chat, not the
 exact request: a write the user wants asked again is answered "once". There are
-no send mandates and no grants (the old plugin's mandates are not carried
-over); writes need a person who can answer the card.
+no send mandates and no grants; writes need a person who can answer the card.
 
 The guard (`whatsapp-tools-guard`) adds, for every `whatsapp_*` tool:
 

@@ -70,4 +70,3 @@ repository keeps only the guard for how the Assistant runs here.
   `opencode/opencode.jsonc` together; a test keeps them equal.
 - The package's skills are its own; this repository adds only the Chat
   reference that says when the Assistant uses Discord.
-- WhatsApp keeps its send mandates.

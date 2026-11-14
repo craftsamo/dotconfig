@@ -21,8 +21,7 @@ mirror.
   `approval_tier.py` default, which repeats only the exact request. Saved
   answers are listed and revocable; the user answers "once" to a write they want
   asked again.
-- **No WhatsApp send mandates, and no grants.** Mandates of the old
-  `whatsapp-access` plugin are not carried over, and the `grants`
+- **No WhatsApp send mandates, and no grants.** The `grants`
   toolset stays off with `unattended` unset. Writes need a person who can answer
   the card; a standing answer never allows a write where nobody can answer.
 - **The guard is ours.** `plugins/guards/whatsapp-tools-guard` refuses writes
@@ -75,5 +74,3 @@ this repository keeps only the guard for how the Assistant runs here.
   `opencode/opencode.jsonc` together; a test keeps them equal.
 - The package's skills are its own; this repository adds only the Chat reference
   that says when the Assistant uses WhatsApp.
-- When `whatsapp-access` is removed in a later change, its send mandates and
-  `plugins/messaging/_shared/send_mandate.py` are retired with it.
