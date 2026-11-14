@@ -1,7 +1,9 @@
 # Cloudflare zone changes without a card only inside a zone mandate
 
-Status: in force
-Owner doc: docs/cloudflare-access.md "Zone mandates"
+Superseded by [cloudflare-tools-plugin.md](cloudflare-tools-plugin.md).
+
+Status: superseded by decisions/cloudflare-tools-plugin.md
+Owner doc: [Cloudflare tools](../cloudflare-tools.md)
 
 ## Decision
 

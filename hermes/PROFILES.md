@@ -85,5 +85,4 @@ look arbitrary:
 [Discord tools](./docs/decisions/discord-tools-plugin.md) ·
 [Cloudflare tools](./docs/decisions/cloudflare-tools-plugin.md) ·
 [Send mandates](./docs/decisions/send-mandates.md) ·
-[Cloudflare mandates](./docs/decisions/cloudflare-mandates.md) ·
 [gcloud mandates](./docs/decisions/gcloud-mandates.md).

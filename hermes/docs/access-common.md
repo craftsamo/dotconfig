@@ -5,11 +5,10 @@ Google, GitHub, Git, X, note, Substack, YouTube, Stripe and Cloudflare. Each
 `*-access` doc inherits this one and records only its own differences; read it
 first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Four kinds of write skip their card only inside a
+doc ([web3.md](web3.md)). Three kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
 ([hyperliquid.md](hyperliquid.md)), a text send on
-WhatsApp ([whatsapp-access.md](whatsapp-access.md)),
-a Cloudflare zone change ([cloudflare-access.md](cloudflare-access.md)) and a
+WhatsApp ([whatsapp-access.md](whatsapp-access.md)) and a
 gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -42,8 +41,8 @@ restart. Short rule: [AGENTS.md](../AGENTS.md) "Secrets, auth and accounts".
 
 State lives outside every repository and is private (mode 700). The cookie
 services (X, note, Substack) keep pacing timestamps, caps, locks and
-the service's last verdict in `~/.<name>-access/`, with no secret; Stripe and
-Cloudflare keep their keys' last verdicts there the same way. The
+the service's last verdict in `~/.<name>-access/`, with no secret; Stripe
+keeps its key's last verdict there the same way. The
 messaging plugins keep their mirror and outbox under
 `~/.local/state/hermes-<name>/` (their docs say what else).
 
@@ -58,7 +57,7 @@ messaging plugins keep their mirror and outbox under
   client. Google's and YouTube's API calls are the exception: they use Google's
   client libraries in Hermes' own Python, and keep access tokens in memory (their
   docs say how). Where there is a venv it is hash-locked under `~/.hermes/local/<name>/venv`
-  and never Hermes' interpreter; note's, Stripe's and Cloudflare's bridges are
+  and never Hermes' interpreter; note's and Stripe's bridges are
   stdlib only and run under Hermes' interpreter in isolated mode (`-I`).
 
 ## Profile gating
@@ -92,7 +91,7 @@ was changed.
   [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, a WhatsApp text
-  send, a Cloudflare zone change, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
+  send, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
   scope of the plugin's own, which no profile receives.
