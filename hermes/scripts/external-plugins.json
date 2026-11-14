@@ -41,5 +41,14 @@
     "skills": ["account", "sync", "chats", "search", "inbox", "people", "sends", "history", "files", "actions", "threads", "roles"],
     "requires": ["discord-tools-guard"],
     "requires_setting": "require_plugins"
+  },
+  "cloudflare-tools": {
+    "repo": "craft-agent/cloudflare-tools",
+    "version": "0.12.0",
+    "commit": "03445541529ca7140a073d5869d4a57fe5630847",
+    "npm": "@craftsamo/cloudflare-tools",
+    "skills": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"],
+    "requires": ["cloudflare-tools-guard"],
+    "requires_setting": "require_plugins"
   }
 }
