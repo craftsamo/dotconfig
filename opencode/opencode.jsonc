@@ -65,6 +65,14 @@
     // ~/Worktrees. Hermes pins the same release
     // (hermes/scripts/external-plugins.json).
     { "package": "@craftsamo/git-tools@0.2.2", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
+    // Cloudflare zones, DNS, rules, analytics, Workers, Pages, storage,
+    // tunnels, Email Routing and the read-only account services
+    // (craft-agent/cloudflare-tools), through the API tokens in the environment
+    // (`CLOUDFLARE_API_TOKEN_<LABEL>` with `CLOUDFLARE_ACCOUNT_ID_<LABEL>`, or
+    // the unlabeled pair). Reads never ask; every write asserts its tool ID, so
+    // the cloudflare_* rule below asks. Every toolset but grants (no unattended
+    // writes). Hermes pins the same release (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/cloudflare-tools@0.12.0", "options": { "toolsets": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"], "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
@@ -456,6 +464,17 @@
           "resource": "*",
           "effect": "allow"
         },
+        // Cloudflare: reads only.
+        {
+          "action": "cloudflare_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "cloudflare_*_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         {
           "action": "subagent",
           "resource": "*",
@@ -504,6 +523,7 @@
         { "action": "skill", "resource": "discord-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
+        { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -533,6 +553,7 @@
         { "action": "skill", "resource": "discord-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
+        { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -2440,6 +2461,13 @@
       "resource": "git-*",
       "effect": "allow"
     },
+    // cloudflare-tools' skills (cloudflare-dns, cloudflare-zones, …): how to
+    // use its tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "cloudflare-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2580,6 +2608,14 @@
     // asserts its tool ID, so it asks here. Read-only agents deny the writes.
     {
       "action": "github_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // Cloudflare tools (@craftsamo/cloudflare-tools): reads never ask; every
+    // write asserts its tool ID, so it asks here. Read-only agents deny the
+    // writes, and Hermes' run rulesets deny the whole action.
+    {
+      "action": "cloudflare_*",
       "resource": "*",
       "effect": "ask"
     },
