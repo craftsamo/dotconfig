@@ -350,7 +350,7 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   preamble at the head of the system prompt, before the profile's own. Claude
   models get the Gemini-shaped body Antigravity expects (snake-case thinking
   budget, reduced tool schemas and wire-safe tool names that the client maps
-  back). Gemini ids with an effort suffix (`gemini-3.8-flash-high`) keep that
+  back). Gemini ids with an effort suffix (`gemini-4-hydrogen-high`) keep that
   effort; `agent.reasoning_effort` sets the rest.
 - **Audio and video go to Gemini inline.** In a user message, a `video_url`,
   `input_audio` or `file` part carrying an audio or video `data:` URL is

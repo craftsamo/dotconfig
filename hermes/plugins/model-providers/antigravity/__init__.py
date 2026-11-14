@@ -16,12 +16,12 @@ from providers.base import ProviderProfile
 from . import control, oauth, wire
 
 FALLBACK_MODELS = (
-    "gemini-3-flash",
+    "gemini-4-hydrogen-low",
+    "gemini-4-hydrogen-medium",
+    "gemini-4-hydrogen-high",
+    "gemini-4-hydrogen-xhigh",
     "claude-sonnet-4-6",
     "claude-opus-4-6-thinking",
-    "gemini-3.8-flash-low",
-    "gemini-3.8-flash-medium",
-    "gemini-3.8-flash-high",
 )
 
 USAGE_TITLE = "Antigravity quota"
