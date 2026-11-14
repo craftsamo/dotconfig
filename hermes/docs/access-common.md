@@ -82,12 +82,13 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. WhatsApp, Google, note and Stripe use the shared check
+  exists. Google, note and Stripe use the shared check
   `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal, Telegram, Discord, GitHub, Git and Cloudflare packages
+  third-party Signal, Telegram, Discord, WhatsApp, GitHub, Git and Cloudflare packages
   ([signal-tools.md](signal-tools.md), [telegram-tools.md](telegram-tools.md),
-  [discord-tools.md](discord-tools.md), [github-tools.md](github-tools.md),
+  [discord-tools.md](discord-tools.md), [whatsapp-tools.md](whatsapp-tools.md),
+  [github-tools.md](github-tools.md),
   [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, a WhatsApp text
@@ -98,7 +99,7 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
-  Signal, Telegram, Discord, GitHub, Git and Cloudflare are the exceptions: their package handlers
+  Signal, Telegram, Discord, WhatsApp, GitHub, Git and Cloudflare are the exceptions: their package handlers
   are not ours, so only the guards' hooks refuse, and the profile validator refuses a
   config that enables a package without its guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at

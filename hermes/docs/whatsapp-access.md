@@ -1,5 +1,10 @@
 # WhatsApp access
 
+> [!NOTE]
+> Being replaced by the third-party package
+> ([whatsapp-tools.md](whatsapp-tools.md)). Once the Assistant has moved, this
+> plugin stays in the repository, disabled, until it is removed.
+
 The Assistant's access to the user's own WhatsApp accounts — reading chats
 and messages, and sending text and workspace files that the user approves
 first (plain text inside a [send mandate](#send-mandates) needs no card). It is

@@ -606,11 +606,13 @@ Commands: [README "Commands"](README.md#commands).
   keeps its own card when that card shows what the call carries and pins it;
   a dotconfig guard then refuses its writes where no person can answer
   (`guards/signal-tools-guard`, `guards/telegram-tools-guard`,
-  `guards/discord-tools-guard`, `guards/github-tools-guard`,
-  `guards/git-tools-guard`, `guards/cloudflare-tools-guard`;
+  `guards/discord-tools-guard`, `guards/whatsapp-tools-guard`,
+  `guards/github-tools-guard`, `guards/git-tools-guard`,
+  `guards/cloudflare-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
   [Telegram](docs/decisions/telegram-tools-plugin.md),
   [Discord](docs/decisions/discord-tools-plugin.md),
+  [WhatsApp](docs/decisions/whatsapp-tools-plugin.md),
   [GitHub](docs/decisions/github-tools-plugin.md),
   [Git](docs/decisions/git-tools-plugin.md),
   [Cloudflare](docs/decisions/cloudflare-tools-plugin.md)).
