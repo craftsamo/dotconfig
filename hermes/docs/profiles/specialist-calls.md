@@ -134,9 +134,9 @@ tool.
 
 Plugin tools that block on a send size their own deadline under the Assistant's
 960 s, so they fail with their own error instead of being cut by the generic
-one: `whatsapp-access` (`wa.py`) allows 840 s for a whole file send. Peer
-`a2a_agents` entries keep `timeout: 310`, because the 120 s caller default undercuts the 300 s server reply
-window.
+one: `whatsapp-tools` gives `whatsapp_file_send` 330 s (a file send takes at most
+280 s). Peer `a2a_agents` entries keep `timeout: 310`, because the 120 s caller
+default undercuts the 300 s server reply window.
 
 A2A inbound permits only synchronous inquiries and rejects `work` before launch;
 it is not a durable queue.

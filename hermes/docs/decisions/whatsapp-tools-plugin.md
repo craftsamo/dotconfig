@@ -51,10 +51,9 @@ mirror.
   (mode 0700), just as the old plugin kept them on disk under `~/.wacli`, so no
   Keychain layout changes; the guard refuses terminal and file-tool access to
   the state root, `~/.wacli` and WhatsApp Desktop's data.
-- **Moving needs a new pairing.** The package never uses `~/.wacli`, so moving
-  means pairing a new linked device (a phone takes at most four); the old plugin
-  stays installed until cutover, then its sync agents are retired and the old
-  device unlinked before the old plugin is removed in a later change.
+- **Moving needed a new pairing.** The package never uses `~/.wacli`, so moving
+  meant pairing a new linked device (a phone takes at most four); the old
+  plugin was removed after cutover.
 - **Actions are on for the Assistant.** `actions` (archive, mark read, mute,
   pin, delete, edit, react) is enabled alongside `account`, `chats`,
   `contacts`, `history`, `sends` and `files` by the person's decision, each

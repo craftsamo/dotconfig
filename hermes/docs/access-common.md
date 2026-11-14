@@ -8,7 +8,7 @@ access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Three kinds of write skip their card only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
 ([hyperliquid.md](hyperliquid.md)), a text send on
-WhatsApp ([whatsapp-access.md](whatsapp-access.md)) and a
+WhatsApp ([send-mandates.md](decisions/send-mandates.md)) and a
 gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
 Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).

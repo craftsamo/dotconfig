@@ -36,8 +36,8 @@ may limit or ban an account it finds using one; the person accepted that risk
 
 One implementation serves both harnesses: the Hermes plugin spawns Node on the
 package's built `dist/cli.js`, and the OpenCode plugin uses the same account
-state. The package never uses `~/.wacli`, so moving from `whatsapp-access` means
-pairing a new linked device (a phone takes at most four). A label such as
+state. The package never uses `~/.wacli`; each account pairs its own linked
+device (a phone takes at most four). A label such as
 `default` or `work` holds one account under
 `~/.local/state/whatsapp-tools/<label>/` (mode 0700): `wacli/` (session keys,
 mirror and media), `service.sock`, `outbox/`, `service.lock` and `service.json`;
@@ -153,8 +153,8 @@ restart the gateway and `opencode service restart`.
 
 1. Install the plugin (`scripts/external-plugins.py install`), `wacli` (>= 0.26,
    `brew install openclaw/tap/wacli`) and its Node runtime; check that the phone
-   has a free linked-device slot (four at most — the package never uses
-   `~/.wacli`, so moving pairs a new device).
+   has a free linked-device slot (four at most; the package never uses
+   `~/.wacli`).
 2. Pair each account label: `whatsapp-tools-cli pair --account <label>` (by QR,
    or add `--phone <n>` for a pairing code and
    `--full-history [--history-days <n>]` when older history is needed), then
@@ -167,6 +167,3 @@ restart the gateway and `opencode service restart`.
    lists of `platform_toolsets`, never `a2a`.
 4. Restart the gateway; `whatsapp-tools-cli service status --account <label>`
    checks the service, and the Assistant's `whatsapp_account_read` the account.
-5. Once cut over, retire the old plugin's sync agents with
-   `launchd/whatsapp-access-launchctl.sh uninstall <account>` and unlink the
-   old device on the phone.
