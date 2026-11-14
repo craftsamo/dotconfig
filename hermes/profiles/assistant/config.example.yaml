@@ -1187,6 +1187,22 @@ plugins:
         require_plugins:
           - discord-tools-guard
         language: ja
+    whatsapp-tools:
+      settings:
+        toolsets:
+          - account
+          - chats
+          - contacts
+          - history
+          - sends
+          - files
+          - actions
+        download_dir: ~/Workspaces/.inbox/whatsapp
+        send_dirs:
+          - ~/Workspaces
+        require_plugins:
+          - whatsapp-tools-guard
+        language: ja
     cloudflare-tools:
       settings:
         toolsets:
