@@ -34,6 +34,13 @@ permissions:
   - { action: discord_server_read, resource: "*", effect: allow }
   - { action: discord_history_read, resource: "*", effect: allow }
   - { action: discord_role_read, resource: "*", effect: allow }
+  - { action: "whatsapp_*", resource: "*", effect: deny }
+  # Each WhatsApp read is named: a `whatsapp_*_read` glob would reopen a later
+  # write named like a read.
+  - { action: whatsapp_account_read, resource: "*", effect: allow }
+  - { action: whatsapp_chat_read, resource: "*", effect: allow }
+  - { action: whatsapp_contact_read, resource: "*", effect: allow }
+  - { action: whatsapp_grant_read, resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }
   - { action: "github_*_read", resource: "*", effect: allow }
   - { action: "cloudflare_*", resource: "*", effect: deny }
