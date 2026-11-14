@@ -59,11 +59,6 @@ EXPECTED = {
     "cloudflare-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
     "workspace/workspace-drafts": {"inventory": {"assistant"}},
     "workspace/workspace-registry": {"manage": {"assistant"}},
-    "messaging/discord-access": {
-        "account": {"assistant"},
-        "collect-history": {"assistant"},
-        "manage-roles": {"assistant"},
-    },
     "inspection/screen-listen": {"listen": {"assistant"}, "attend-discord": {"assistant"}},
     "messaging/whatsapp-access": {"account": {"assistant"}, "count-activity": {"assistant"}},
     "orchestration/opencode": {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}},

@@ -130,7 +130,7 @@ Drafts cannot be deleted. Writes are capped per 24 hours.
   request, the publication, the account, the draft digest and each image's
   SHA-256, so "session" or "always" only ever repeats that identical write to
   that draft as it then stood.
-- **The approved write is the executed write.** As discord-access: the approval
+- **The approved write is the executed write.** The approval
   hook makes one snapshot per call, copying each image through its opened
   descriptor into a fresh `outbox/<token>/` after checking its real path against
   the attach roots and the refusal list. The `bind` hook takes that snapshot

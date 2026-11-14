@@ -164,7 +164,6 @@ def _load(name, path):
 
 BOUNDARIES = [
     ("messaging/whatsapp-access/wa.py", "send_root", "WhatsAppError"),
-    ("messaging/discord-access/access.py", "default_attach_root", "DiscordError"),
     ("social/note-access/na.py", "default_attach_root", "NoteError"),
     ("social/substack-access/sa.py", "default_attach_root", "SubstackError"),
     ("social/youtube-access/ya.py", "default_attach_root", "YouTubeError"),

@@ -12,8 +12,7 @@ never touches the policy, and it adds what that plugin does not do:
   is not a named read counts as a write, so a tool the plugin adds later fails closed.
 - the terminal and file tools may not reach the Discord account around its tools: the plugin's CLI, its
   state (the account's token file, the mirror, the sync list and the grants), logs and launch agents, and
-  the Discord app's data (the desktop app keeps the account's token there). The state and token names of
-  the retired discord-access plugin stay protected while that plugin is still installed. Nothing inside
+  the Discord app's data (the desktop app keeps the account's token there). Nothing inside
   a ``.unpacked`` folder of a received archive may be run. The terminal keeps its directory
   between calls, so a terminal call is also judged by where it runs (its ``workdir``, else the session's
   recorded directory) and every word of the command is resolved against that directory.
@@ -47,9 +46,6 @@ RESOLVE_MAX = 4096          # a longer argument is not a path worth resolving
 STATE_ENV = "DISCORD_TOOLS_STATE_DIR"
 STATE_NAME = "discord-tools"
 LOG_NAME = "io.github.craft-agent.discord-tools"
-OLD_STATE_ENV = "HERMES_DISCORD_STATE"      # the retired discord-access plugin's state variable
-OLD_STATE_NAME = "hermes-discord"
-OLD_LOCAL_NAME = "discord-user"
 APP_DATA_NAMES = ("discord", "discordcanary", "discordptb")
 
 # Progress lines: the declared choices of a tool's `method`, and a fixed label for each other tool.
@@ -107,12 +103,12 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map
 # `cd` are caught; `discord-tools-guard`, `discord-tools.md` and `feat-hermes-discord-tools` are not.
 # A bare `discord` component and the app's bundle id are never matched: the download folder is
 # `.inbox/discord` and the terminal opens `discord://` links through `open -b com.hnc.Discord`.
+# `DISCORD_USER_TOKEN` names the Keychain item the person pipes into the package's login.
 _PATHS = re.compile(r"state/discord-tools|io\.github\.craft-agent\.discord-tools|DISCORD_TOOLS_"
                     r"|\.hermes/plugins/discord-tools|@craftsamo/discord-tools|discord-tools/dist/"
                     r"|Application(?:\\? |%20)Support/discord(?:canary|ptb)?(?=/|$|[\s'\"`;&|()])"
                     r"|(?:^|[/\s'\"=;&|()])discord-tools(?=/|$|[\s'\"`;&|()])"
-                    r"|(?:^|[/\s'\"=;&|()])hermes-discord(?=/|$|[\s'\"`;&|()])|HERMES_DISCORD_STATE|DISCORD_USER_TOKEN"
-                    r"|(?:local|HERMES_LOCAL\}?)/discord-user",
+                    r"|DISCORD_USER_TOKEN",
                     re.IGNORECASE)
 # Directory and file names that belong to the account wherever they sit (the package installed under a
 # profile's own plugins, a copy of its state), compared lower-case against each
@@ -233,14 +229,6 @@ def _state_root() -> str:
     return os.path.expanduser(os.path.join("~", ".local", "state", STATE_NAME))
 
 
-def _old_state_root() -> str:
-    """The retired discord-access plugin's state: its env var, else ~/.local/state/hermes-discord."""
-    configured = os.environ.get(OLD_STATE_ENV)
-    if configured:
-        return os.path.expanduser(configured)
-    return os.path.expanduser(os.path.join("~", ".local", "state", OLD_STATE_NAME))
-
-
 def _protected_roots() -> set[tuple[str, ...]]:
     """The directories the Discord account lives in, as given and as resolved, as lower-case path
     components; read at each call."""
@@ -252,8 +240,6 @@ def _protected_roots() -> set[tuple[str, ...]]:
         os.path.join(home, "Library", "Logs", LOG_NAME),
         os.path.join(support, LOG_NAME),
         *(os.path.join(support, name) for name in APP_DATA_NAMES),
-        _old_state_root(),
-        os.path.join(home, ".hermes", "local", OLD_LOCAL_NAME),
     }
     return {_names(path) for root in roots for path in (os.path.abspath(root), os.path.realpath(root))}
 

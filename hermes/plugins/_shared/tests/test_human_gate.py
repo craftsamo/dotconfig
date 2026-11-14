@@ -90,6 +90,6 @@ def test_a_check_that_itself_breaks_fails_closed(monkeypatch):
 
 
 def test_the_refusal_says_what_did_not_happen_why_and_what_to_do():
-    text = hg.refusal("discord_account", "yolo mode is on")
-    assert text.startswith("discord_account: not done.") and "yolo mode is on" in text
+    text = hg.refusal("discord_message_send", "yolo mode is on")
+    assert text.startswith("discord_message_send: not done.") and "yolo mode is on" in text
     assert "Nothing was sent or changed" in text and "chat with the Assistant" in text
