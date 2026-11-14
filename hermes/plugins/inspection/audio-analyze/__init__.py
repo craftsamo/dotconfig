@@ -10,9 +10,9 @@ Backends come from a top-level ``audio_analyze:`` section of ``config.yaml``, tr
 
     audio_analyze:
       backends:
-        - {provider: openrouter, model: google/gemini-3.8-flash}
+        - {provider: openrouter, model: google/gemini-4-hydrogen}
 
-OpenRouter's Gemini Flash is the default when the section is absent.
+OpenRouter's Gemini 4 Hydrogen is the default when the section is absent.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def _shared(name, filename):
 tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 media_backends = _shared("hermes_media_backends", "media_backends.py")
 
-_DEFAULT_BACKEND = ("openrouter", "google/gemini-3.8-flash")
+_DEFAULT_BACKEND = ("openrouter", "google/gemini-4-hydrogen")
 # The recording rides inline in one request, base64 (a third larger), and Gemini takes about
 # 20 MB per request: 14 MiB stays under it with the prompt; a longer recording is trimmed or
 # re-encoded first.
