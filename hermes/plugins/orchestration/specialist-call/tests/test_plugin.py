@@ -823,13 +823,13 @@ def test_profile_configuration_and_plugin_api():
             assert platforms["a2a"] == platforms["cli"]
         else:
             # inbound A2A gets neither local inspection, this Mac's audio, the registry, nor
-            # Hyperliquid, Stripe or Cloudflare (each refuses A2A on the Assistant), nor the
+            # Hyperliquid or Stripe (each refuses A2A on the Assistant), nor the
             # user's past conversations (session_search is for the chats with the user), nor
             # OpenCode runs (a run binds to a conversation with the user)
             assert platforms["a2a"] == [
                 tool for tool in platforms["cli"]
                 if tool not in {"media_inspect", "screen_listen", "workspace_registry", "hyperliquid_access",
-                                "stripe_access", "cloudflare_access", "session_search", "opencode"}
+                                "stripe_access", "session_search", "opencode"}
             ]
             assert "workspace_registry" not in platforms["a2a"]
         for tools in [config["toolsets"], *platforms.values()]:

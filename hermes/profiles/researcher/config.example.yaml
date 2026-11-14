@@ -32,7 +32,6 @@ toolsets:
   - solana_access
   - hyperliquid_access
   - stripe_access
-  - cloudflare_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -94,7 +93,7 @@ agent:
     returns to Plan and agreement. Preserve the Review: required session gate.
     Use file/web/vision/video, the read-only evm and solana tools for
     on-chain evidence, the read-only stripe tool for the user's own sales and
-    billing and the read-only cloudflare tool for their domains and DNS, for
+    billing and the read-only cloudflare_* tools for their domains and DNS, for
     evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
     the orchestrator (describe the retrieval need), who releases it to
     Searcher; delegate_task covers quick in-turn parallel lookups only.
@@ -693,7 +692,6 @@ _config_version: 51
 platform_toolsets:
   cli:
     - audio_analyze
-    - cloudflare_access
     - connections
     - delegation
     - evm_access
@@ -711,7 +709,6 @@ platform_toolsets:
   discord: []
   a2a:
     - audio_analyze
-    - cloudflare_access
     - connections
     - delegation
     - evm_access
@@ -737,11 +734,33 @@ plugins:
     - solana-access
     - hyperliquid-access
     - stripe-access
-    - cloudflare-access
     - cascade
   entries:
     inspection/video-analyze-mimo:
       allow_tool_override: true
+    cloudflare-tools:
+      settings:
+        toolsets:
+          - account
+          - zones
+          - dns
+          - rules
+          - analytics
+          - workers
+          - pages
+          - storage
+          - tunnels
+          - email
+          - queues
+          - hyperdrive
+          - vectorize
+          - turnstile
+          - access
+          - registrar
+        read_only: true
+        require_plugins:
+          - cloudflare-tools-guard
+        language: ja
     web/cascade:
       settings:
         search:

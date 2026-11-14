@@ -100,9 +100,12 @@ def test_candidate_topology_and_always_on_contract():
     assert "terminal" not in config["toolsets"]
     assert set(config["toolsets"]) == {"file", "web", "vision", "video", "audio_analyze", "skills", "memory",
                                        "delegation", "evm_access", "solana_access", "hyperliquid_access",
-                                       "stripe_access", "cloudflare_access"}
+                                       "stripe_access"}
     assert {"evm-access", "solana-access", "hyperliquid-access", "stripe-access",
-            "cloudflare-access", "audio-analyze"} <= set(config["plugins"]["enabled"])
+            "audio-analyze"} <= set(config["plugins"]["enabled"])
+    cf_settings = config["plugins"]["entries"]["cloudflare-tools"]["settings"]
+    assert cf_settings["read_only"] is True
+    assert cf_settings["require_plugins"] == ["cloudflare-tools-guard"]
     for platform in ("cli", "a2a"):
         assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []

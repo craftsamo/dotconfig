@@ -47,7 +47,6 @@ toolsets:
 - workspace_registry
 - hyperliquid_access
 - stripe_access
-- cloudflare_access
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -963,7 +962,6 @@ platform_toolsets:
   - specialist
   - hyperliquid_access
   - stripe_access
-  - cloudflare_access
   - no_mcp
   telegram:
   - media_inspect
@@ -988,7 +986,6 @@ platform_toolsets:
   - specialist
   - hyperliquid_access
   - stripe_access
-  - cloudflare_access
   - no_mcp
   discord:
   - media_inspect
@@ -1013,7 +1010,6 @@ platform_toolsets:
   - specialist
   - hyperliquid_access
   - stripe_access
-  - cloudflare_access
   - no_mcp
   a2a:
   - audio_analyze
@@ -1119,7 +1115,6 @@ plugins:
   - screen-listen
   - hyperliquid-access
   - stripe-access
-  - cloudflare-access
   - cascade
   - cron-manifests
   entries:
@@ -1191,6 +1186,28 @@ plugins:
           - ~/Workspaces
         require_plugins:
           - discord-tools-guard
+        language: ja
+    cloudflare-tools:
+      settings:
+        toolsets:
+          - account
+          - zones
+          - dns
+          - rules
+          - analytics
+          - workers
+          - pages
+          - storage
+          - tunnels
+          - email
+          - queues
+          - hyperdrive
+          - vectorize
+          - turnstile
+          - access
+          - registrar
+        require_plugins:
+          - cloudflare-tools-guard
         language: ja
     web/cascade:
       settings:

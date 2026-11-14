@@ -143,7 +143,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   project's tooling, not a way around the access tools, even when it calls
   gcloud, wrangler or stripe inside; those run on the user's own CLI logins.
   Reading a script or doc that names a CLI is fine too. Never replay a
-  script's steps one by one through `gcloud` or `cloudflare` instead of
+  script's steps one by one through `gcloud` or the `cloudflare_*` tools instead of
   running it. A step that creates, changes or deletes cloud resources or
   deploys: run its dry run first when it has one and show what it would do,
   then run it for real once the user agrees; without one, say what it will
