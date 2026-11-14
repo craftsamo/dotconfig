@@ -65,9 +65,11 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `skill_view(name="google-access:sheets")` first — `references/google.md`.
 - **The user's WhatsApp** (reading chats, saving a file someone sent,
   checking a number, counting chats or replies, sending a message or a
-  workspace file) — only through the `whatsapp` tool, never the terminal or
-  WhatsApp Web. Any WhatsApp work loads `skill_view(name="whatsapp-access:account")` first —
-  `references/whatsapp.md`.
+  workspace file, marking read, archiving, muting, pinning, reacting, editing
+  or deleting their own message) — only through the `whatsapp_*` tools, never
+  the terminal or WhatsApp Web; every write waits for approval on its card.
+  Any WhatsApp work loads the matching `whatsapp-tools:<toolset>` skill
+  first — `references/whatsapp.md`.
 - **The user's Signal** (reading chats, saving a file someone sent, checking
   a number, sending a message or a workspace file) — only through the
   `signal_*` tools, never the terminal or Signal Desktop; every send waits for
@@ -160,7 +162,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/cron.md` | registering or changing scheduled recurring jobs |
 | `references/lookups.md` | in-turn parallel lookups via `delegate_task` |
 | `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
-| `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:account` skill) |
+| `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-tools:*` skills) |
 | `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
 | `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-tools:*` skills): what stays inline, the test server, files and reports |
 | `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-tools:*` skills): what stays inline, choosing the chat, files and reports |

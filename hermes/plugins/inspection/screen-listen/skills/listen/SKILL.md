@@ -193,9 +193,9 @@ already answered.
 5. **Hand over the audio** when they want to listen back: a bare
    `MEDIA:/abs/path/audio.m4a` line delivers it in this chat. For someone else,
    the user chooses the route: a messaging plugin's attachment
-   (`discord_file_send` / `signal_file_send` / `telegram_file_send` / `whatsapp` send with
-   files, from under `~/Workspaces`), or Drive through `google_access`; never
-   post a recording anywhere the user did not name. A video is the same, but
+   (`discord_file_send` / `signal_file_send` / `telegram_file_send` /
+   `whatsapp_file_send`, from under `~/Workspaces`), or Drive through
+   `google_access`; never post a recording anywhere the user did not name. A video is the same, but
    hours of it are hundreds of megabytes: give the path, and attach only when
    the user asks for the file itself.
 6. **Transcribe** with `transcribe` (`id` from `record_stop`, or `dir` from

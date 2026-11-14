@@ -219,7 +219,7 @@ GIT_TOOLS_READS = ("git_repo_read", "git_commit_read", "git_rebase_read", "git_w
 # Assistant, whose access to them goes through its own plugin and cards, and a run's
 # asks reach only the caller, who could approve a send there with no card at all.
 # Denying the whole action also hides the tools from the run.
-MESSAGING_DENY_TOOLS = ("signal_*", "telegram_*", "discord_*")
+MESSAGING_DENY_TOOLS = ("signal_*", "telegram_*", "discord_*", "whatsapp_*")
 # cloudflare-tools (`@craftsamo/cloudflare-tools`) works on the person's own Cloudflare
 # accounts, reads included, for the same reason: the Assistant changes them on its own
 # cards, and a run's ask would reach only the caller.

@@ -377,6 +377,46 @@ describe("agent rules over a project's catch-all", () => {
     }
   })
 
+  test("a WhatsApp write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of [
+      "whatsapp_message_send",
+      "whatsapp_file_send",
+      "whatsapp_file_save",
+      "whatsapp_history_backfill",
+      "whatsapp_chat_mark",
+      "whatsapp_message_delete",
+      "whatsapp_grant_create",
+    ]) {
+      expect([tool, decide("build", tool, "default/120363000000000000@g.us")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "default/120363000000000000@g.us")]).toEqual([tool, "deny"])
+    }
+    expect(decide("plan", "whatsapp_chat_read", "*")).toBe("allow")
+    expect(decide("plan", "whatsapp_contact_read", "*")).toBe("allow")
+    expect(decide("build", "skill", "whatsapp-sends")).toBe("allow")
+    expect(decide("plan", "skill", "whatsapp-chats")).toBe("allow")
+  })
+
+  test("read-only primaries read WhatsApp but never backfill or mark a chat read", async () => {
+    for (const agent of ["design", "review", "debug"]) {
+      const text = await Bun.file(join(import.meta.dir, `../../agents/${agent}.md`)).text()
+      const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+      const effect = (tool: string) => {
+        let result = "ask"
+        for (const r of own) if (matches(r.action, tool, false) && matches(r.resource, "default/120363000000000000@g.us", false)) result = r.effect
+        return result
+      }
+      for (const tool of [
+        "whatsapp_account_read",
+        "whatsapp_chat_read",
+        "whatsapp_contact_read",
+        "whatsapp_grant_read",
+      ])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "allow"])
+      for (const tool of ["whatsapp_history_backfill", "whatsapp_chat_mark", "whatsapp_message_send", "whatsapp_file_save"])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
+    }
+  })
+
   test("a GitHub write asks in build and is denied in plan, where reads stay open", () => {
     for (const tool of ["github_issue_create", "github_issue_edit", "github_pr_create", "github_pr_merge", "github_project_item_edit"]) {
       expect([tool, decide("build", tool, "owner/repo")]).toEqual([tool, "ask"])

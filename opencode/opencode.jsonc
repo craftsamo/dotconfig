@@ -53,6 +53,13 @@
     // actions, threads and roles stay off); the permission rules below cover
     // every tool, so turning one on later needs no new rule.
     { "package": "@craftsamo/discord-tools@1.2.0", "options": { "language": "ja" } },
+    // WhatsApp as a linked device (craft-agent/whatsapp-tools): reads and,
+    // after an approval that shows what the call carries, sends. The account,
+    // its sync service and mirror are shared with Hermes, so pin the same
+    // release Hermes runs. Default toolsets only (files, actions and grants
+    // stay off); the permission rules below cover every tool, so turning one on
+    // later needs no new rule.
+    { "package": "@craftsamo/whatsapp-tools@0.3.0", "options": { "language": "ja" } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
@@ -453,6 +460,34 @@
           "resource": "*",
           "effect": "allow"
         },
+        // WhatsApp: reads only, each named: whatsapp_history_backfill writes to
+        // the mirror and whatsapp_chat_mark can send read receipts, and a
+        // `whatsapp_*_read` glob would reopen a later write named like a read.
+        {
+          "action": "whatsapp_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "whatsapp_account_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "whatsapp_chat_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "whatsapp_contact_read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "whatsapp_grant_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         // GitHub: reads only.
         {
           "action": "github_*",
@@ -521,6 +556,7 @@
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "telegram-*", "effect": "allow" },
         { "action": "skill", "resource": "discord-*", "effect": "allow" },
+        { "action": "skill", "resource": "whatsapp-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
@@ -551,6 +587,7 @@
         { "action": "skill", "resource": "signal-*", "effect": "allow" },
         { "action": "skill", "resource": "telegram-*", "effect": "allow" },
         { "action": "skill", "resource": "discord-*", "effect": "allow" },
+        { "action": "skill", "resource": "whatsapp-*", "effect": "allow" },
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
@@ -2447,6 +2484,13 @@
       "resource": "discord-*",
       "effect": "allow"
     },
+    // whatsapp-tools' skills (whatsapp-chats, whatsapp-sends, …): how to use
+    // its tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "whatsapp-*",
+      "effect": "allow"
+    },
     // github-tools' skills (github-issues, github-projects, …): how to use its
     // tools; the writes still ask on their own.
     {
@@ -2601,6 +2645,15 @@
     // agents deny the writes, and Hermes' run rulesets deny the whole action.
     {
       "action": "discord_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // WhatsApp tools (@craftsamo/whatsapp-tools): the same as Telegram. Reads
+    // never ask; every write asserts this action with the account and chat it
+    // touches and a description of the change, so it asks here. Read-only
+    // agents deny the writes, and Hermes' run rulesets deny the whole action.
+    {
+      "action": "whatsapp_*",
       "resource": "*",
       "effect": "ask"
     },
