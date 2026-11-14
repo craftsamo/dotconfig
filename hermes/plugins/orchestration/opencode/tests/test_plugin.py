@@ -2549,6 +2549,10 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                          "discord_message_send", "discord_file_send", "discord_read_mark",
                          "discord_role_assign", "discord_sync_add"):
                 assert policy.decide(rules, tool, "default/1400000000000000401") == "deny", (kind, tool)
+            for tool in ("whatsapp_chat_read", "whatsapp_account_read", "whatsapp_contact_read",
+                         "whatsapp_message_send", "whatsapp_file_send", "whatsapp_history_backfill",
+                         "whatsapp_chat_mark", "whatsapp_grant_create"):
+                assert policy.decide(rules, tool, "default/123@g.us") == "deny", (kind, tool)
             for tool in ("cloudflare_zone_read", "cloudflare_dns_read", "cloudflare_account_read",
                          "cloudflare_dns_record_add", "cloudflare_dns_record_delete",
                          "cloudflare_zone_cache_purge_all", "cloudflare_grant_create"):
