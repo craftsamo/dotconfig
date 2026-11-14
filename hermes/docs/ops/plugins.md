@@ -54,8 +54,9 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `git-tools` ([git-tools.md](../git-tools.md)),
   `github-tools` ([github-tools.md](../github-tools.md)),
   `signal-tools` ([signal-tools.md](../signal-tools.md)),
-  `telegram-tools` ([telegram-tools.md](../telegram-tools.md)) and
-  `discord-tools` ([discord-tools.md](../discord-tools.md)).
+  `telegram-tools` ([telegram-tools.md](../telegram-tools.md)),
+  `discord-tools` ([discord-tools.md](../discord-tools.md)) and
+  `cloudflare-tools` ([cloudflare-tools.md](../cloudflare-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
   first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,
   `code` or `goal` in the chat's progress line (a message body or a local path

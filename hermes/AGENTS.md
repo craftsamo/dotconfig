@@ -149,6 +149,14 @@ skills.
   under their own scopes) would reach every profile. Each scope is named in its
   doc; the shared rules: [docs/access-common.md](docs/access-common.md) "Secret
   scoping".
+- **Cloudflare's tokens are the one access credential in the gateway's process
+  env.** cloudflare-tools reads only `os.environ`, so the launcher adds the
+  `CLOUDFLARE_API_TOKEN*` / `CLOUDFLARE_ACCOUNT_ID*` items of the `hermes`
+  project's `cloudflare-tools` scope and filters out everything else that
+  call emits (the shared layer, messaging keys included); never widen that
+  filter or add another scope beside it, since every served profile and its
+  terminal sees the process env
+  ([docs/cloudflare-tools.md](docs/cloudflare-tools.md#tokens)).
 - **The web3 wallet is the one reader across `secret` projects.** Its signer
   lists every project's names and kinds and reads only items of kind
   `MNEMONIC` / `PRIVATE_KEY`; only names with the word `HERMES` sign or count as
@@ -599,12 +607,13 @@ Commands: [README "Commands"](README.md#commands).
   a dotconfig guard then refuses its writes where no person can answer
   (`guards/signal-tools-guard`, `guards/telegram-tools-guard`,
   `guards/discord-tools-guard`, `guards/github-tools-guard`,
-  `guards/git-tools-guard`;
+  `guards/git-tools-guard`, `guards/cloudflare-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
   [Telegram](docs/decisions/telegram-tools-plugin.md),
   [Discord](docs/decisions/discord-tools-plugin.md),
   [GitHub](docs/decisions/github-tools-plugin.md),
-  [Git](docs/decisions/git-tools-plugin.md)).
+  [Git](docs/decisions/git-tools-plugin.md),
+  [Cloudflare](docs/decisions/cloudflare-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
   orders, WhatsApp text sends,

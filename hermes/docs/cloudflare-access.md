@@ -1,5 +1,10 @@
 # Cloudflare access
 
+> [!NOTE]
+> Replaced by the third-party package
+> ([cloudflare-tools.md](cloudflare-tools.md)). No profile enables this
+> plugin; it stays in the repository until it is removed.
+
 Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
 zone settings, analytics, Workers and Pages deployments, the names, sizes and
 schemas in R2, KV and D1, tunnels and Email Routing of the user's own
