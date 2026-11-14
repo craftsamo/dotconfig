@@ -220,6 +220,10 @@ GIT_TOOLS_READS = ("git_repo_read", "git_commit_read", "git_rebase_read", "git_w
 # asks reach only the caller, who could approve a send there with no card at all.
 # Denying the whole action also hides the tools from the run.
 MESSAGING_DENY_TOOLS = ("signal_*", "telegram_*", "discord_*")
+# cloudflare-tools (`@craftsamo/cloudflare-tools`) works on the person's own Cloudflare
+# accounts, reads included, for the same reason: the Assistant changes them on its own
+# cards, and a run's ask would reach only the caller.
+CLOUDFLARE_DENY_TOOLS = ("cloudflare_*",)
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
 # write run keeps three, asking the caller: a PR's labels, assignees, reviewers and milestone
@@ -424,7 +428,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "allow") for pattern in DEPENDABOT_ALERT_READS]
     out += [rule("shell", pattern, "deny") for pattern in GH_API_WRITE_SPELLED]
     out += [rule("shell", pattern, "deny") for pattern in HARD_DENY_SHELL]
-    out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS]
+    out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS + CLOUDFLARE_DENY_TOOLS]
     out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
     out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]
     if policy == "write":

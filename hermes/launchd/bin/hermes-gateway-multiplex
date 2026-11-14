@@ -68,6 +68,17 @@ eval "$(secret env -p global)"
 # keys (dashboard auth, provider keys for inheriting subprocesses).
 eval "$(secret env -p hermes | grep -v -E '^export (TELEGRAM_|DISCORD_)')"
 
+# The cloudflare-tools plugin reads its API tokens from the process env only
+# (it starts its command line with a copy of os.environ, never the profile's
+# secret scope), so the pairs in the hermes project's `cloudflare-tools` scope
+# go here, and nothing else of Cloudflare: a `global` CLOUDFLARE_API_TOKEN
+# without its account id would make every call that names no account fail.
+# Every served profile's process and terminal can see them; the
+# cloudflare-tools-guard blocks the obvious reads (docs/cloudflare-tools.md).
+unset CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
+eval "$(secret env -p hermes --scope cloudflare-tools \
+  | grep -E '^export CLOUDFLARE_(API_TOKEN|ACCOUNT_ID)(_[A-Z0-9_]+)?=')"
+
 # Real-profile browsing (assistant / marketer) launches a CLONE of the Brave
 # bundle, never /Applications/Brave Browser.app itself (LaunchServices would
 # treat the headless instance as the everyday browser). Brave auto-updates,

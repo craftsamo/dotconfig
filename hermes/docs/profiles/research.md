@@ -44,8 +44,8 @@ evidence Method and the self-check) are the kernel's own `<Plan>` and
 lookups.
 Researcher reads the user's own sales and billing through the read-only
 `stripe` tool ([stripe-access.md](../stripe-access.md)), and their domains,
-DNS and zone settings through the read-only `cloudflare` tool
-([cloudflare-access.md](../cloudflare-access.md)).
+DNS and zone settings through the read-only `cloudflare_*` tools
+([cloudflare-tools.md](../cloudflare-tools.md)).
 On-chain evidence comes from the read-only `evm` and `solana` tools: the
 kernel's source evaluation says how chain state, text in the chain and
 name-based leads score, and `references/platforms/evm.md` and `solana.md`

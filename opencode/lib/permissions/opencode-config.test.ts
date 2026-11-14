@@ -387,6 +387,61 @@ describe("agent rules over a project's catch-all", () => {
     expect(decide("build", "skill", "github-issues")).toBe("allow")
   })
 
+  test("a Cloudflare write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of [
+      "cloudflare_dns_record_add",
+      "cloudflare_dns_record_edit",
+      "cloudflare_dns_record_delete",
+      "cloudflare_zone_setting_edit",
+      "cloudflare_zone_setting_weaken",
+      "cloudflare_zone_cache_purge",
+      "cloudflare_zone_cache_purge_all",
+      "cloudflare_workers_rollback",
+      "cloudflare_pages_rollback",
+      "cloudflare_tunnel_route_add",
+      "cloudflare_storage_delete",
+      "cloudflare_email_rule_add",
+      "cloudflare_rules_edit",
+      "cloudflare_grant_create",
+    ]) {
+      expect([tool, decide("build", tool, "example.com")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "example.com")]).toEqual([tool, "deny"])
+    }
+    expect(decide("plan", "cloudflare_zone_read", "*")).toBe("allow")
+    expect(decide("plan", "cloudflare_dns_read", "*")).toBe("allow")
+    expect(decide("build", "skill", "cloudflare-dns")).toBe("allow")
+    expect(decide("plan", "skill", "cloudflare-dns")).toBe("allow")
+  })
+
+  test("read-only primaries read Cloudflare but never change it", async () => {
+    for (const agent of ["design", "review", "debug"]) {
+      const text = await Bun.file(join(import.meta.dir, `../../agents/${agent}.md`)).text()
+      const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+      const effect = (tool: string) => {
+        let result = "ask"
+        for (const r of own) if (matches(r.action, tool, false) && matches(r.resource, "example.com", false)) result = r.effect
+        return result
+      }
+      for (const tool of [
+        "cloudflare_zone_read",
+        "cloudflare_dns_read",
+        "cloudflare_account_read",
+        "cloudflare_rules_read",
+        "cloudflare_grant_read",
+      ])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "allow"])
+      for (const tool of [
+        "cloudflare_dns_record_add",
+        "cloudflare_dns_record_delete",
+        "cloudflare_zone_setting_weaken",
+        "cloudflare_zone_cache_purge_all",
+        "cloudflare_rules_edit",
+        "cloudflare_grant_create",
+      ])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
+    }
+  })
+
   for (const agent of ["plan", "explore"]) {
     test(`${agent} denies Git writes and allows reads`, () => {
       for (const tool of ["git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify", "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_worktree_add", "git_worktree_remove", "git_push_send", "git_future_write"])

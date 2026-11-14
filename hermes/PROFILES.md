@@ -50,7 +50,7 @@ Each doc then holds only its own deltas.
 [Telegram](./docs/telegram-tools.md) · [X](./docs/x-access.md) ·
 [note](./docs/note-access.md) · [Substack](./docs/substack-access.md) ·
 [YouTube](./docs/youtube-access.md) · [Stripe](./docs/stripe-access.md) ·
-[Cloudflare](./docs/cloudflare-access.md) · [Web3](./docs/web3.md) ·
+[Cloudflare](./docs/cloudflare-tools.md) · [Web3](./docs/web3.md) ·
 [Hyperliquid](./docs/hyperliquid.md)
 
 ## Mechanics (`docs/ops/`)
@@ -83,6 +83,7 @@ look arbitrary:
 [Approval tiers](./docs/decisions/approval-tiers.md) ·
 [Telegram tools](./docs/decisions/telegram-tools-plugin.md) ·
 [Discord tools](./docs/decisions/discord-tools-plugin.md) ·
+[Cloudflare tools](./docs/decisions/cloudflare-tools-plugin.md) ·
 [Send mandates](./docs/decisions/send-mandates.md) ·
 [Cloudflare mandates](./docs/decisions/cloudflare-mandates.md) ·
 [gcloud mandates](./docs/decisions/gcloud-mandates.md).

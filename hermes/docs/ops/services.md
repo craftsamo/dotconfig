@@ -83,8 +83,8 @@ in either spelling (`local/<engine>`, `$HERMES_LOCAL/<engine>`).
 Cloudflare Tunnel connector (`local.hermes.cloudflared.tunnel`) running, so a
 public hostname reaches the gateway's loopback webhook listener on `:8644`
 ([webhook.md](webhook.md)). The tunnel is a dashboard-managed one (Zero Trust
-→ Networks → Tunnels): the dashboard, or the cloudflare-access plugin's
-`tunnel_route`, says which hostname maps to `http://127.0.0.1:8644`, and the
+→ Networks → Tunnels): the dashboard, or the Assistant's
+`cloudflare_tunnel_route_*` tools ([cloudflare-tools.md](../cloudflare-tools.md)), says which hostname maps to `http://127.0.0.1:8644`, and the
 hostname never enters a tracked file (it is the private overlay's to know).
 This machine holds only the connector token, the Keychain item
 `CLOUDFLARE_TUNNEL_TOKEN` of project `hermes`, scope `cloudflare-access`,

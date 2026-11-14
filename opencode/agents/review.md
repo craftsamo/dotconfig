@@ -36,6 +36,8 @@ permissions:
   - { action: discord_role_read, resource: "*", effect: allow }
   - { action: "github_*", resource: "*", effect: deny }
   - { action: "github_*_read", resource: "*", effect: allow }
+  - { action: "cloudflare_*", resource: "*", effect: deny }
+  - { action: "cloudflare_*_read", resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
