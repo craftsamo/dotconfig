@@ -27,8 +27,6 @@ never touches the policy, and it adds what that plugin does not do:
 - a word of a terminal call is a protected path when it resolves into the plugin's state, install or a
   CLI's login (as given, existing or not), or to a directory named ``cloudflare-tools`` that exists; a word
   that merely names a git ref (``git push origin hermes/cloudflare-tools``) resolves to nothing and passes.
-- the retired ``cloudflare-access`` plugin's token scope and state are guarded the same way until it is
-  removed (the ``OLD_`` constants).
 
 Hermes collects every plugin's ``pre_tool_call`` result and a valid ``block`` from any of them wins over
 any ``approve``, with no card shown, so this guard needs no card of its own. A pattern match on a call's
@@ -171,12 +169,6 @@ _TERMINAL = re.compile(
 # Shell variable names are case-sensitive, so this pattern is too.
 _VARIABLES = re.compile(r"(?<!\w)(?:CLOUDFLARE_API_(?:TOKEN|KEY)|CLOUDFLARE_ACCOUNT_ID|CF_API_(?:TOKEN|KEY)"
                         r"|CLOUDFLARE_TOOLS_)\w*")
-# The retired cloudflare-access plugin's token scope and state, until it is removed. The dot directory is
-# judged for the file tools too (its source under hermes/plugins/cloudflare-access stays readable by them);
-# the word only in a terminal call.
-OLD_STATE_NAME = ".cloudflare-access"
-OLD_STORE = re.compile(r"\.cloudflare-access(?![\w-])", re.IGNORECASE)
-OLD_TERMINAL = re.compile(r"(?<![\w-])cloudflare-access(?![\w-])", re.IGNORECASE)
 
 # The process environment holds the tokens, and the terminal's children inherit it. Where a command runs one
 # of these, it prints the whole environment (or, for `ps`, other processes'): `_ENV_DUMPS` pairs the program
@@ -364,7 +356,6 @@ def _protected_roots() -> set[tuple[str, ...]]:
         os.path.join(home, ".hermes", "plugins", STATE_NAME),
         os.path.join(home, ".cloudflared"),
         os.path.join(home, ".wrangler", "config"),
-        os.path.join(home, OLD_STATE_NAME),
     }
     grants = os.environ.get(GRANTS_ENV)
     if grants:
@@ -491,10 +482,10 @@ def bypass(tool: str, args, cwd: str | None = None) -> str | None:
         return None
     texts = list(_strings(args))
     paths = []
-    patterns = (_PATHS, OLD_STORE)
+    patterns = (_PATHS,)
     environment = (_ENVIRON_FILE,)
     if tool == "terminal":
-        patterns += (_TERMINAL, _VARIABLES, OLD_TERMINAL)
+        patterns += (_TERMINAL, _VARIABLES)
         environment += (_INDIRECT,)
         command = args.get("command")
         if isinstance(command, str):

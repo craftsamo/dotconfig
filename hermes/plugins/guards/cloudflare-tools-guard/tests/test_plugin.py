@@ -133,12 +133,11 @@ def test_other_tools_are_untouched(monkeypatch):
     "curl -H 'Authorization: Bearer x' https://api.cloudflare.com/client/v4/zones",
     "echo $CLOUDFLARE_API_TOKEN", "export CF_API_KEY=1", "curl -H 'X-Auth-Key: x' https://example.com",
     "cat ~/.cloudflared/cert.pem", "cat ~/Library/Preferences/.wrangler/config/default.toml",
-    "python3 -c 'import cloudflare'", "node -e \"require('cloudflare')\"", "ls ~/.cloudflare-access",
+    "python3 -c 'import cloudflare'", "node -e \"require('cloudflare')\"",
     "secret get CLOUDFLARE_WORK -p hermes --scope cloudflare-access", "secret get X --project=hermes",
     "secret get X -p hermes --scope cloudflare-tools", "secret export -p hermes",
     "security find-generic-password -s secret.hermes", "security dump-keychain", "echo cfut_abcdefghijklmnop",
     "echo cfat_abcdefgh", "echo cfk_abcdefgh",
-    "git commit -m 'move to cloudflare-access'",
 ])
 def test_the_guard_blocks_ways_around_the_tools(command):
     assert gate("terminal", command=command) == block_with(plugin.BYPASS_MESSAGE)
@@ -227,6 +226,7 @@ def test_terminal_blocks_single_line_forms(command):
     "bash -c 'git push origin hermes/cloudflare-tools'",
     "ls ~/.hermes/profiles/assistant/plugins/cloudflare-tools",      # no copy of the package there
     "ls /elsewhere/cloudflare-tools/dist-not",
+    "git commit -m 'remove cloudflare-access'",
 ])
 def test_a_git_ref_or_a_name_that_resolves_to_nothing_passes(command, isolated, monkeypatch):
     tracked(monkeypatch, isolated)
@@ -368,8 +368,8 @@ def test_a_terminal_inside_the_state_root_is_blocked(monkeypatch, isolated):
     assert gate("terminal", command="ls", workdir=str(isolated)) is None
 
 
-def test_a_terminal_inside_a_cli_login_or_the_old_state_is_blocked(monkeypatch, isolated):
-    for name in (".cloudflared", ".wrangler/config", ".cloudflare-access"):
+def test_a_terminal_inside_a_cli_login_is_blocked(monkeypatch, isolated):
+    for name in (".cloudflared", ".wrangler/config"):
         directory = isolated / "home" / name
         directory.mkdir(parents=True)
         tracked(monkeypatch, directory)
@@ -476,14 +476,11 @@ def test_a_project_runs_its_own_wrangler_through_its_package_manager(isolated, m
 def test_file_tools_may_read_the_plugin_source_but_not_the_state_or_the_cli_logins():
     (Path.home() / ".hermes" / "profiles" / "assistant" / "plugins" / "cloudflare-tools").mkdir(parents=True)
     guard_source = ROOT / "__init__.py"
-    old_source = ROOT.parent.parent / "cloudflare-access" / "cfa.py"
     assert gate("read_file", path=str(guard_source)) is None
-    assert gate("read_file", path=str(old_source)) is None
     assert gate("search_files", pattern="x", path=str(ROOT)) is None
     assert gate("read_file", path="/repo/wrangler.toml") is None
     assert gate("write_file", path="/repo/notes.md", content="set CLOUDFLARE_API_TOKEN and call api.cloudflare.com") is None
-    for tool, args in (("read_file", {"path": "/Users/x/.cloudflare-access/state.json"}),
-                       ("read_file", {"path": "/Users/x/.cloudflared/cert.pem"}),
+    for tool, args in (("read_file", {"path": "/Users/x/.cloudflared/cert.pem"}),
                        ("search_files", {"pattern": "x", "path": "/Users/x/.wrangler/config"}),
                        ("read_file", {"path": "~/.local/state/cloudflare-tools/grants/grants.json"}),
                        ("write_file", {"path": "~/.hermes/plugins/cloudflare-tools/dist/cli.js", "content": "x"}),
@@ -497,11 +494,6 @@ def test_a_worktree_path_with_the_package_name_in_it_passes():
     path = "/x/Worktrees/dotconfig/hermes-cloudflare-tools/README.md"
     assert gate("read_file", path=path) is None
     assert gate("terminal", command=f"cat {path}") is None
-
-
-def test_the_old_plugin_word_is_judged_in_the_terminal_only():
-    assert gate("terminal", command="ls hermes/plugins/cloudflare-access") == block_with(plugin.BYPASS_MESSAGE)
-    assert gate("search_files", pattern="x", path="hermes/plugins/cloudflare-access") is None
 
 
 def test_file_tools_block_the_state_root_by_real_path(monkeypatch, isolated):
@@ -558,8 +550,8 @@ def test_the_installed_plugin_is_protected_through_a_link(isolated):
     assert blocked(gate("read_file", path=str(link / "package.json")))
 
 
-def test_the_cli_logins_and_the_old_state_are_protected_through_a_link(isolated):
-    for name in (".cloudflared", ".wrangler/config", ".cloudflare-access"):
+def test_the_cli_logins_are_protected_through_a_link(isolated):
+    for name in (".cloudflared", ".wrangler/config"):
         directory = isolated / "home" / name
         directory.mkdir(parents=True)
         link = isolated / (name.replace("/", "-") + "-link")

@@ -2,13 +2,13 @@
 # Run the Cloudflare Tunnel connector in the foreground (the LaunchAgent
 # local.hermes.cloudflared.tunnel keeps it alive). The tunnel is managed in the
 # Cloudflare dashboard: which public hostname reaches which local port is set
-# there (or through the cloudflare-access plugin's tunnel_route), never here,
+# there (or through the Assistant's cloudflare_tunnel_route_* tools), never here,
 # so this script and the plist name no hostname.
 #
 # The connector's token is the Keychain item CLOUDFLARE_TUNNEL_TOKEN of
-# project hermes, scope cloudflare-access (the scope the plugin's own tokens
-# use). It is read here, at start, and handed to cloudflared through the
-# environment it documents (TUNNEL_TOKEN), never on a command line.
+# project hermes, scope cloudflare-access. It is read here, at start, and handed to
+# cloudflared through the environment it documents (TUNNEL_TOKEN), never on a
+# command line.
 # Updates are left to Homebrew (--no-autoupdate): a self-restarting binary
 # under launchd would race its supervisor.
 set -eu

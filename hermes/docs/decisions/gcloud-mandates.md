@@ -141,8 +141,7 @@ commands they cover are counted in the shared MAC'd ledger beside them
 - Counting before the run, and also when it fails, keeps the hourly bound
   whatever happens to the command. A deleted, emptied or replaced ledger reads
   as used up, never as unused.
-- The 7-day ceiling is the Cloudflare mandate's: a forgotten mandate should
-  lapse on its own.
+- The ceiling is 7 days: a forgotten mandate should lapse on its own.
 
 ## Do not
 

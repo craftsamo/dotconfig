@@ -51,10 +51,10 @@ _LOCKS: dict[str, threading.Lock] = {}
 class Store(NamedTuple):
     """How one plugin keeps its mandates."""
 
-    state: str          # directory name under the profile home, e.g. "cloudflare-access"
-    key_prefix: str     # Keychain item name prefix, e.g. "CLOUDFLARE_MANDATE_KEY_"
-    scope: str          # Keychain scope, e.g. "cloudflare-access"
-    mac_kind: str       # what a mandate is MAC'd as, e.g. "cloudflare-mandate"; the head adds "-head"
+    state: str          # directory name under the profile home, e.g. "google-access"
+    key_prefix: str     # Keychain item name prefix, e.g. "GCLOUD_MANDATE_KEY_"
+    scope: str          # Keychain scope, e.g. "google-access"
+    mac_kind: str       # what a mandate is MAC'd as, e.g. "gcloud-mandate"; the head adds "-head"
     key_note: str       # the description stored with the key
     error: type         # raised for storage problems
     max_days: int = 30  # the longest a mandate may run; the plugin's terms are held to it
