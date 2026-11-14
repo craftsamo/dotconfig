@@ -52,6 +52,30 @@ class AssistantScriptTest(unittest.TestCase):
             (home / "Workspaces").mkdir()
             self.assertEqual(cwd("exit 1"), f"{real_home}/Workspaces")
 
+    def test_gateway_launcher_takes_cloudflare_tokens_from_their_scope_only(self) -> None:
+        """cloudflare-tools reads its tokens from the process env: the launcher puts there the
+        token and account id pairs of the hermes project's cloudflare-tools scope, drops a global
+        unlabeled token, and passes nothing else that scope's `secret env` emits (the shared
+        hermes layer comes with it, messaging keys included)."""
+        launcher = (HERMES_ROOT / "launchd" / "bin" / "hermes-gateway-multiplex").read_text(encoding="utf-8")
+        block = re.search(r"^unset CLOUDFLARE_API_TOKEN.*?\?='\)\"$", launcher, re.M | re.S).group(0)
+        with tempfile.TemporaryDirectory() as tmp:
+            stubs = Path(tmp)
+            stub = stubs / "secret"
+            stub.write_text(
+                "#!/bin/sh\n"
+                "[ \"$*\" = 'env -p hermes --scope cloudflare-tools' ] || exit 3\n"
+                "printf '%s\\n' \"export CLOUDFLARE_API_TOKEN_WORK='t1'\" \"export CLOUDFLARE_ACCOUNT_ID_WORK='a1'\" "
+                "\"export TELEGRAM_BOT_TOKEN='bot'\" \"export OPENROUTER_API_KEY='k'\" "
+                "\"export CLOUDFLARE_TOOLS_READ_ONLY='true'\"\n")
+            stub.chmod(0o755)
+            script = f"set -e\n{block}\nenv\n"
+            env = {"PATH": f"{stubs}:/usr/bin:/bin", "CLOUDFLARE_API_TOKEN": "global"}
+            out = subprocess.run(["sh", "-c", script], env=env, capture_output=True, text=True,
+                                 check=True).stdout.splitlines()
+        cloudflare = sorted(line for line in out if "CLOUDFLARE" in line or "TELEGRAM" in line or "OPENROUTER" in line)
+        self.assertEqual(cloudflare, ["CLOUDFLARE_ACCOUNT_ID_WORK=a1", "CLOUDFLARE_API_TOKEN_WORK=t1"])
+
 
 if __name__ == "__main__":
     unittest.main()
