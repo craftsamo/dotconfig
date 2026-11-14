@@ -42,6 +42,15 @@
     "requires": ["discord-tools-guard"],
     "requires_setting": "require_plugins"
   },
+  "whatsapp-tools": {
+    "repo": "craft-agent/whatsapp-tools",
+    "version": "0.3.0",
+    "commit": "6ade700c3228245e39661df796cfa57fd9ce6a62",
+    "npm": "@craftsamo/whatsapp-tools",
+    "skills": ["account", "chats", "contacts", "count-activity", "files", "sends", "actions"],
+    "requires": ["whatsapp-tools-guard"],
+    "requires_setting": "require_plugins"
+  },
   "cloudflare-tools": {
     "repo": "craft-agent/cloudflare-tools",
     "version": "0.12.0",
