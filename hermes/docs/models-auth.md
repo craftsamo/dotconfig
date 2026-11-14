@@ -94,7 +94,7 @@ Provider facts:
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
   ChatGPT subscription is sized for OpenCode (`debugger`, `reviewer`,
-  `reviewer-deep`, `explore-max`, a backup step behind Gemini Flash or Grok
+  `reviewer-deep`, `explore-max`, a backup step behind Gemini 4 Hydrogen or Grok
   for the other explore tiers, the worker and the searchers, plus the
   `alternate` of the Assistant's OpenCode roles) and shares one Plus allowance
   with Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a
@@ -350,7 +350,7 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   preamble at the head of the system prompt, before the profile's own. Claude
   models get the Gemini-shaped body Antigravity expects (snake-case thinking
   budget, reduced tool schemas and wire-safe tool names that the client maps
-  back). Gemini ids with an effort suffix (`gemini-3.8-flash-high`) keep that
+  back). Gemini ids with an effort suffix (`gemini-4-hydrogen-high`) keep that
   effort; `agent.reasoning_effort` sets the rest.
 - **Audio and video go to Gemini inline.** In a user message, a `video_url`,
   `input_audio` or `file` part carrying an audio or video `data:` URL is

@@ -59,6 +59,12 @@ describe("route steps", () => {
       model: { providerID: "google", id: "antigravity-gemini-3.8-flash-low" },
       places: [{ kind: "active" }],
     })
+    expect(
+      parseStep("google/antigravity-gemini-4-hydrogen-low", NAMES).step,
+    ).toEqual({
+      model: { providerID: "google", id: "antigravity-gemini-4-hydrogen-low" },
+      places: [{ kind: "active" }],
+    })
   })
   test("malformed steps and places it cannot use are ignored, each with its reason", () => {
     for (const [text, reason] of [

@@ -89,6 +89,13 @@ def test_a_gemini_id_with_an_effort_suffix_keeps_its_own_effort():
     assert wire.thinking_config("gemini-3.8-flash-high", {"effort": "none"}) == {"includeThoughts": False}
 
 
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh"])
+def test_hydrogen_keeps_the_effort_in_its_model_id(effort):
+    model = f"gemini-4-hydrogen-{effort}"
+    assert wire.thinking_config(model, {"effort": "low"}) == {"includeThoughts": True}
+    assert wire.thinking_config(model, {"effort": "none"}) == {"includeThoughts": False}
+
+
 def test_a_bare_gemini_id_goes_through_hermes_gemini_translation():
     config = wire.thinking_config("gemini-3-flash", {"effort": "high"})
     assert config and config.get("includeThoughts") is True
@@ -624,6 +631,16 @@ def test_quota_groups_follow_the_quota_the_models_share():
         {"label": "Claude Opus 5.5, Claude Sonnet 5.5", "remaining": 0.75, "reset": "2026-10-29T18:38:00Z"},
     ]
     assert wire.quota_groups({}) == [] and wire.quota_groups(None) == []
+
+
+def test_hydrogen_quota_labels_merge_all_efforts_including_xhigh():
+    quota = {"remainingFraction": 0.75, "resetTime": "2026-11-14T18:00:00Z"}
+    payload = {"models": {
+        f"gemini-4-hydrogen-{effort}": {
+            "displayName": f"Gemini 4 Hydrogen ({effort.title()})", "quotaInfo": quota}
+        for effort in ("low", "medium", "high", "xhigh")}}
+    assert wire.quota_groups(payload) == [
+        {"label": "Gemini 4 Hydrogen", "remaining": 0.75, "reset": quota["resetTime"]}]
 
 
 def test_error_reason_reads_the_error_info():

@@ -437,7 +437,7 @@ the board tells the person where the limits stand.
 
 **Specialists on Antigravity.** The person's OpenCode routes its specialist
 subagents (explore, worker, searcher) through a route table that leads with
-Gemini Flash on Antigravity and moves a refused step to the next one
+Gemini 4 Hydrogen on Antigravity and moves a refused step to the next one
 (`opencode/README.md` "Subscription preflight"). A Hermes-driven run uses the
 same routes; that is accepted, unlike a Hermes model chain naming Antigravity
 ([decision](./decisions/antigravity-provider.md)). So a subagent's limit retry

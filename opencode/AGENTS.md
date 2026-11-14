@@ -263,7 +263,7 @@ For read-only codebase exploration, prefer the built-in `subagent` tool with
 - `explore-max` — only for difficult, high-stakes, or previously failed
   exploration.
 
-These agents have their own default models (Gemini Flash on Antigravity
+These agents have their own default models (Gemini 4 Hydrogen on Antigravity
 below explore-max, then the ChatGPT window, then Claude) so normal
 exploration does not inherit the primary's model. Use the default `explore`
 subagent only when the primary model is specifically needed for the
@@ -285,7 +285,7 @@ For web research — external docs, library/API behavior, versions, changelogs,
 advisories, best practices, current events — prefer the built-in `subagent` tool
 with `agent: searcher` (fast sweeps, fact checks) or `agent: searcher-deep`
 (settling one topic: conflicting sources, primary-source verification). These
-agents run on Gemini Flash, Grok and the ChatGPT window ahead of Claude and
+agents run on Gemini 4 Hydrogen, Grok and the ChatGPT window ahead of Claude and
 absorb bulky web-page tokens; avoid running `websearch`/`webfetch` in the
 primary session except for a single user-provided URL. Codebase questions stay with the explore-* agents;
 never put secrets, private code, or internal identifiers into delegated

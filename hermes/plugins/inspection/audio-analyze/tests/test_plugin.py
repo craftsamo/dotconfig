@@ -23,6 +23,11 @@ def load_plugin():
 PLUGIN = load_plugin()
 
 
+def test_hydrogen_is_the_default_backend_when_no_section_is_configured():
+    with patch.object(PLUGIN.media_backends, "_section", return_value=None):
+        assert PLUGIN._backends() == [("openrouter", "google/gemini-4-hydrogen")]
+
+
 class FakeContext:
     def __init__(self) -> None:
         self.tools: dict[str, dict[str, Any]] = {}

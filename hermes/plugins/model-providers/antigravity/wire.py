@@ -46,7 +46,7 @@ CLAUDE_THINKING_BUDGETS = {"minimal": 8192, "low": 8192, "medium": 16384}
 CLAUDE_MAX_THINKING_BUDGET = 32768
 CLAUDE_MAX_OUTPUT = 64000
 
-_EFFORT_SUFFIX = re.compile(r"-(minimal|low|medium|high)$")
+_EFFORT_SUFFIX = re.compile(r"-(minimal|low|medium|high|xhigh)$")
 _CLAUDE_TOOL_NAME = re.compile(r"[^a-zA-Z0-9_-]")
 _CLAUDE_SCHEMA_DROP = frozenset({
     "minLength", "maxLength", "exclusiveMinimum", "exclusiveMaximum", "pattern", "minItems", "maxItems",
@@ -101,7 +101,7 @@ def claude_thinking_config(model: str, reasoning_config: Any) -> dict[str, Any] 
 def thinking_config(model: str, reasoning_config: Any) -> dict[str, Any] | None:
     """What the profile puts in ``extra_body.thinking_config`` for *model*.
 
-    A Gemini id with an effort suffix (``gemini-3.8-flash-high``) owns its effort: only whether
+    A Gemini id with an effort suffix (``gemini-4-hydrogen-high``) owns its effort: only whether
     thoughts come back is sent. A bare Gemini id goes through Hermes' own Gemini translation.
     """
     name = (model or "").strip().lower()
@@ -571,7 +571,7 @@ def parse_catalog(payload: Any) -> list[dict[str, Any]]:
     return catalog
 
 
-_EFFORT_LABEL = re.compile(r"\s*\((?:minimal|low|medium|high)\)\s*$", re.IGNORECASE)
+_EFFORT_LABEL = re.compile(r"\s*\((?:minimal|low|medium|high|xhigh)\)\s*$", re.IGNORECASE)
 
 
 def _remaining(quota: dict[str, Any]) -> float:

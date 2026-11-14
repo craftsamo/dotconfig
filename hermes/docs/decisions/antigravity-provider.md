@@ -37,7 +37,7 @@ hand and named in no fallback chain.
 
 The rule covers Hermes' own model selection. A run the Assistant drives in
 the person's OpenCode uses OpenCode's specialist routes, which lead the
-explore, worker and searcher subagents with Gemini Flash on Antigravity and
+explore, worker and searcher subagents with Gemini 4 Hydrogen on Antigravity and
 pass a refused or spent step to the next one. That use is accepted: the
 person chose those routes for OpenCode as a whole, and a Hermes-driven run
 inherits them rather than adding a chain of its own.

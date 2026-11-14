@@ -115,7 +115,7 @@ user keys.
   http(s) URL; wav, mp3, m4a, aac, ogg, opus, flac or aiff, up to 14 MiB)
   goes whole, as `input_audio`, to `audio_analyze.backends` through the same
   `media_backends` rules as `video_analyze` (default: OpenRouter's
-  `google/gemini-3.8-flash`), which answers about speech, speakers, tone,
+  `google/gemini-4-hydrogen`), which answers about speech, speakers, tone,
   music and other sounds with no local transcription first. The recording
   leaves the machine: the tool is for a request that asked for it, and
   audio-creator's speech and music analysis stays local unless the

@@ -1,7 +1,7 @@
 ---
 description: "Tidies code the caller scopes (a branch's changed files, named files) to the code-hygiene standard without changing behavior: reuses existing types, gathers scattered magic values, converts declaration comments to TSDoc/JSDoc/docstrings, removes dead and commented-out code, and splits files within their directory. Covers JS/TS(X), Python, CSS/SCSS/Tailwind and shell. Moves across directories, renames and public API changes are proposed, not made. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: google/antigravity-gemini-3.8-flash-medium
+model: google/antigravity-gemini-4-hydrogen-medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
