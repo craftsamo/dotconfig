@@ -519,7 +519,7 @@ route was empty and the provider decides whether its first one can proceed.
 Neither proves the actual charge. Declared structured output is unchanged.
 
 **Setup.** Pinned to the OpenCode releases in `SUPPORTED_VERSIONS`
-(`index.ts`), currently 2.1.2 (list the old and new release together while
+(`runtime.ts`), currently 2.1.2 and 2.3.0 (list the old and new release together while
 the binary is upgraded): on any other release the automatic new launch is
 rejected and a protected child stops, but a manual pass still works. Add a
 release only after checking the session hooks, the `subagent` tool's

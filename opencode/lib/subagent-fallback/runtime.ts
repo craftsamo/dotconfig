@@ -112,6 +112,6 @@ export type RuntimeContext = LoginContext & {
 
 // Releases whose hook and subagent-tool contracts were checked against the
 // upstream source. Add a release only after re-checking them.
-export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2"]
+export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2", "2.3.0"]
 export const supported = (version: string) =>
   SUPPORTED_VERSIONS.includes(version)
