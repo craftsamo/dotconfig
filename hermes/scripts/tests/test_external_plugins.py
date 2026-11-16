@@ -86,6 +86,7 @@ VALIDATOR_SPEC.loader.exec_module(validator)
 
 def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     required = {(name, needed) for name, entry in MANIFEST.items() for needed in entry.get("requires", ())}
+    assert ("git-tools", "git-tools-guard") in required
     assert ("signal-tools", "signal-tools-guard") in required
     assert ("github-tools", "github-tools-guard") in required
     assert ("telegram-tools", "telegram-tools-guard") in required
@@ -105,6 +106,7 @@ def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
 
 
 def test_a_plugin_names_its_guard_in_the_setting_that_requires_it(tmp_path):
+    assert MANIFEST["git-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["signal-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["telegram-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["discord-tools"]["requires_setting"] == "require_plugins"

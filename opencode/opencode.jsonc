@@ -69,9 +69,9 @@
     // Git repositories, commits, rebases, worktrees and pushes (craft-agent/git-tools).
     // Reads never ask; every write asserts its tool ID, so the rules below decide.
     // Its git-tools.worktrees strategy replaces OpenCode's default and uses
-    // ~/Worktrees. Hermes pins the same release
-    // (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/git-tools@0.2.2", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
+    // ~/Worktrees. Every toolset but grants (no unattended writes). Hermes pins
+    // the same release (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/git-tools@0.4.1", "options": { "toolsets": ["repo", "commit", "rebase", "worktree", "push"], "language": "ja", "worktree_root": "~/Worktrees" } },
     // Cloudflare zones, DNS, rules, analytics, Workers, Pages, storage,
     // tunnels, Email Routing and the read-only account services
     // (craft-agent/cloudflare-tools), through the API tokens in the environment

@@ -1135,6 +1135,8 @@ plugins:
         - worktree
         language: ja
         worktree_root: ~/Worktrees
+        require_plugins:
+        - git-tools-guard
     signal-tools:
       settings:
         toolsets:
