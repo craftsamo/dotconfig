@@ -1128,6 +1128,8 @@ plugins:
         - releases
         - actions
         language: ja
+        require_plugins:
+        - github-tools-guard
     git-tools:
       settings:
         toolsets:

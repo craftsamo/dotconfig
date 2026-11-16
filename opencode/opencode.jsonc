@@ -64,8 +64,9 @@
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
     // of the change, so the github_* rule below asks. Hermes pins the same
-    // release (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/github-tools@0.13.0", "options": { "toolsets": "all", "language": "ja" } },
+    // release (hermes/scripts/external-plugins.json). Every toolset but grants
+    // (no unattended writes).
+    { "package": "@craftsamo/github-tools@0.15.1", "options": { "toolsets": ["issues", "pull_requests", "projects", "repos", "releases", "actions"], "language": "ja" } },
     // Git repositories, commits, rebases, worktrees and pushes (craft-agent/git-tools).
     // Reads never ask; every write asserts its tool ID, so the rules below decide.
     // Its git-tools.worktrees strategy replaces OpenCode's default and uses

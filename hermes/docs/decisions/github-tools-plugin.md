@@ -32,6 +32,15 @@ plugin of its own. The person's OpenCode loads the same release from npm.
   loaded: the package's handler does not refuse by itself, so the pin
   `requires` the guard and the profile validator refuses a config that
   enables the package without it.
+- **The package itself refuses writes while the guard is not loaded.**
+  Enabled is not loaded: a guard that fails to load would leave the package
+  running unguarded. The package's `require_plugins` setting names
+  `github-tools-guard`, and while Hermes has not loaded it every write is
+  refused before it is approved. The pin's `requires_setting` makes the
+  validator refuse a config that does not name the guard there.
+- **Grants stay off on both sides.** Hermes leaves the `grants` toolset and
+  `unattended` unset, and OpenCode lists its toolsets instead of `all`, so no
+  GitHub write runs where no person can answer.
 - **Runs deliver PRs, and the Assistant writes the record.** An OpenCode run
   reads GitHub; a write run may open its PRs, link its stack and set their
   labels, assignees, reviewers and milestone on the caller's `once`. The caller
