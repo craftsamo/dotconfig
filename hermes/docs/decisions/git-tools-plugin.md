@@ -21,6 +21,15 @@ commit as a Hermes native plugin. OpenCode loads the same release from npm.
   pull and clone, refusing configuration and program-running overrides. The
   pin requires it and the profile validator refuses enabling the package
   without it; a block wins over the package's approve.
+- **The package itself refuses writes while the guard is not loaded.**
+  Enabled is not loaded: a guard that fails to load would leave the package
+  running unguarded. The package's `require_plugins` setting names
+  `git-tools-guard`, and while Hermes has not loaded it every write is refused
+  before it is approved. The pin's `requires_setting` makes the validator
+  refuse a config that does not name the guard there.
+- **Grants stay off on both sides.** Hermes leaves the `grants` toolset and
+  `unattended` unset, and OpenCode lists its toolsets instead of `all`, so no
+  git write runs where no person can answer.
 - **The Assistant reads and removes landed worktrees; OpenCode commits and
   pushes.** The Assistant has only `repo` and `worktree`, not `commit`,
   `rebase` or `push`. It commissions target code work through the engineering

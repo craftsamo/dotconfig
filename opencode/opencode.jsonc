@@ -37,7 +37,7 @@
     // release Hermes runs. Default toolsets only (files and actions stay off);
     // the permission rules below cover every tool, so turning one on later
     // needs no new rule.
-    { "package": "@craftsamo/signal-tools@0.6.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/signal-tools@0.6.1", "options": { "language": "ja" } },
     // Telegram as a signed-in user (telegram-tools): reads and, after an
     // approval that shows what the call carries, sends.
     // The account, its sync service and mirror are shared with Hermes, so pin
@@ -45,33 +45,34 @@
     // stay off); the permission rules below cover every tool, so turning one
     // on later needs no new rule. channels and keep_disappearing match the
     // settings the shared sync service is installed with.
-    { "package": "@craftsamo/telegram-tools@0.5.0", "options": { "language": "ja", "channels": true, "keep_disappearing": true } },
+    { "package": "@craftsamo/telegram-tools@0.5.1", "options": { "language": "ja", "channels": true, "keep_disappearing": true } },
     // Discord as a signed-in user (discord-tools): reads and, after an
     // approval that shows what the call carries, sends.
     // The account, its sync service and mirror are shared with Hermes, so pin
     // the same release Hermes runs. Default toolsets only (history, files,
     // actions, threads and roles stay off); the permission rules below cover
     // every tool, so turning one on later needs no new rule.
-    { "package": "@craftsamo/discord-tools@1.2.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/discord-tools@1.2.1", "options": { "language": "ja" } },
     // WhatsApp as a linked device (craft-agent/whatsapp-tools): reads and,
     // after an approval that shows what the call carries, sends. The account,
     // its sync service and mirror are shared with Hermes, so pin the same
     // release Hermes runs. Default toolsets only (files, actions and grants
     // stay off); the permission rules below cover every tool, so turning one on
     // later needs no new rule.
-    { "package": "@craftsamo/whatsapp-tools@0.3.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/whatsapp-tools@0.3.1", "options": { "language": "ja" } },
     // GitHub issues, boards, pull requests, stacks, repositories, releases and
     // Actions (craft-agent/github-tools). Reads never ask; every write asserts
     // its tool ID with the repositories or boards it touches and a description
     // of the change, so the github_* rule below asks. Hermes pins the same
-    // release (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/github-tools@0.13.0", "options": { "toolsets": "all", "language": "ja" } },
+    // release (hermes/scripts/external-plugins.json). Every toolset but grants
+    // (no unattended writes).
+    { "package": "@craftsamo/github-tools@0.15.1", "options": { "toolsets": ["issues", "pull_requests", "projects", "repos", "releases", "actions"], "language": "ja" } },
     // Git repositories, commits, rebases, worktrees and pushes (craft-agent/git-tools).
     // Reads never ask; every write asserts its tool ID, so the rules below decide.
     // Its git-tools.worktrees strategy replaces OpenCode's default and uses
-    // ~/Worktrees. Hermes pins the same release
-    // (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/git-tools@0.2.2", "options": { "toolsets": "all", "language": "ja", "worktree_root": "~/Worktrees" } },
+    // ~/Worktrees. Every toolset but grants (no unattended writes). Hermes pins
+    // the same release (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/git-tools@0.4.1", "options": { "toolsets": ["repo", "commit", "rebase", "worktree", "push"], "language": "ja", "worktree_root": "~/Worktrees" } },
     // Cloudflare zones, DNS, rules, analytics, Workers, Pages, storage,
     // tunnels, Email Routing and the read-only account services
     // (craft-agent/cloudflare-tools), through the API tokens in the environment
@@ -79,7 +80,7 @@
     // the unlabeled pair). Reads never ask; every write asserts its tool ID, so
     // the cloudflare_* rule below asks. Every toolset but grants (no unattended
     // writes). Hermes pins the same release (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/cloudflare-tools@0.12.0", "options": { "toolsets": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"], "language": "ja" } },
+    { "package": "@craftsamo/cloudflare-tools@0.12.1", "options": { "toolsets": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"], "language": "ja" } },
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {

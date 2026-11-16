@@ -1128,6 +1128,8 @@ plugins:
         - releases
         - actions
         language: ja
+        require_plugins:
+        - github-tools-guard
     git-tools:
       settings:
         toolsets:
@@ -1135,6 +1137,8 @@ plugins:
         - worktree
         language: ja
         worktree_root: ~/Worktrees
+        require_plugins:
+        - git-tools-guard
     signal-tools:
       settings:
         toolsets:

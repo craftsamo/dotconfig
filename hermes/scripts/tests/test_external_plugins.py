@@ -86,6 +86,7 @@ VALIDATOR_SPEC.loader.exec_module(validator)
 
 def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     required = {(name, needed) for name, entry in MANIFEST.items() for needed in entry.get("requires", ())}
+    assert ("git-tools", "git-tools-guard") in required
     assert ("signal-tools", "signal-tools-guard") in required
     assert ("github-tools", "github-tools-guard") in required
     assert ("telegram-tools", "telegram-tools-guard") in required
@@ -94,17 +95,20 @@ def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     assert ("cloudflare-tools", "cloudflare-tools-guard") in required
     config = tmp_path / "config.yaml"
     base = "skills:\n  create_dir: skills/learned\nplugins:\n  enabled:\n  - skill-topology\n"
-    config.write_text(base + "  - github-tools\n", encoding="utf-8")
+    named = "  entries:\n    github-tools:\n      settings:\n        require_plugins:\n        - github-tools-guard\n"
+    config.write_text(base + "  - github-tools\n" + named, encoding="utf-8")
     errors: list[str] = []
     validator.validate_plugin_enabled("assistant", config, errors)
     assert errors == [f"github-tools is enabled without github-tools-guard: {config}"]
-    config.write_text(base + "  - github-tools\n  - github-tools-guard\n", encoding="utf-8")
+    config.write_text(base + "  - github-tools\n  - github-tools-guard\n" + named, encoding="utf-8")
     errors = []
     validator.validate_plugin_enabled("assistant", config, errors)
     assert errors == []
 
 
 def test_a_plugin_names_its_guard_in_the_setting_that_requires_it(tmp_path):
+    assert MANIFEST["git-tools"]["requires_setting"] == "require_plugins"
+    assert MANIFEST["github-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["signal-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["telegram-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["discord-tools"]["requires_setting"] == "require_plugins"

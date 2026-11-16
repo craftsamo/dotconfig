@@ -28,6 +28,20 @@ Only the Assistant has it. The settings enable all six toolsets (`issues`,
 `language: ja`, and the toolsets are in `toolsets` and the `cli`, `telegram`
 and `discord` lists of `platform_toolsets`, never `a2a`.
 
+The `grants` toolset stays off and `unattended` unset in both Hermes and
+OpenCode (OpenCode lists its toolsets rather than `all`, which would include
+grants): no GitHub write runs where no person can answer the card.
+
+`require_plugins` names `github-tools-guard`: while Hermes has not loaded the
+guard, the package refuses every write before it is approved, so a guard that
+fails to load stops the writes rather than leaving them unguarded. The profile
+validator refuses a config that enables the package without naming the guard
+there ([decision](decisions/github-tools-plugin.md)).
+
+Keep every `GITHUB_TOOLS_*` environment variable unset. The Hermes adapter
+emits no flag for a `false` or empty setting, so an environment variable would
+override the config rather than being cancelled by it.
+
 ## Approval
 
 Every write is held by the package's own `pre_tool_call` card: what the call

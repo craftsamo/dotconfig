@@ -40,6 +40,20 @@ toolsets. Settings select `toolsets`, `language: ja` and
 `worktree_root: ~/Worktrees`. The Assistant needs no published-text rules,
 since it cannot push.
 
+The `grants` toolset stays off and `unattended` unset in both Hermes and
+OpenCode (OpenCode lists its toolsets rather than `all`, which would include
+grants): no git write runs where no person can answer the card.
+
+`require_plugins` names `git-tools-guard`: while Hermes has not loaded the
+guard, the package refuses every write before it is approved, so a guard that
+fails to load stops the writes rather than leaving them unguarded. The profile
+validator refuses a config that enables the package without naming the guard
+there ([decision](decisions/git-tools-plugin.md)).
+
+Keep every `GIT_TOOLS_*` environment variable unset. The Hermes adapter emits
+no flag for a `false` or empty setting, so an environment variable would
+override the config rather than being cancelled by it.
+
 ## Approval
 
 Every write gets the package's own `pre_tool_call` approval card, showing its
@@ -53,7 +67,8 @@ The guard (`plugins/guards/git-tools-guard`) adds:
 - **No card where no person can answer.** Writes are refused through
   `plugins/_shared/human_gate.py`, including YOLO, approvals off and
   unattended turns. A block beats the package's approve. The pin requires the
-  guard, and the profile validator refuses enabling the package without it.
+  guard and names it in `require_plugins`, and the profile validator refuses
+  enabling the package without it.
 - **No inbound A2A.** Every `git_*` call, reads included, is refused for an
   inbound A2A request.
 - **No way around the tools.** The package's CLI, MCP and npm entry points and
