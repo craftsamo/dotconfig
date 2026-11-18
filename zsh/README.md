@@ -46,11 +46,13 @@ made that a process explosion). The pins equal mise's defaults with the
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | `conf.d/cursor.zsh`                                          | keeps the bar cursor after TUIs (nvim, less, ...) reset it                                                                     |
 | `conf.d/tide.zsh`                                            | colours for the fish-era tide prompt — inert under zsh, kept for reference                                                     |
+| `conf.d/opencode-pair.zsh`                                   | `opencode pair` adds `--url` with this Mac's Tailscale Serve URL when a route exists; plain local links otherwise              |
 | `functions/zsh_user_key_bindings.zsh`                        | emacs keymap, `Ctrl-F` fzf directory jump, `Ctrl-D` delete-char                                                                |
 | `functions/fzf_change_directory.zsh`                         | fzf picker over `~/.config`, the Workspaces root (every area's groups + grouped repos, from `ws-layout`), ghq repos, and `./*` |
 | `functions/secret.zsh`                                       | macOS Keychain secrets CLI + fzf wizard — see [secret.md](./functions/secret.md)                                               |
 | `tests/secret-selftest.zsh`                                  | self-test for `secret` (not auto-sourced); `zsh -f zsh/tests/secret-selftest.zsh`                                              |
 | `tests/secret-shim-selftest.zsh`                             | self-test for the `bin/secret-shim` launchers; `zsh -f zsh/tests/secret-shim-selftest.zsh`                                     |
+| `tests/opencode-pair-selftest.zsh`                           | self-test for `opencode pair` (not auto-sourced); `zsh -f zsh/tests/opencode-pair-selftest.zsh`                                |
 | `config-osx.zsh` / `config-linux.zsh` / `config-windows.zsh` | fish-era OS snippets; sourced on every OS, mostly commented out / inert                                                        |
 
 ## Customisation
