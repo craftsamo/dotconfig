@@ -1,190 +1,36 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import type { Lane, LaneState } from "../credit-lanes/core"
+import { describe, expect, test } from "bun:test"
+import { readFile, writeFile } from "node:fs/promises"
 import { EMPTY_PROBE_MS } from "../subagent-fallback/empty-lanes"
-import { QUOTA_RPC } from "../subagent-fallback/quota-refresh"
-import { fileStore } from "../subagent-fallback/saved"
-import { statePath, type StepsDeps } from "./deps"
-import plugin, { setupFallbackSteps } from "./index"
+import { statePath } from "./deps"
+import {
+  agyRow,
+  emptyLane,
+  fresh,
+  LANE,
+  LANE_AT,
+  LOGINS,
+  NOW,
+  part,
+  row,
+  savedFile,
+  setup,
+  UNTIL,
+  USABLE,
+  useTempDir,
+} from "./fixture"
+import plugin from "./index"
 
-const NOW = 1_710_000_000_000
-const HOUR_MS = 3_600_000
-const RESET = NOW + HOUR_MS
-const UNTIL = new Date(RESET).toISOString()
-const USABLE = { usable: true }
-const signal = new AbortController().signal
-const never = () => new Promise<never>(() => {})
-
-type Login = { id: string; label?: string; methodID: string }
-const LOGINS: Record<string, Login[]> = {
-  anthropic: [
-    { id: "main-id", label: "Main", methodID: "claude-max" },
-    { id: "sub-id", label: "Sub", methodID: "claude-max" },
-  ],
-  openai: [{ id: "chatgpt-id", methodID: "chatgpt-browser" }],
-  xai: [{ id: "xai-id", methodID: "device" }],
-  google: [{ id: "agy-id", methodID: "antigravity" }],
-}
-const ACTIVE: Record<string, string> = {
-  anthropic: "main-id",
-  openai: "chatgpt-id",
-  xai: "xai-id",
-  google: "agy-id",
-}
-
-// A Quota 6 row: its `account` is the login's label.
-const row = (providerID: string, account: string, percentRemaining = 90) => ({
-  id: providerID === "xai" ? "xai.credits" : `${providerID}.five_hour`,
-  window: "5h",
-  percentRemaining,
-  account,
-  resultType: "quota",
-  acquisitionMethod: "remote_api",
-  authority: "provider_reported",
-  renderType: "percent",
-  resetAt: RESET / 1000,
-})
-const part = (entries: unknown[], fetchedAt = NOW / 1000) => ({
-  status: "ok",
-  fetchedAt,
-  entries,
-})
-const agyRow = (group: string, percentRemaining: number) => ({
-  id: `quota-providers.custom.google-antigravity.${group}`,
-  resultType: "quota",
-  percentRemaining,
-  resetAt: RESET / 1000,
-})
-
-const LANE: Lane = {
-  provider: "anthropic-credit-main",
-  label: "Main",
-  amount: 200,
-  renewalDay: 13,
-}
-const LANE_AT = new Date(2026, 9, 20, 12).getTime()
-const emptyLane: LaneState = {
-  grants: [],
-  checkpoint: {
-    at: new Date(LANE_AT).toISOString(),
-    balance: 0,
-    source: "empty",
-    opencodeFrom: "2026-10-20",
-    opencodeBase: 0,
-  },
-}
-
-let dir: string
-beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "fallback-steps-"))
-})
-afterEach(() => rm(dir, { recursive: true, force: true }))
-
-async function setup(
-  options: Record<string, unknown> = {},
-  exported: Record<string, unknown> = {},
-  extra: Partial<StepsDeps> & { logins?: Record<string, Login[]> } = {},
-) {
-  const { logins = LOGINS, ...overrides } = extra
-  const exportFile = join(dir, "quota-export.json")
-  await writeFile(
-    exportFile,
-    JSON.stringify({ version: 3, providers: exported }),
-  )
-  const clock = { now: NOW }
-  const deps: StepsDeps = {
-    now: () => clock.now,
-    readExport: (path) => readFile(path, "utf8"),
-    sleep: never,
-    antigravityReserve: () => 10,
-    saved: fileStore(join(dir, "state.json")),
-    exportFile,
-    ...overrides,
-  }
-  const calls = { refresh: [] as unknown[], disposed: false }
-  const handlers: { usable: any; limit: any } = {} as any
-  const ctx: any = {
-    options,
-    app: { version: "2.3.0" },
-    session: { get: async () => ({}) },
-    provider: {
-      get: async ({ providerID }: { providerID: string }) => {
-        if (!logins[providerID]) throw new Error("no provider")
-        return { data: { package: `@opencode/ai/providers/${providerID}` } }
-      },
-    },
-    integration: {
-      get: async ({ integrationID }: { integrationID: string }) => ({
-        data: {
-          connections: (logins[integrationID] ?? []).map((l) => ({
-            type: "credential",
-            method: "oauth",
-            ...l,
-          })),
-        },
-      }),
-      connection: {
-        active: async (providerID: string) => {
-          const id = ACTIVE[providerID]
-          return logins[providerID]?.some((l) => l.id === id)
-            ? { type: "credential", method: "oauth", id }
-            : undefined
-        },
-        resolve: async ({ id }: { id: string }) => {
-          const found = Object.values(logins)
-            .flat()
-            .find((l) => l.id === id)
-          return found && {
-            type: "oauth",
-            methodID: found.methodID,
-            access: `token-${id}`,
-            metadata: { accountID: "account" },
-          }
-        },
-      },
-    },
-    rpc: Object.assign(
-      (definition: typeof QUOTA_RPC) => {
-        expect(definition.id).toBe(QUOTA_RPC.id)
-        return {
-          refresh: async (input: unknown) => {
-            calls.refresh.push(input)
-            return never()
-          },
-        }
-      },
-      {
-        register: async (_definition: unknown, registered: any) => {
-          Object.assign(handlers, registered)
-          return { dispose: async () => void (calls.disposed = true) }
-        },
-      },
-    ),
-  }
-  const cleanup = await setupFallbackSteps(ctx, deps)
-  const ask = (model: string) =>
-    handlers.usable({ agent: "worker", model }, { signal })
-  return { ask, calls, clock, cleanup, handlers, ctx, deps }
-}
-
-const fresh = (providerID: string, ...rows: unknown[]) => ({
-  [providerID]: part(rows),
-})
+useTempDir()
 
 describe("registration", () => {
-  test("registers both handlers, never calls a limit, and disposes", async () => {
+  test("registers both handlers, listens for limits, and disposes", async () => {
     const f = await setup()
+    expect(f.handlers.usable).toBeFunction()
     expect(f.handlers.limit).toBeFunction()
-    expect(
-      await f.handlers.limit(
-        { agent: "worker", model: "a/x", error: { type: "x", message: "m" } },
-        { signal },
-      ),
-    ).toEqual({ limit: false })
+    expect(f.listeners.size).toBe(1)
     await f.cleanup()
     expect(f.calls.disposed).toBe(true)
+    expect(f.listeners.size).toBe(0)
   })
   test("the plugin is named for dotconfig and keeps its state beside the old one", () => {
     expect(plugin.id).toBe("dotconfig.fallback-steps")
@@ -370,7 +216,6 @@ describe("stale and unknown Quota data", () => {
 describe("credit lanes", () => {
   const options = { creditLanes: [LANE.provider] }
   const book = () => ({ lanes: [LANE], state: { [LANE.provider]: emptyLane } })
-  const savedFile = () => join(dir, "state.json")
 
   test("a lane known empty is refused; other steps are untouched", async () => {
     const f = await setup(options, {}, { readLanes: book })

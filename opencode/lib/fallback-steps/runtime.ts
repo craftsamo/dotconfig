@@ -1,4 +1,7 @@
 import type {
+  LIMITED_EVENT,
+  LIMITS_RPC,
+  LimitedEvent,
   STEPS_RPC,
   StepsHandlers,
 } from "@craftsamo/opencode-model-fallback/rpc"
@@ -13,16 +16,30 @@ import type {
 } from "../subagent-fallback/runtime"
 
 // V2 structural API, like lib/claude-logins/runtime.ts: no SDK dependency.
-// `rpc` is both what registers the handlers and what asks another plugin's
-// RPC (Quota's refresh, subagent-fallback/quota-refresh.ts).
+// The fallback's `limited` events come in OpenCode's envelope, the payload
+// under `data`.
+type LimitsClient = {
+  events: {
+    on(
+      name: typeof LIMITED_EVENT,
+      handler: (envelope: { data?: LimitedEvent }) => unknown,
+    ): () => void
+  }
+}
+type StepsRegistry = {
+  register(
+    definition: typeof STEPS_RPC,
+    handlers: StepsHandlers,
+  ): Promise<Registration>
+}
+
+// `rpc` registers the handlers, hears the fallback's events and asks another
+// plugin's RPC (Quota's refresh, subagent-fallback/quota-refresh.ts).
 export type StepsContext = AccountsContext &
   ClaudeAccountsContext &
   IdentityContext & {
     options: Record<string, unknown>
-    rpc: NonNullable<PreflightContext["rpc"]> & {
-      register(
-        definition: typeof STEPS_RPC,
-        handlers: StepsHandlers,
-      ): Promise<Registration>
-    }
+    rpc: ((definition: typeof LIMITS_RPC) => LimitsClient) &
+      NonNullable<PreflightContext["rpc"]> &
+      StepsRegistry
   }

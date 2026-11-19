@@ -3,12 +3,15 @@ import { AccountRouter } from "../claude-logins/accounts"
 import { EmptyLanes } from "../subagent-fallback/empty-lanes"
 import { readOptions } from "../subagent-fallback/options"
 import { defaultDeps, type StepsDeps } from "./deps"
+import { createLimit } from "./limit"
+import { holdLimits } from "./limited"
 import type { StepsContext } from "./runtime"
 import { createUsable } from "./usable"
+import { Windows } from "./windows"
 
 // Answers the model fallback's questions (@craftsamo/opencode-model-fallback)
 // with what only dotconfig knows: Quota, the credit lanes' balance estimate
-// and the saved Claude logins.
+// and the saved Claude logins; and holds the windows its limits spend.
 export async function setupFallbackSteps(
   ctx: StepsContext,
   deps: StepsDeps = defaultDeps,
@@ -23,6 +26,7 @@ export async function setupFallbackSteps(
   const keep = () => {
     deps.saved?.save({ cooldowns: {}, ...empty.saved(deps.now()) })
   }
+  const windows = new Windows()
   const registration = await ctx.rpc.register(STEPS_RPC, {
     usable: createUsable(ctx, {
       deps,
@@ -30,10 +34,20 @@ export async function setupFallbackSteps(
       claudeAccounts: accounts,
       empty,
       keep,
+      windows,
     }),
-    limit: async () => ({ limit: false }),
+    limit: createLimit({ deps, creditLanes, empty, keep }),
   })
-  return () => registration.dispose()
+  const unsubscribe = holdLimits(ctx, {
+    deps,
+    creditLanes,
+    accounts: accounts.accounts,
+    windows,
+  })
+  return async () => {
+    unsubscribe()
+    await registration.dispose()
+  }
 }
 
 export default { id: "dotconfig.fallback-steps", setup: setupFallbackSteps }

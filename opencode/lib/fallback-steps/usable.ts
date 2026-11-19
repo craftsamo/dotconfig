@@ -35,14 +35,11 @@ import {
 import { QuotaRefresher } from "../subagent-fallback/quota-refresh"
 import type { StepsDeps } from "./deps"
 import type { StepsContext } from "./runtime"
+import { activeLogin } from "./active"
+import { LOGIN_NAMES } from "./names"
 import { parseStep } from "./step"
+import { windowOf, type Windows } from "./windows"
 
-// How the subscription providers a step can run on are named in a reason.
-const LOGIN_NAMES: Readonly<Record<string, string>> = {
-  [OAUTH_PROVIDER]: "Claude",
-  openai: "ChatGPT",
-  xai: "xAI",
-}
 // An answer never waits for Quota's check; this long it does, for a check that
 // answers at once.
 export const REFRESH_GRACE_MS = 25
@@ -65,10 +62,14 @@ const spentReason = (
   return `${who} has no included quota left${until}`
 }
 
+// The active login of a provider, looked up once for a question.
+type ActiveLogin = (providerID: string) => Promise<Subscription | undefined>
+
 // The decision on one step: the first reason the route's launch preflight
-// had to pass it over (credit lane known empty, subscription or Antigravity
-// group spent or without an approved login), else usable. What the fallback
-// package covers itself (the route walk, the catalog, cooldowns) is not here.
+// had to pass it over (a window a limit held spent, credit lane known empty,
+// subscription or Antigravity group spent or without an approved login),
+// else usable. What the fallback package covers itself (the route walk, the
+// catalog, cooldowns) is not here.
 export function createUsable(
   ctx: StepsContext,
   state: {
@@ -79,9 +80,11 @@ export function createUsable(
     empty: EmptyLanes
     // Saves the daily tries for a restart.
     keep: () => void
+    // Windows the `limited` events hold spent (limited.ts).
+    windows: Windows
   },
 ): (input: StepsUsableInput) => Promise<StepsUsableOutput> {
-  const { deps, creditLanes, claudeAccounts, empty, keep } = state
+  const { deps, creditLanes, claudeAccounts, empty, keep, windows } = state
   const spent = new SpentWindows()
   const refresher = new QuotaRefresher()
 
@@ -123,6 +126,7 @@ export function createUsable(
 
   const subscriptionReason = async (
     model: ModelRef,
+    active: ActiveLogin,
   ): Promise<string | undefined> => {
     const name = LOGIN_NAMES[model.providerID]
     const isClaude = model.providerID === OAUTH_PROVIDER
@@ -133,14 +137,15 @@ export function createUsable(
     let auth: Subscription | undefined
     if (account) {
       try {
-        auth = await loginSubscription(ctx, account)
+        const saved = await loginSubscription(ctx, account)
+        auth = { ...saved, proof: await identify(ctx, saved.proof) }
       } catch (error) {
         if (error instanceof AccountError) return error.message
         throw error
       }
-    } else auth = await subscription(ctx, model.providerID)
+    } else auth = await active(model.providerID)
     if (!auth) return `no approved ${name} login`
-    const proof = await identify(ctx, auth.proof)
+    const { proof } = auth
     const now = deps.now()
     const quota = spent.recall(
       proof,
@@ -180,13 +185,37 @@ export function createUsable(
     return spentReason(`Antigravity ${familyName(family)}`, quota, now)
   }
 
-  const reasonFor = async (model: ModelRef): Promise<string | undefined> => {
+  // A window a limit held spent comes before anything Quota or the lanes'
+  // estimate know of it.
+  const heldReason = async (
+    model: ModelRef,
+    active: ActiveLogin,
+  ): Promise<string | undefined> => {
+    if (windows.empty) return undefined
+    const window = await windowOf(model, {
+      creditLanes,
+      accounts: claudeAccounts.accounts,
+      activeLabel: async () =>
+        (await active(OAUTH_PROVIDER).catch(() => undefined))?.proof.label,
+    })
+    const until = window && windows.heldUntil(window.key, deps.now())
+    return until === undefined
+      ? undefined
+      : `${window!.name} hit a limit until ${new Date(until).toISOString()}`
+  }
+
+  const reasonFor = async (
+    model: ModelRef,
+    active: ActiveLogin,
+  ): Promise<string | undefined> => {
+    const held = await heldReason(model, active)
+    if (held) return held
     if (creditLanes.includes(model.providerID))
       return laneReason(model.providerID)
     if (model.providerID === ANTIGRAVITY_PROVIDER)
       return antigravityReason(model)
     if (Object.hasOwn(LOGIN_NAMES, model.providerID))
-      return subscriptionReason(model)
+      return subscriptionReason(model, active)
     return undefined
   }
 
@@ -194,7 +223,13 @@ export function createUsable(
   return async ({ model: step }) => {
     try {
       const model = parseStep(step)
-      const reason = model && (await reasonFor(model))
+      const logins = new Map<string, Promise<Subscription | undefined>>()
+      const active: ActiveLogin = (providerID) => {
+        if (!logins.has(providerID))
+          logins.set(providerID, activeLogin(ctx, providerID))
+        return logins.get(providerID)!
+      }
+      const reason = model && (await reasonFor(model, active))
       return reason ? refused(reason) : { usable: true }
     } catch {
       return { usable: true }
