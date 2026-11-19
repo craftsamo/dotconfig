@@ -525,7 +525,7 @@ rejected and a protected child stops, but a manual pass still works. Add a
 release only after checking the session hooks, the `subagent` tool's
 pre-launch `progress` and the retry error shape against its source, then
 re-validate the mocked tests. Run them from the repo root with
-`bun test opencode/lib/subagent-fallback`; no test-runner script or new
+`bun test opencode/lib/subagent-fallback opencode/lib/claude-logins`; no test-runner script or new
 dependency is installed.
 
 When every reported pool of the route is empty, the last-resort attempt
@@ -718,7 +718,7 @@ OpenCode sends an integration's requests with its one active login
 (`opencode auth switch` changes it for every session at once), and the Claude
 login plugin rewrites requests of provider `anthropic` only, so a second Claude
 Pro/Max login cannot be a provider of its own the way a credit lane is. The
-same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
+local plugin `lib/claude-logins` reaches it through alias models instead:
 
 - `providers.anthropic.models` in `opencode.jsonc` defines
   `claude-<model>-main` and `claude-<model>-sub` for Fable, Opus, Sonnet and
@@ -735,8 +735,12 @@ same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
   sends the session's own model. A session with no stored model (on the
   default model) follows its last own request instead, so an alias is not
   meant as the default `model`.
-- The token is swapped after the login plugin rewrote the request (this
-  plugin is the last config entry, and hooks run in load order), and only the
+- The option sits in two entries for now: `lib/claude-logins` (which swaps the
+  token) and `lib/subagent-fallback` (which reads it for routes, launches and
+  guards). Keep the two maps equal; a test checks it.
+- The token is swapped after the login plugin rewrote the request
+  (`lib/claude-logins` is listed right after the login plugin, and hooks run in
+  load order), before subagent-fallback's transport guard, and only the
   `authorization` header changes, in place: the login plugin restores tool
   names in the response by the identity of that request. The body it builds
   does not depend on the account.

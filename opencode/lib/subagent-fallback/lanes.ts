@@ -5,7 +5,9 @@ import { catalogOk, type CatalogModel, type ModelRef } from "./policy"
 //   subagents: lanes first, then the subscription (then the usual preflight)
 //   primary:   the subscription first, then lanes; on a lane, the other lanes
 //              first and the subscription last
-// Other saved Claude logins (claude-accounts.ts) come after all of these.
+// Other saved Claude logins (lib/claude-logins/accounts.ts) come after all of
+// these. lib/claude-logins/models.ts mirrors OAUTH_PROVIDER and longestSuffix
+// so that plugin outlives this directory.
 export const OAUTH_PROVIDER = "anthropic"
 export const DEFAULT_COOLDOWN_MS = 60 * 60_000
 // Moves of one session within this window never revisit a provider.
@@ -177,7 +179,7 @@ export class Episodes {
 
 // A place a session can move to: a provider (a credit lane, or the active
 // Claude login), or another saved Claude login, reached through the alias
-// models its suffix names (claude-accounts.ts).
+// models its suffix names (lib/claude-logins/accounts.ts).
 export type Stop = { key: string; providerID: string; suffix?: string }
 export const providerStop = (providerID: string): Stop => ({
   key: providerID,

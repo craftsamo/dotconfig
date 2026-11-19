@@ -4,12 +4,11 @@ import {
   AccountRouter,
   accountOf,
   login,
-  loginSubscription,
   parseAccounts,
   type ClaudeAccountsContext,
   type RoutedRequest,
-} from "./claude-accounts"
-import type { ModelRef } from "./policy"
+} from "./accounts"
+import type { ModelRef } from "./models"
 
 const SUB = { suffix: "sub", label: "Sub OAuth" }
 const ACCOUNTS = [SUB]
@@ -174,15 +173,6 @@ describe("saved login", () => {
       methodID: "claude-max",
     })
     expect(env.resolved).toEqual(["fixture-sub"])
-    expect(await loginSubscription(ctx, SUB)).toEqual({
-      proof: {
-        connectionID: "fixture-sub",
-        providerID: "anthropic",
-        methodID: "claude-max",
-        type: "oauth",
-      },
-      access: "fixture-sub-access",
-    })
   })
   test("a missing label, login, duplicate or non-subscription login is refused", async () => {
     const unlabelled = fixture()

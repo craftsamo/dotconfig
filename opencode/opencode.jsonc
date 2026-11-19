@@ -10,6 +10,12 @@
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
+    // Swaps the token of requests on alias models for the saved login their
+    // suffix names. Runs after the login plugin above rewrites a request and
+    // before subagent-fallback's transport guard (hooks run in load order).
+    // The map must equal subagent-fallback's claudeAccounts until that plugin
+    // is replaced.
+    { "package": "./lib/claude-logins", "options": { "claudeAccounts": { "sub": "Sub OAuth", "main": "Main OAuth" } } },
     // Gemini and Claude on a Google Antigravity plan through a Google OAuth
     // login (`opencode auth login google`, "Google OAuth (Antigravity)"); its
     // models are google/antigravity-*, picked by hand or named by a
@@ -102,7 +108,8 @@
         // (`opencode auth list`). An alias model of the anthropic provider
         // (see providers below) runs on the login its suffix names, whichever
         // login is active; the plain models run on the active one. Applies
-        // with enabled: false too.
+        // with enabled: false too. The token swap itself is done by
+        // lib/claude-logins above, which repeats this map.
         "claudeAccounts": {
           "sub": "Sub OAuth",
           "main": "Main OAuth"
