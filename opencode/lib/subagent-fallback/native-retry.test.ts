@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { join } from "node:path"
 import {
   judgedDecision,
   nativeDecision,
@@ -46,20 +45,6 @@ describe("OpenCode's own retry decision", () => {
   test("without a record the current decision stands", () => {
     const event = { error: limit(), decision: { retry: false as const } }
     expect(nativeDecision(event)).toBe(event.decision)
-  })
-  test("opencode.jsonc lists the recorder right before Quota, and the preflight after it", async () => {
-    const config = Bun.JSONC.parse(
-      await Bun.file(join(import.meta.dir, "../../opencode.jsonc")).text(),
-    ) as { plugins: (string | { package: string })[] }
-    const names = config.plugins.map((p) =>
-      typeof p === "string" ? p : p.package,
-    )
-    const quota = names.findIndex((n) =>
-      n.startsWith("@slkiser/opencode-quota@"),
-    )
-    expect(quota).toBeGreaterThan(0)
-    expect(names[quota - 1]).toBe("./lib/subagent-fallback/retry-recorder")
-    expect(names.at(-1)).toBe("./lib/subagent-fallback")
   })
   test("a limit is judged by OpenCode's own retry in the first attempts only", () => {
     const judged = (own: any, attempt?: number) => {

@@ -198,8 +198,8 @@ caller-specific permissions decide which specialists may run.
   plan file still requires the user's explicit request.
 
 New subagents use their configured model, otherwise the parent's model; the
-specialists in the preflight table below take their route's model instead (see
-"Model pin"). A user-requested per-call `model` override takes precedence. General and the
+specialists in the route table below take their route's first usable model
+instead ("Model fallback for agents"). A user-requested per-call `model` override takes precedence. General and the
 built-in Explore have no model configured and inherit the parent; use the
 specialists for their role and cheaper default models. Primary sessions retain
 their selected model when switching agents; the agent configuration is not a
@@ -269,19 +269,21 @@ cleanup; never stop an unrelated existing service.
 
 If limits or contention appear, pause new launches on the affected resource;
 do not change models, restart tasks, or widen permissions to bypass them. The
-subscription preflight below chooses a route but neither reserves quota nor
+model fallback below chooses a route but neither reserves quota nor
 guarantees that concurrent launches fit the provider's limits.
 
 This is an operating policy, not a measured speedup. Evaluate elapsed waiting,
 duplicate work, and limit errors during normal use before adding scheduling
 machinery or changing the policy.
 
-## Subscription preflight for new specialists
+## Model fallback for agents
 
-The local plugin `lib/subagent-fallback` (listed last under `plugins` in
-`opencode.jsonc`, with its retry recorder right before Quota) checks quota
-before a new specialist launch and follows the role's **route**: the models
-`options.routes` lists for it, in order, written as `/models` names them:
+The npm package `@craftsamo/opencode-model-fallback` (pinned in
+`opencode.jsonc` and `package.json`, listed last under `plugins`, after Quota)
+launches a routed agent on the first usable model of its **route** and moves a
+session to the next usable one when its model hits a limit. A route is the
+models `options.routes` lists for an agent, in order, written as `/models`
+name them:
 
 ```jsonc
 "explore-small": [
@@ -298,75 +300,89 @@ before a new specialist launch and follows the role's **route**: the models
 The model says where a step runs: a provider listed in `creditLanes` is a
 credit lane ("Console credit lanes" below), an `anthropic` alias whose suffix
 `claudeAccounts` names is that saved login ("Claude accounts" below), and
-anything else runs on its provider's active login. A launch takes the first
-step that can take it:
+anything else runs on its provider's active login. A step without a variant
+stands for every variant, and a move keeps the session's. The first step's
+model is the one the agent's own file names; a test keeps the two in step.
 
-1. A lane step launches unless the lane is known empty or cooling down,
-   unmarked (the OAuth guards below do not apply to API-key requests),
-   without reading Quota.
-2. A subscription step launches unless Quota reports its login's window
-   exhausted. Missing or stale data is no reason to pass a login over. A
-   login that is not an approved subscription, or a model not in the catalog
-   (status, tools, variant, limits), is passed over too.
-3. With every login on the route known exhausted, the first of them as a
-   last resort, with provider-managed credits, when `creditsLastResort` is
-   `true`. This attempts a normal provider request; it does not prove a
-   positive credit balance or guarantee success. A route with no usable step
-   at all stops the launch.
+**What the package does.**
 
-A Google Antigravity step (`google/antigravity-*`, "Accounts" below) is a
-subscription step on the Antigravity login, weighed by its model's quota
-group (Gemini Pro, Gemini Flash or Claude) as Quota's custom provider
-reports it: a group with no more left than the plugin keeps back (100 less
-its `soft_quota_threshold_percent` in `antigravity.json`, 10% by default) is
-spent, since the plugin would refuse it. A spent group is never the last
-resort: a route left with spent groups alone stops, saying every included
-quota it can use is exhausted. A model in no group (`antigravity-gpt-oss-*`)
-is a step the plugin cannot read. The reserve is read from the user config
-the plugin reads (`OPENCODE_CONFIG_DIR`, else `~/.config/opencode`), not a
-project's own `.opencode/antigravity.json`. Its plugin sends the requests through a fetch of its own, so its
-launches carry no subscription marker, like a lane's. When the plugin
-refuses a group in flight ("Quota protection: …" or "All N account(s)
-rate-limited …", which end the session), the group is held for the wait it
-gives, an hour at most, so the parent's relaunch takes the route's next
-step. A session never moves onto or off Antigravity while it runs.
+- **Launch.** A new subagent starts on the first usable step of its agent's
+  route, whatever model its definition names; its prompt and permissions stay.
+  A step is usable when OpenCode lists its model (enabled, active, able to
+  call tools, with the variant) and it is not cooling down, and
+  `lib/fallback-steps` does not refuse it. An explicit model, a continuation of
+  an existing child and an agent with no route are left alone. When every step
+  is refused, the launch goes ahead on the agent's own model, as OpenCode would
+  have made it; nothing falls back to credits.
+- **Move.** A session, a primary agent's or a subagent's, whose model hits a
+  limit moves to the next usable step after its own and retries at once,
+  keeping its variant when the step names none. A limit is a quota error, a
+  rate limit whose provider asked for a wait longer than ten seconds, or what
+  `lib/fallback-steps` names a limit (below). A subagent with no step left
+  stops, so its parent gets the failure; a primary agent is left to OpenCode.
+  A session moved to a model that is not a step of its route (`/models`) is
+  off its route: nothing moves it, and nothing moves it back.
+- **Cooldowns.** A model that hit a limit is passed over for the wait the
+  provider asked for (else one hour), in `~/.local/state/opencode-model-fallback/cooldowns.json`,
+  which survives a restart.
+- **Notices.** A launch that changed the model, or found no usable step, starts
+  its result with a `[Model fallback: …]` line. OpenCode 2.3 runs subagents in
+  the background, so a move there is recorded in the child session's metadata
+  (`opencode-model-fallback.moves`), not in the parent's result.
 
-A role the option does not list keeps built-in steps from `ROUTES` in
-`policy.ts`, the order used before routes existed: a Claude model on every
-lane, the active login, then the other saved logins, and the alternate after
-the primary. A step the plugin cannot read (a malformed model, a provider
-that is neither a lane nor a subscription, an alias of a login without a
-label) is left out, and the role's launches say so in a `[Subagent
-preflight: config ignored: …]` line; a role none of whose steps it can read
-keeps its built-in steps, and `[]` takes a role off the preflight. The first
-step's model is the one the role's agent file names.
+**What `lib/fallback-steps` judges.** The local plugin answers the package's
+`usable` and `limit` questions for this setup and shares windows from its
+`limited` event. A step is refused while:
 
-Missing, stale or unreadable data keeps a step, not a quota error or an
-automatic model switch. One exception: a
-window limit a protected child just hit (the provider's own word) counts as
-exhausted for the wait it asked for, or an hour without one, so the relaunch
-goes elsewhere before the export catches up. Likewise a login Quota reported
-spent stays spent until the reset it gave while later exports say nothing
-about it: Quota writes only a provider's last check, and a failed check
-leaves no rows. Any newer reading of the login replaces it. No independent
-balance/entitlement check is performed. Variants and permissions are
-unchanged; with `pinModels` (below) a project's own model for a role is not.
+- its login has no approved OAuth login (Claude Pro/Max, a ChatGPT login, the
+  xAI device login or the Antigravity login), or a saved Claude login named
+  by an alias is missing or ambiguous;
+- Quota reports its login's window exhausted (fresh, or until the reset an
+  empty window gave). Missing or stale data is no reason to pass a login over;
+- its credit lane is known empty (below), or its Antigravity group is no more
+  than the reserve above empty;
+- a limit holds its window. The package cools down only the model that hit
+  a limit, but a window is shared: a Claude login (its plain and alias
+  models), a credit lane (every model of it), a subscription provider's
+  login, or an Antigravity group. The hold is in memory and lasts for the end
+  the limit gave.
 
-| Role                    | Steps, in order                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| explore-max             | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                           |
-| explore-high            | hydrogen high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
-| explore-medium          | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| reviewer                | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                   |
-| worker                  | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| refactorer              | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| worker-deep             | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → hydrogen high                         |
-| explore-spark           | hydrogen low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
-| explore-small           | hydrogen low → gpt-6-luna low → claude-haiku-5-5 low                                                |
-| verifier                | gpt-6-luna low → claude-haiku-5-5 low                                                               |
-| debugger, reviewer-deep | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                             |
-| searcher-deep           | grok-4.7 medium → gpt-6.1-sol medium → hydrogen high → agy sonnet medium → claude-sonnet-5-5 medium |
-| searcher                | hydrogen low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
+It takes three more errors for a limit, which the package's own rule misses: a
+lane's empty balance, a lane's refused key, and Antigravity's quota protection
+("Quota protection: …" or "All N account(s) rate-limited …", held for the wait
+it gives, an hour at most). What the plugin keeps (a lane's tries and
+refusals) is in `~/.local/state/opencode/fallback-steps.json`.
+
+A Google Antigravity step (`google/antigravity-*`, "Accounts" below) is
+weighed by its model's quota group (Gemini Pro, Gemini Flash or Claude) as
+Quota's custom provider reports it: a group with no more left than the plugin
+keeps back (100 less its `soft_quota_threshold_percent` in
+`antigravity.json`, 10% by default) is spent, since the plugin would refuse it.
+A model in no group (`antigravity-gpt-oss-*`) is a step the plugin cannot read,
+and is not refused. The reserve is read from the user config the plugin reads
+(`OPENCODE_CONFIG_DIR`, else `~/.config/opencode`), not a project's own
+`.opencode/antigravity.json`.
+
+Missing, stale or unreadable data keeps a step, not a quota error. No
+independent balance/entitlement check is performed. Variants and permissions
+are unchanged.
+
+| Role                               | Steps, in order                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| explore-max                        | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                           |
+| explore-high                       | hydrogen high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
+| explore-medium                     | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| reviewer                           | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                   |
+| worker                             | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| refactorer                         | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
+| worker-deep                        | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → hydrogen high                         |
+| explore-spark                      | hydrogen low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
+| explore-small                      | hydrogen low → gpt-6-luna low → claude-haiku-5-5 low                                                |
+| verifier                           | gpt-6-luna low → claude-haiku-5-5 low                                                               |
+| debugger, reviewer-deep            | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                             |
+| searcher-deep                      | grok-4.7 medium → gpt-6.1-sol medium → hydrogen high → agy sonnet medium → claude-sonnet-5-5 medium |
+| searcher                           | hydrogen low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
+| build, plan, debug, design, review | claude-opus-5-5 (active login → Main → Sub) → the lanes; no variant, so a session keeps its own     |
 
 "hydrogen" is Gemini 4 Hydrogen on Antigravity, whose efforts are models of their
 own (`antigravity-gemini-4-hydrogen-low`, `-medium`, `-high`); the pinned
@@ -389,24 +405,30 @@ Sonnet logins come first, then Claude on Antigravity, then Sol, then Hydrogen,
 and the paid lanes still close it. Claude on Antigravity follows the logins
 there rather than leading, so
 the first step (the model its agent file names) stays a Claude login's, and
-such a child still moves to the other login on a window limit. explore-max stays on Sol
+such a child still moves to the other login on a window limit. (Antigravity steps are
+commented out of the routes since 2026-11-15, after an upstream 429 followed
+by a misleading 403; restore them in place once the fix is verified.)
+explore-max stays on Sol
 since its xhigh runs are long and rare. ChatGPT's fast mode (the `-fast` models, priority processing
 of the same model at 2.5x the included usage) is kept for explore-spark alone,
 a short lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
 subscription's weekly pool, which `x_search` draws on too. There is no
 free-tier, API-key or environment-variable escalation; a subscription step
 must run on an approved native OAuth account (Claude Max, a ChatGPT login,
-the xAI device login, or the Antigravity login). The plugin never buys
+the xAI device login, or the Antigravity login). Neither plugin buys
 credits, enables auto-purchase, or changes account settings or logins.
 
-**Shared information.** Reads Quota's public JSON export (v2 from Quota 5,
-v3 from Quota 6) once before each eligible launch:
+The primary agents (build, plan, debug, design, review) run Opus: a session
+that hits a limit moves through the active login, Main, Sub and then the
+lanes, in its own variant.
+
+**Shared information.** `lib/fallback-steps` reads Quota's public JSON export (v2 from Quota 5,
+v3 from Quota 6) each time the package asks whether a subscription step is usable:
 `$XDG_CACHE_HOME/opencode/quota-export.json`, or
 `~/.cache/opencode/quota-export.json`. Quota's `system.exportFile` setting is
 enabled in `opencode-quota/settings.jsonc`. Quota's background service rewrites
 the file after its own checks; the selector does not fetch usage, run the Quota CLI, start
-timers, read internal caches or patch Quota. A custom export path can be matched
-with the plugin option `quotaExportPath` (absolute path).
+timers, read internal caches or patch Quota.
 
 Rows are matched to the OpenCode connection being weighed: the active one, or
 a saved Claude login, whose rows Quota exports under the same provider. In v2
@@ -435,166 +457,85 @@ provider only when something asks (the TUI's sidebar, `/quota`, a model turn,
 a limit), and the sidebar's asks at most every `minIntervalMs` (two minutes
 here, five by default); six minutes leaves room for that and a missed check.
 
-With no TUI open nothing asks, so a launch that reaches a subscription step
-while the rows of its route's providers are missing or stale asks Quota
-itself to check those providers,
+With no TUI open nothing asks, so a question about a subscription step whose
+provider's rows are missing or stale asks Quota itself to check that provider,
 through the RPC its TUI uses (`slkiser.opencode-quota`, method `refresh`,
-reason `poll`), and reads the export again once it is rewritten. It waits at
-most five seconds (a check takes about one), or until the launch is aborted;
-a check still running serves the next launch. Launches at the same time share
-one check, and the same providers are asked again no sooner than a minute
-later, so rows a check cannot freshen cost one wait, not one per launch. That RPC is Quota's own, not a published interface: re-check its
-id and input when bumping Quota (`lib/subagent-fallback/quota-refresh.ts`).
+reason `poll`). The answer does not wait for the check: the package gives a
+question two seconds, and a check takes about one, so the step is weighed on
+the export at hand and the next question reads the rewritten one. Questions at
+the same time share one check, and the same provider is asked again no sooner
+than a minute later. That RPC is Quota's own, not a published interface:
+re-check its id and input when bumping Quota (`quota-refresh.ts`, which
+`lib/fallback-steps` imports).
 
-When that fails too (no Quota, an RPC that changed, a slow check), or before
-the first export, the first subscription step with a login launches. A different
-account's rows cannot authorize a fallback. A partial multi-login export can
-still use complete matching-account rows. This is a best-effort launch
-preference, not an exact prediction of whether a task fits its remaining quota.
+When that fails too (no Quota, an RPC that changed), or before the first
+export, the step is usable. A different account's rows cannot refuse a step.
+A partial multi-login export can still use complete matching-account rows.
+This is a best-effort launch preference, not an exact prediction of whether a
+task fits its remaining quota.
 
-**Ongoing transport check.** The actual HTTP and WebSocket transports are
-verified for the subscription host, subscription auth and absence of an API
-key. Title, compaction and generate requests are guarded too. This is not a
-global financial guarantee: tools, other plugins and stateless `ctx.generate`
-are out of scope. These guards check identity, model and transport only; they
-never read usage or credit balances during execution, including auxiliary
-requests. Actual charging and credit availability remain provider-managed.
+**What changed from the old `lib/subagent-fallback` plugin.**
 
-**Marker.** A durable metadata marker is written on the new child before its
-prompt, which closes the registration race and survives a background launch or a
-reload. The selector writes no quota cache or credentials; the connectionID
-stays in the internal marker, never in its notices. Quota's own public export
-contains connection IDs and display labels, but no access tokens. A child
-launched on another saved Claude login also carries that login's suffix: it
-runs the alias, and the transport check expects that login's token and
-connection on its Claude requests, side requests included. A window limit
-such a child hits is remembered for that login only.
+- There are no protected-child markers and no transport or context guards: a
+  child launched on a step is an ordinary session, and nothing checks its
+  requests' host, auth or size.
+- There are no last-resort credits: when every step is refused, the launch
+  goes ahead on the agent's own model, as OpenCode would. Missing Quota data
+  still launches, so this is not a global prohibition on credit charges.
+- Any routed session moves on a limit, not only Claude ones: a Sol worker
+  moves to Claude, and a primary agent moves through its route too. The
+  `pinModels`, `primaryRoute`, `creditsLastResort`, `creditCooldownMs` and
+  `primaryFallback` options are gone.
+- On OpenCode 2.3 subagents run in the background, so a move is recorded in the
+  child session's metadata (`opencode-model-fallback.moves`) rather than in the
+  parent's result. Notices read `[Model fallback: …]`.
+- Window holds are in memory; a restart forgets them (the package's cooldowns
+  and the lanes' tries and refusals survive it).
+- The retry recorder is gone: the package reads the provider's own wait.
 
-**Passthrough.** An explicit model, an existing sessionID, unknown roles and
-(without `pinModels`) roles whose configured models changed keep the normal
-selection. During a task,
-Quota errors or exhaustion do not stop a child. Native provider quota errors
-and long rate-limit reset waits still end the protected task; short native
-transient retries are allowed, also when Quota stretched their wait ("Whose
-wait counts" below). There is no model switch, restart or automatic
-resubmit for a protected child (Console credit lanes below are a separate path
-that never touches one). Native providers may move to credits mid-request;
-launch preference is not a no-paid gate. Older markers retain identity/context
-protection without their obsolete funding gates. The root parent's model and
-retry policy are unchanged unless `creditLanes` is set, so a parent on the same
-pool may still fail.
-Protection is sticky for marked children, including completed continuations:
-historical execution outcomes cannot prove current idleness. They retain their
-selected role and model; start a new child for a different explicit selection.
+**Setup.** The package needs OpenCode 2.1.2 or later; `lib/claude-logins` is pinned to
+the releases in its `SUPPORTED_VERSIONS` (`runtime.ts`). Keep the package listed last, after Quota, and bump it
+deliberately: re-check the `usable` and `limit` answers and the `limited`
+event. Run the tests from the repo root with
+`bun test opencode/lib/fallback-steps opencode/lib/claude-logins opencode/lib/subagent-fallback`
+(the last still tests code `lib/fallback-steps` imports, and is no longer
+loaded); no test-runner script or new dependency is installed. Tests use
+synthetic public exports and mocked OpenCode transports; they do not probe
+providers or establish real billing/entitlement behavior.
 
-**Model pin.** A project can ship its own agent file for a routed role (say
-`.opencode/agents/reviewer.md` on another model), and project definitions
-outrank global ones. With `pinModels: true` a new launch of a routed role
-still takes its route, whatever definition is in effect, global or project:
-the route owns these models, and a test keeps `agents/<role>.md` in step with
-the built-in first models. The plugin passes the route's model
-explicitly, keeps the project's prompt and permissions, and prefixes `[Model pin: <role>
-<from> → <to>; …]` (metadata `pin: { from, to }`, `from` null when the
-definition has no model). Lanes and the preflight then apply as usual. An
-explicit model, a continuation or an unknown role is never pinned, and the
-agent list still shows the project's model. An agent transform could not do
-this on 2.0.23 (not re-checked since): plugin transforms run before Markdown
-agents are loaded, so those overwrite any model a plugin sets. There is no
-per-project exclusion yet; turn the whole thing off with `pinModels: false`.
-
-**Context limit.** The first alternate's text context may be at most
-160000 UTF-8 bytes plus 32768 headroom, relative to the catalog input or
-context minus output. The first primary HTTP body or WebSocket frame is also
-measured before transmission, including additions from later context hooks. A
-zstd or gzip body (`settings.encoding`, zstd by default for ChatGPT sign-in) is
-measured decoded, never past the ceiling; any other encoding rejects.
-Media or unknown sizes reject, and no compaction is
-run to make a launch fit. Later native compaction retains the subscription
-identity and route checks, without a fresh quota requirement.
-
-**Reporting.** The UI report uses the built-in tool's content and metadata with
-`from` / `to`, including background launches. `funding: included` reports the
-fallback preference; `funding: provider` means every reported pool of the
-route was empty and the provider decides whether its first one can proceed.
-Neither proves the actual charge. Declared structured output is unchanged.
-
-**Setup.** Pinned to the OpenCode releases in `SUPPORTED_VERSIONS`
-(`runtime.ts`), currently 2.1.2 and 2.3.0 (list the old and new release together while
-the binary is upgraded): on any other release the automatic new launch is
-rejected and a protected child stops, but a manual pass still works. Add a
-release only after checking the session hooks, the `subagent` tool's
-pre-launch `progress` and the retry error shape against its source, then
-re-validate the mocked tests. Run them from the repo root with
-`bun test opencode/lib/subagent-fallback opencode/lib/claude-logins`; no test-runner script or new
-dependency is installed.
-
-When every reported pool of the route is empty, the last-resort attempt
-requires `creditsLastResort: true`; otherwise the launch stops. Missing Quota
-data still launches, so this option is not a global prohibition on credit
-charges.
-
-To disable new selection, set the plugin's `options.enabled` to `false`;
-guards for already-marked children remain. To keep those guards, do not remove
-the plugin or config entries or change auth while it is active. Keep the entry
-last, after quota, and trust no other later request mutator.
-
-Options: `enabled: true`, `creditsLastResort: true`, `pinModels: true` (default
-off), `routes` (above) and `primaryRoute` ("Console credit lanes" below), and
-for the credit lanes below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
-hour) and `primaryFallback` (default on); for other Claude logins,
-`claudeAccounts` ("Claude accounts" below). The independent usage reader, billing parser and usage-diagnostic RPCs have been
-removed. Tests use synthetic public exports and mocked OpenCode transports;
-they do not probe providers or establish real billing/entitlement behavior.
+Options of `lib/fallback-steps`: `creditLanes` (ordered provider IDs; `[]`
+turns the lanes off) and `claudeAccounts` ("Claude accounts" below). The
+package's own settings (`max_wait_ms`, `cooldown_ms`, `cooldown_scope`,
+`state_dir`) keep their defaults.
 
 ## Console credit lanes
 
-The same plugin spends the Max plans' monthly API credits (see "Accounts")
-through `options.creditLanes`, a list of provider IDs. A missing or empty list
-turns all of this off, in-flight moves included, except moves between Claude
-logins ("Claude accounts" below); `enabled: false` stops only new lane
-launches.
+`lib/fallback-steps` spends the Max plans' monthly API credits (see
+"Accounts") through `options.creditLanes`, a list of provider IDs. A route's
+step on a lane provider is a credit lane step; an empty list turns the lanes
+off (the lane steps are then judged like any other provider's). Lane steps
+close every Claude route, after the saved logins, so the credits are the very
+last stops.
 
-- **New launches** follow the route ("Subscription preflight" above): a step
-  on a lane provider launches there unless the lane is known empty, with no
-  subscription marker. The report carries `funding: console-credit` with
-  `from` / `to`. Agent files keep the subscription model; with `pinModels` a
-  lane named there is replaced by the route like any other model. A
-  specialist launched on a lane runs a Claude model from then on, whatever its
-  first step: a window limit on a login it moves to moves it on, or stops it,
-  so the parent relaunches it through the preflight. Only while the plugin
-  runs: a child launched before a restart is left to the native policy.
+- **Launches and moves** follow the route ("Model fallback for agents"
+  above): a lane step is passed over while the lane is known empty (below) or
+  a limit holds it. The notice names the reason.
 - **In flight.** An empty balance (a plain 400 recognised by its "credit
-  balance is too low" text), a bad key (401/403) or a window limit marks the
-  lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
-  it asked for) and moves the session to the next place with the same model
-  and variant, repeating the same step. Only requests on the session's own
-  model count: compaction and title requests never move it. These fail
-  before anything is generated, so nothing is billed twice. A specialist goes
-  through its route's steps that run its model, in the route's order (a model
-  its route does not name: every lane, the active login, then the other
-  logins), the first it has not tried in the last five minutes.
-  With none left after a long limit it stops, so the parent relaunches it and
-  the preflight can pick the route's next model (the limit is remembered, see
-  "Subscription preflight"). Off a login's window limit only roles whose
-  first step runs a Claude model, and specialists launched on a lane, move;
-  the others keep the native policy.
-- **Primary sessions** (no parent). On a window limit (`provider.quota`, or a
-  rate limit that asks for more than ten seconds) or a lane running dry they
-  move through `primaryRoute`, places written as models left as `*`
-  (`"anthropic/*-main"` for a saved login, `"anthropic-credit-team/*"` for a
-  lane, `"anthropic/*"` for the active login), to the first one not tried in
-  the last five minutes, keeping their model and variant. Without it they move to the lanes from the active login, and from
-  anywhere else through the lanes, the active login, then the other logins.
-  Nothing moves a primary back while its place works: return with `/models`.
-  `primaryFallback: false` keeps the primary where it is.
-- **Claude logins** ("Claude accounts" below) are places of their own: a
-  session moves to its alias of the same model.
+  balance is too low" text) or a bad key (401/403) is a limit on the lane's
+  step: the lane is passed over (the package cools the step down for its own
+  `cooldown_ms`, one hour; a refused key for fifteen minutes) and the session
+  moves to the next usable step, which is the same model on the next lane when
+  the route is written that way. Only requests on the session's own model
+  count: compaction and title requests never move it. These fail before
+  anything is generated, so nothing is billed twice.
+- **Claude logins** ("Claude accounts" below) are steps of their own: an alias
+  model on the route.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty. Each
   empty-balance error also records a $0 checkpoint for the balance estimate
   below (at most once a minute per lane).
 - **Known empty.** A lane whose checkpoint is $0, with no grant known since and
-  its renewal still ahead, holds nothing (spend only lowers a balance), so new
+  its renewal still ahead, holds nothing (spend only lowers a balance), so
   launches and moves pass it over until then. Neither time of day is known: a
   grant listed by its date alone (`status.ts grant`, below) counts from that
   whole day, and a checkpoint on a renewal day holds only to the day's end. A
@@ -606,26 +547,15 @@ launches.
   lane's checkpoint, or a Console reading. The refusal is kept by the plugin,
   since the next lane's checkpoint carries this lane forward as an estimate.
   A try that has been neither refused nor followed by a Console $0 ten
-  minutes later shows money, and the lane is used again. The lane cooldowns
-  (but a bad key's, which a restart is the fix for), the tries and the
-  refusals survive a restart in
-  `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
-  rejected request per lane.
-- A session never revisits a place within five minutes, so the chain cannot
-  loop. Children launched under the subscription preflight keep their own
-  guards and are never moved.
+  minutes later shows money, and the lane is used again. The tries and the
+  refusals survive a restart in `~/.local/state/opencode/fallback-steps.json`;
+  removing it costs only a rejected request per lane.
 - **Whose wait counts.** OpenCode Quota's `waitForQuotaReset` (on by default)
   sets a rate limit's wait to the reset of any used-up row of the model's
   provider: another Claude login's window, the Fable weekly window, or a lane's
-  $0 estimate. A window limit is therefore judged by OpenCode's own decision,
-  which `lib/subagent-fallback/retry-recorder` (listed right before Quota
-  under `plugins`) records before Quota's hook runs. A short limit Quota
-  stretched neither moves a session nor marks its lane or login, and a
-  session this plugin would move retries after OpenCode's own wait; other
-  sessions keep Quota's. That holds for the first three retries of a request
-  only, and not when OpenCode itself gave up: then the wait as it stands
-  counts, so a real limit OpenCode retries quickly still moves the session.
-  Without the recorder the stretched wait counts, as before.
+  $0 estimate. The model fallback reads the wait the provider itself asked
+  for, which no plugin changes, so a short limit Quota stretched is not taken
+  for a limit; it is listed after Quota for that reason.
 
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
 personal orgs, so the balance is estimated: a **checkpoint** (a balance known at
@@ -656,7 +586,7 @@ leaving Hermes out makes every lane read high within days.
   writes in `revision`); otherwise the next reading tries again, and the CLI
   retries or says why. A carried estimate below zero is carried as $0: the gap
   was within the tolerance above, and carrying it would later infer a grant.
-  Writers (the Quota endpoint, the CLI, the retry hook) take a lock file beside
+  Writers (the Quota endpoint, the CLI, the limit handler) take a lock file beside
   the state that names its holder; one left by a dead process is removed under
   a short-lived guard, and only while it still names that holder.
 - **New grants are inferred.** The current cycle's grant is assumed to arrive
@@ -735,15 +665,14 @@ local plugin `lib/claude-logins` reaches it through alias models instead:
   sends the session's own model. A session with no stored model (on the
   default model) follows its last own request instead, so an alias is not
   meant as the default `model`.
-- The option sits in two entries for now: `lib/claude-logins` (which swaps the
-  token) and `lib/subagent-fallback` (which reads it for routes, launches and
-  guards). Keep the two maps equal; a test checks it.
+- The option sits in two entries: `lib/claude-logins` (which swaps the token)
+  and `lib/fallback-steps` (which reads it to judge the steps on those logins).
+  Keep the two maps equal; a test checks it.
 - The token is swapped after the login plugin rewrote the request
   (`lib/claude-logins` is listed right after the login plugin, and hooks run in
-  load order), before subagent-fallback's transport guard, and only the
-  `authorization` header changes, in place: the login plugin restores tool
-  names in the response by the identity of that request. The body it builds
-  does not depend on the account.
+  load order), and only the `authorization` header changes, in place: the login
+  plugin restores tool names in the response by the identity of that request.
+  The body it builds does not depend on the account.
 - Anything unexpected stops the request rather than sending it on the active
   login: an entry with no label, no saved login with that label or two, a
   login that is not Claude Pro/Max, a host other than `api.anthropic.com`, a
@@ -753,10 +682,8 @@ local plugin `lib/claude-logins` reaches it through alias models instead:
   subscription request until it is fixed: no alias can be told apart then.
   None of this depends on `enabled`.
 - A session reaches the login by picking the alias model in `/models`, by
-  moving there on a limit ("Console credit lanes" above), or, for a new
-  specialist, through a step of its route on that alias ("Subscription
-  preflight" above). A protected child launched there stays bound to that
-  login.
+  moving there on a limit ("Model fallback for agents" above), or, for a new
+  specialist, through a step of its route on that alias.
 
 To add a login, run `opencode auth login anthropic --method claude-max` from a
 browser signed into that account. A new login becomes the active one: switch
@@ -781,7 +708,7 @@ Limits:
 - Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
   (`five_hour: null`) and shows it as "Unexpected reply"
   ([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
-  The preflight then sees that login as unknown, not exhausted.
+  `lib/fallback-steps` then sees that login as unknown, not exhausted.
 
 ## Prompt cache
 
@@ -857,7 +784,7 @@ A move to a credit lane (see above) therefore pays one full write.
   when it starts with a saved account; until then the picker shows a short
   fixed list that may name models the plan does not offer, so run
   `opencode reload` after the first login. They are picked by hand, or by a
-  specialist route that names them ("Subscription preflight"), and the
+  specialist route that names them ("Model fallback for agents"), and the
   plugin's `google_search` tool is denied for every agent, since it would
   spend the same login from any model. Google's Antigravity terms forbid
   third-party clients, and Google has banned accounts for it (Antigravity,

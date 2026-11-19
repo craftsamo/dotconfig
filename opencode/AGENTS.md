@@ -241,7 +241,7 @@ readiness before use, and stop task-owned services when no longer needed.
 
 If rate limits, resource contention, or conflicting results appear, pause new
 launches on the affected resource and reassess. Do not bypass limits by changing
-models, restarting tasks, or widening permissions. Subscription preflight selects
+models, restarting tasks, or widening permissions. The model fallback selects
 a launch route; it does not reserve quota or guarantee safe concurrency.
 
 </ParallelAndBackgroundWork>
@@ -387,27 +387,22 @@ application or source changes.
 Choose the role first; a model override does not replace the agent's instructions
 or permissions. Normally omit the `subagent` tool's `model` argument: a new child
 uses its configured model, or inherits the parent's model when none is configured;
-the preflight plugin launches its routed specialists on their route's model, even
+the model fallback launches its routed specialists on their route's model, even
 where a project's own agent file names another.
 Only supply `model` when the user explicitly requests a particular model or
 variant, after checking that it is available. Use `provider/model#variant` for an
 override; it takes precedence over the agent's configured model. Report any
 requested override that cannot be used instead of silently substituting one.
 
-An approved subscription preflight plugin may choose a model only before a new
-specialist launch, in this order: the configured primary when its included quota
-is available (a Claude model on another saved Claude login when the active one
-is spent); the role's allowlisted alternate when its included quota is
-available; provider-managed existing credits only as a last resort, when
-OpenCode Quota reports both included quotas at 0%. Missing or stale Quota data
-keeps the configured default. It never buys credits or changes the active
-login. Never apply a manual LLM model override as a fallback, and preserve an
-explicitly requested model and sessionID continuations. No mid-task switch or
-restart, and no substituting the general role. The one exception is Console
-credit lanes: on an empty balance, a bad key or a window limit the plugin moves
-a session to the next lane, the subscription or another Claude login and
-repeats the failed step, so a failed specialist launch is not a reason to stop
-delegating.
+A routed specialist launches on the first usable step of its route (a step is
+skipped while its login is unapproved or its included quota is reported spent,
+a credit lane is known empty, or a limit holds its window). A session, primary
+or specialist, that hits a limit moves to the next usable step of its route and
+retries. Missing or stale Quota data keeps a step. The fallback never buys
+credits or changes the active login. Never apply a manual LLM model override as
+a fallback, and preserve an explicitly requested model and sessionID
+continuations. No substituting the general role. A failed specialist launch is
+not a reason to stop delegating.
 
 </SubagentModels>
 
