@@ -1,0 +1,203 @@
+import type {
+  StepsUsableInput,
+  StepsUsableOutput,
+} from "@craftsamo/opencode-model-fallback/rpc"
+import {
+  AccountError,
+  accountOf,
+  type AccountRouter,
+} from "../claude-logins/accounts"
+import type { ModelRef } from "../claude-logins/models"
+import { familyName } from "../credit-lanes/antigravity"
+import {
+  identify,
+  subscription,
+  type Subscription,
+} from "../subagent-fallback/accounts"
+import { loginSubscription } from "../subagent-fallback/claude-logins"
+import type { EmptyLanes } from "../subagent-fallback/empty-lanes"
+import { OAUTH_PROVIDER } from "../subagent-fallback/lanes"
+import {
+  ANTIGRAVITY_PROVIDER,
+  freshState,
+  type QuotaProof,
+} from "../subagent-fallback/policy"
+import {
+  antigravityFamily,
+  antigravityKey,
+  antigravityReserve,
+  CUSTOM_PROVIDERS,
+  loadQuotaExport,
+  readAntigravity,
+  readQuota,
+  SpentWindows,
+} from "../subagent-fallback/quota"
+import { QuotaRefresher } from "../subagent-fallback/quota-refresh"
+import type { StepsDeps } from "./deps"
+import type { StepsContext } from "./runtime"
+import { parseStep } from "./step"
+
+// How the subscription providers a step can run on are named in a reason.
+const LOGIN_NAMES: Readonly<Record<string, string>> = {
+  [OAUTH_PROVIDER]: "Claude",
+  openai: "ChatGPT",
+  xai: "xAI",
+}
+// An answer never waits for Quota's check; this long it does, for a check that
+// answers at once.
+export const REFRESH_GRACE_MS = 25
+
+const refused = (reason: string): StepsUsableOutput => ({
+  usable: false,
+  reason,
+})
+
+const spentReason = (
+  who: string,
+  quota: QuotaProof,
+  now: number,
+): string | undefined => {
+  if (freshState(quota, now) !== "exhausted") return undefined
+  const until =
+    quota.resetAt === undefined
+      ? ""
+      : ` until ${new Date(quota.resetAt).toISOString()}`
+  return `${who} has no included quota left${until}`
+}
+
+// The decision on one step: the first reason the route's launch preflight
+// had to pass it over (credit lane known empty, subscription or Antigravity
+// group spent or without an approved login), else usable. What the fallback
+// package covers itself (the route walk, the catalog, cooldowns) is not here.
+export function createUsable(
+  ctx: StepsContext,
+  state: {
+    deps: StepsDeps
+    creditLanes: readonly string[]
+    claudeAccounts: AccountRouter
+    // Lanes the balance estimate knows are empty, tried once a day.
+    empty: EmptyLanes
+    // Saves the daily tries for a restart.
+    keep: () => void
+  },
+): (input: StepsUsableInput) => Promise<StepsUsableOutput> {
+  const { deps, creditLanes, claudeAccounts, empty, keep } = state
+  const spent = new SpentWindows()
+  const refresher = new QuotaRefresher()
+
+  // The package launches or moves on the first step not refused, so a lane
+  // passed for its daily try is tried.
+  const laneReason = (provider: string): string | undefined => {
+    const now = deps.now()
+    const { skip, due } = empty.scan(deps.readLanes?.(), now)
+    if (skip.has(provider))
+      return "its credit balance is known empty; it is tried once a day"
+    if (due.has(provider)) {
+      empty.tried(provider, now)
+      keep()
+    }
+    return undefined
+  }
+
+  // The export as it stands. Rows stale for the provider ask Quota to check
+  // them, in the background: the answer waits a moment for a check that
+  // answers at once, never for one that does not.
+  const exported = async (providerID: string): Promise<unknown> => {
+    const read = await loadQuotaExport(deps, deps.exportFile)
+    const providers = [
+      providerID === ANTIGRAVITY_PROVIDER ? CUSTOM_PROVIDERS : providerID,
+    ]
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const grace = new Promise<unknown>((resolve) => {
+      timer = setTimeout(resolve, REFRESH_GRACE_MS, read)
+    })
+    const checked = refresher
+      .fresh(ctx, deps, deps.exportFile, read, providers)
+      .catch(() => read)
+    try {
+      return await Promise.race([checked, grace])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const subscriptionReason = async (
+    model: ModelRef,
+  ): Promise<string | undefined> => {
+    const name = LOGIN_NAMES[model.providerID]
+    const isClaude = model.providerID === OAUTH_PROVIDER
+    if (isClaude && claudeAccounts.broken) return claudeAccounts.broken.message
+    const account = isClaude
+      ? accountOf(model, claudeAccounts.accounts)
+      : undefined
+    let auth: Subscription | undefined
+    if (account) {
+      try {
+        auth = await loginSubscription(ctx, account)
+      } catch (error) {
+        if (error instanceof AccountError) return error.message
+        throw error
+      }
+    } else auth = await subscription(ctx, model.providerID)
+    if (!auth) return `no approved ${name} login`
+    const proof = await identify(ctx, auth.proof)
+    const now = deps.now()
+    const quota = spent.recall(
+      proof,
+      readQuota(await exported(model.providerID), proof, now),
+      now,
+    )
+    return spentReason(
+      account ? `${name} login "${account.label}"` : `the active ${name} login`,
+      quota,
+      now,
+    )
+  }
+
+  const antigravityReason = async (
+    model: ModelRef,
+  ): Promise<string | undefined> => {
+    const family = antigravityFamily(model)
+    if (!family) return undefined
+    const auth = await subscription(ctx, ANTIGRAVITY_PROVIDER)
+    if (!auth) return "no approved Antigravity login"
+    // Antigravity's quota is per group of models, not per login.
+    const proof = {
+      ...auth.proof,
+      connectionID: `${auth.proof.connectionID}#${antigravityKey(model)}`,
+    }
+    const now = deps.now()
+    const quota = spent.recall(
+      proof,
+      readAntigravity(
+        await exported(ANTIGRAVITY_PROVIDER),
+        model,
+        now,
+        (deps.antigravityReserve ?? antigravityReserve)(),
+      ),
+      now,
+    )
+    return spentReason(`Antigravity ${familyName(family)}`, quota, now)
+  }
+
+  const reasonFor = async (model: ModelRef): Promise<string | undefined> => {
+    if (creditLanes.includes(model.providerID))
+      return laneReason(model.providerID)
+    if (model.providerID === ANTIGRAVITY_PROVIDER)
+      return antigravityReason(model)
+    if (Object.hasOwn(LOGIN_NAMES, model.providerID))
+      return subscriptionReason(model)
+    return undefined
+  }
+
+  // Never breaks a launch: only an explicit reason refuses a step.
+  return async ({ model: step }) => {
+    try {
+      const model = parseStep(step)
+      const reason = model && (await reasonFor(model))
+      return reason ? refused(reason) : { usable: true }
+    } catch {
+      return { usable: true }
+    }
+  }
+}
