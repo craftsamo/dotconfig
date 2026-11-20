@@ -79,6 +79,15 @@ export async function identify(
   }
 }
 
+// OpenCode's own package for the provider, or an entrypoint of it: since 2.2
+// the package is the one most of the provider's catalog models use, which for
+// OpenAI is `@opencode/ai/providers/openai/responses`. A sibling such as
+// `…/openai-compatible` is another package.
+function nativePackage(pkg: string, providerID: string): boolean {
+  const own = `@opencode/ai/providers/${providerID}`
+  return pkg === own || pkg.startsWith(`${own}/`)
+}
+
 // Access tokens stay in memory. Never include them (or provider response bodies)
 // in errors, metadata, logs, snapshots, or test failure diagnostics.
 export async function subscription(
@@ -87,8 +96,7 @@ export async function subscription(
 ): Promise<Subscription | undefined> {
   if (!Object.hasOwn(METHODS, providerID)) return undefined
   const provider = (await ctx.provider.get({ providerID })).data
-  if (provider.package !== `@opencode/ai/providers/${providerID}`)
-    return undefined
+  if (!nativePackage(provider.package, providerID)) return undefined
   if ((provider.integrationID ?? providerID) !== providerID) return undefined
   const connection = await ctx.integration.connection.active(providerID)
   if (

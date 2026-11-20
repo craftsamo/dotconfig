@@ -125,7 +125,12 @@ export async function setup(
     provider: {
       get: async ({ providerID }: { providerID: string }) => {
         if (!logins[providerID]) throw new Error("no provider")
-        return { data: { package: `@opencode/ai/providers/${providerID}` } }
+        // As OpenCode 2.2+ reports it: OpenAI's is its Responses entrypoint.
+        const pkg =
+          providerID === "openai"
+            ? "@opencode/ai/providers/openai/responses"
+            : `@opencode/ai/providers/${providerID}`
+        return { data: { package: pkg } }
       },
     },
     integration: {
