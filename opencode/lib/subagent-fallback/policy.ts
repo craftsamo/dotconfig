@@ -106,7 +106,9 @@ export const aliasOf = (
 
 // The native subscription logins, by the OAuth method each provider's
 // built-in plugin registers. An API key never qualifies. Google's is the
-// Antigravity plugin's login (ANTIGRAVITY_PROVIDER).
+// Antigravity plugin's login (ANTIGRAVITY_PROVIDER). lib/claude-logins/models.ts
+// mirrors the anthropic entry (and ModelRef) so that plugin outlives this
+// directory.
 export const METHODS: Readonly<Record<string, readonly string[]>> = {
   anthropic: ["claude-max"],
   openai: ["chatgpt-browser", "chatgpt-headless"],

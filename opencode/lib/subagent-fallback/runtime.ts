@@ -1,5 +1,5 @@
 import type { AccountsContext } from "./accounts"
-import type { ClaudeAccountsContext } from "./claude-accounts"
+import type { ClaudeAccountsContext } from "../claude-logins/accounts"
 import type { CatalogModel, ModelRef } from "./policy"
 
 // V2 structural API (see SUPPORTED_VERSIONS), like plugins/custom-tools.ts:
@@ -112,6 +112,8 @@ export type RuntimeContext = LoginContext & {
 
 // Releases whose hook and subagent-tool contracts were checked against the
 // upstream source. Add a release only after re-checking them.
+// lib/claude-logins/runtime.ts keeps the same list; both move together until
+// this directory is deleted.
 export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2", "2.3.0"]
 export const supported = (version: string) =>
   SUPPORTED_VERSIONS.includes(version)

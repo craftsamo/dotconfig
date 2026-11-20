@@ -10,26 +10,28 @@
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
+    // Swaps the token of requests on alias models for the saved login their
+    // suffix names. Runs after the login plugin above rewrites a request
+    // (hooks run in load order). The map must equal lib/fallback-steps'
+    // claudeAccounts below, which judges those logins' steps.
+    { "package": "./lib/claude-logins", "options": { "claudeAccounts": { "sub": "Sub OAuth", "main": "Main OAuth" } } },
     // Gemini and Claude on a Google Antigravity plan through a Google OAuth
     // login (`opencode auth login google`, "Google OAuth (Antigravity)"); its
     // models are google/antigravity-*, picked by hand or named by a
-    // subagent-fallback route. Google's Antigravity terms forbid third-party
+    // model-fallback route. Google's Antigravity terms forbid third-party
     // clients and have banned accounts for it (a second strike is
     // permanent): an accepted risk, so log in with an account you can lose.
     // Pinned; antigravity.json turns off its own updater. Bump deliberately
     // and re-test a login, a request, and the text of its quota-protection
-    // and rate-limit errors, which subagent-fallback reads (lanes.ts).
+    // and rate-limit errors, which lib/fallback-steps reads (limit.ts).
     "opencode-antigravity-auth@2.1.2",
-    // Part of lib/subagent-fallback: records OpenCode's own retry decision
-    // before quota's waitForQuotaReset can stretch it, so a short rate limit
-    // is not read as a window limit. Keep this entry right before quota.
-    { "package": "./lib/subagent-fallback/retry-recorder" },
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/settings.jsonc keeps it off Claude Code's Keychain.
-    // Pinned: lib/subagent-fallback and Hermes' funding board read its export
-    // file (schema version 3), and the preflight calls its RPC to refresh a
-    // stale export (quota-refresh.ts). Bump deliberately and re-check both
-    // and /quota_status.
+    // Pinned: lib/fallback-steps and Hermes' funding board read its export
+    // file (schema version 3), and lib/fallback-steps calls its RPC to refresh
+    // a stale export. Bump deliberately and re-check both and /quota_status.
+    // It stretches a retry's wait to a window's reset, so it stays before the
+    // model fallback, which reads the provider's own wait instead.
     "@slkiser/opencode-quota@6.0.0",
     // Signal through a linked device (craft-agent/signal-tools): reads and,
     // after an approval that shows what the call carries, sends. The account,
@@ -81,16 +83,16 @@
     // the cloudflare_* rule below asks. Every toolset but grants (no unattended
     // writes). Hermes pins the same release (hermes/scripts/external-plugins.json).
     { "package": "@craftsamo/cloudflare-tools@0.12.1", "options": { "toolsets": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"], "language": "ja" } },
-    // Outside auto-discovery's plugins/ directory. Keep this entry last, after
-    // quota. enabled: false stops new selection but retains in-flight guards.
+    // Judges the model fallback's steps for this setup (lib/fallback-steps):
+    // a step is unusable while its login has no approved OAuth login, Quota
+    // reports its window spent, its credit lane is known empty or its
+    // Antigravity group is below the reserve, and while a limit holds the
+    // window it shares with another step; an empty lane, a refused lane key
+    // and Antigravity's quota protection are limits. Outside auto-discovery's
+    // plugins/ directory.
     {
-      "package": "./lib/subagent-fallback",
+      "package": "./lib/fallback-steps",
       "options": {
-        "enabled": true,
-        "creditsLastResort": true,
-        // A project's own agent file for a routed role (reviewer, verifier,
-        // ...) loses its model to the route; its prompt and permissions stay.
-        "pinModels": true,
         // Console credit lanes (see the providers below): the providers a
         // route's step can run a Claude model on. [] turns them off.
         "creditLanes": [
@@ -99,23 +101,37 @@
           "anthropic-credit-sub"
         ],
         // Saved Claude Pro/Max logins: model-ID suffix → login label
-        // (`opencode auth list`). An alias model of the anthropic provider
-        // (see providers below) runs on the login its suffix names, whichever
-        // login is active; the plain models run on the active one. Applies
-        // with enabled: false too.
+        // (`opencode auth list`), as lib/claude-logins above swaps them.
         "claudeAccounts": {
           "sub": "Sub OAuth",
           "main": "Main OAuth"
-        },
-        // Each specialist's steps, tried in order at launch: models as
-        // /models names them. The provider says where one runs: a credit lane
-        // above, a claudeAccounts login by its alias suffix, or else the
-        // provider's active login. A model whose window Quota reports spent
-        // is passed over; a step that cannot run at all (no login, not in the
-        // catalog) too. A session already running moves, on an empty balance
-        // or a window limit, through the steps that run the same model. The
-        // first step's model is the one the agent file names.
+        }
+      }
+    },
+    // Launches a routed agent on the first usable step of its route and moves
+    // a session to the next step on a limit (craft-agent/opencode-model-fallback).
+    // Keep it after quota, which stretches retry waits. Its cooldowns live in
+    // ~/.local/state/opencode-model-fallback/.
+    {
+      "package": "@craftsamo/opencode-model-fallback@0.2.1",
+      "options": {
+        // Each agent's steps, in order: models as /models names them. A launch
+        // takes the first usable step, whatever model the agent file names
+        // (its prompt and permissions stay); a session that hits a limit moves
+        // to the next usable step after its own. The provider says where a
+        // step runs: a credit lane, a claudeAccounts login by its alias
+        // suffix, or else the provider's active login. A step without a
+        // variant stands for every variant, and a move keeps the session's.
+        // The first step's model is the one the agent file names.
         //
+        // Temporarily skip all Antigravity routes (2026-11-15): upstream reports
+        // an OpenCode prompt-triggered 429 followed by a misleading 403.
+        // https://github.com/NoeFabris/opencode-antigravity-auth/issues/622
+        // Restore the commented steps in place after the upstream fix is verified:
+        // https://github.com/NoeFabris/opencode-antigravity-auth/pull/623
+        // The remaining steps keep their order; the route overrides agent defaults.
+        //
+        // Normal routing, before this temporary suspension:
         // Gemini 4 Hydrogen on Antigravity leads the explore tiers below max, the
         // worker, the refactorer and the searcher, and backs up the deep
         // searcher; Claude closes every route: Claude on Antigravity first
@@ -127,7 +143,7 @@
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
-            "google/antigravity-claude-opus-5-5-high",
+            // "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#xhigh",
             "anthropic/claude-opus-5-5-main#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
@@ -135,9 +151,9 @@
             "anthropic-credit-sub/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
-            "google/antigravity-gemini-4-hydrogen-high",
+            // "google/antigravity-gemini-4-hydrogen-high",
             "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-sonnet-5-5-high",
+            // "google/antigravity-claude-sonnet-5-5-high",
             "anthropic/claude-sonnet-5-5-sub#high",
             "anthropic/claude-sonnet-5-5-main#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
@@ -145,9 +161,9 @@
             "anthropic-credit-sub/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
-            "google/antigravity-gemini-4-hydrogen-medium",
+            // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            // "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -156,7 +172,7 @@
           ],
           "reviewer": [
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            // "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -164,9 +180,9 @@
             "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "worker": [
-            "google/antigravity-gemini-4-hydrogen-medium",
+            // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            // "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -174,9 +190,9 @@
             "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "refactorer": [
-            "google/antigravity-gemini-4-hydrogen-medium",
+            // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            // "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -186,15 +202,15 @@
           "worker-deep": [
             "anthropic/claude-sonnet-5-5-sub#high",
             "anthropic/claude-sonnet-5-5-main#high",
-            "google/antigravity-claude-sonnet-5-5-high",
+            // "google/antigravity-claude-sonnet-5-5-high",
             "openai/gpt-6.1-sol#high",
-            "google/antigravity-gemini-4-hydrogen-high",
+            // "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high",
             "anthropic-credit-sub/claude-sonnet-5-5#high"
           ],
           "explore-spark": [
-            "google/antigravity-gemini-4-hydrogen-low",
+            // "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna-fast#low",
             "anthropic/claude-haiku-5-5-sub#low",
             "anthropic/claude-haiku-5-5-main#low",
@@ -203,7 +219,7 @@
             "anthropic-credit-sub/claude-haiku-5-5#low"
           ],
           "explore-small": [
-            "google/antigravity-gemini-4-hydrogen-low",
+            // "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna#low",
             "anthropic/claude-haiku-5-5-sub#low",
             "anthropic/claude-haiku-5-5-main#low",
@@ -221,7 +237,7 @@
           ],
           "debugger": [
             "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-opus-5-5-high",
+            // "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#high",
             "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
@@ -230,7 +246,7 @@
           ],
           "reviewer-deep": [
             "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-opus-5-5-high",
+            // "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5-sub#high",
             "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
@@ -240,29 +256,63 @@
           "searcher-deep": [
             "xai/grok-4.7#medium",
             "openai/gpt-6.1-sol#medium",
-            "google/antigravity-gemini-4-hydrogen-high",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            // "google/antigravity-gemini-4-hydrogen-high",
+            // "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium"
           ],
           "searcher": [
-            "google/antigravity-gemini-4-hydrogen-low",
+            // "google/antigravity-gemini-4-hydrogen-low",
             "xai/grok-4.7#low",
             "openai/gpt-6.1-sol#low",
             "anthropic/claude-haiku-5-5-sub#low",
             "anthropic/claude-haiku-5-5-main#low"
+          ],
+          // The primary agents, all on Opus: a session that hits a limit
+          // moves through the logins, then the lanes, in its own variant. A
+          // session switched to another model (/models) is off its route and
+          // left to OpenCode; nothing moves one back.
+          "build": [
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-opus-5-5-main",
+            "anthropic/claude-opus-5-5-sub",
+            "anthropic-credit-team/claude-opus-5-5",
+            "anthropic-credit-main/claude-opus-5-5",
+            "anthropic-credit-sub/claude-opus-5-5"
+          ],
+          "plan": [
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-opus-5-5-main",
+            "anthropic/claude-opus-5-5-sub",
+            "anthropic-credit-team/claude-opus-5-5",
+            "anthropic-credit-main/claude-opus-5-5",
+            "anthropic-credit-sub/claude-opus-5-5"
+          ],
+          "debug": [
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-opus-5-5-main",
+            "anthropic/claude-opus-5-5-sub",
+            "anthropic-credit-team/claude-opus-5-5",
+            "anthropic-credit-main/claude-opus-5-5",
+            "anthropic-credit-sub/claude-opus-5-5"
+          ],
+          "design": [
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-opus-5-5-main",
+            "anthropic/claude-opus-5-5-sub",
+            "anthropic-credit-team/claude-opus-5-5",
+            "anthropic-credit-main/claude-opus-5-5",
+            "anthropic-credit-sub/claude-opus-5-5"
+          ],
+          "review": [
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-opus-5-5-main",
+            "anthropic/claude-opus-5-5-sub",
+            "anthropic-credit-team/claude-opus-5-5",
+            "anthropic-credit-main/claude-opus-5-5",
+            "anthropic-credit-sub/claude-opus-5-5"
           ]
-        },
-        // Where the primary session moves, in order, when its login hits a
-        // window limit or a lane runs dry: models left as "*". Only a Claude
-        // model moves, and it keeps its model and variant.
-        "primaryRoute": [
-          "anthropic/*-main",
-          "anthropic/*-sub",
-          "anthropic-credit-team/*",
-          "anthropic-credit-main/*",
-          "anthropic-credit-sub/*"
-        ]
+        }
       }
     }
   ],

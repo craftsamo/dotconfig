@@ -1,6 +1,9 @@
-import type { Subscription } from "./accounts"
-import { longestSuffix, OAUTH_PROVIDER } from "./lanes"
-import { METHODS, type ModelRef } from "./policy"
+import {
+  CLAUDE_METHODS,
+  longestSuffix,
+  OAUTH_PROVIDER,
+  type ModelRef,
+} from "./models"
 
 // Saved Claude subscription logins beside the active one. OpenCode resolves
 // only an integration's active login, and the Claude login plugin rewrites
@@ -104,7 +107,7 @@ export async function login(
   const credential = await ctx.integration.connection.resolve(matches[0])
   if (
     credential?.type !== "oauth" ||
-    !METHODS[OAUTH_PROVIDER].includes(credential.methodID ?? "") ||
+    !CLAUDE_METHODS.includes(credential.methodID ?? "") ||
     typeof credential.access !== "string" ||
     credential.access === ""
   )
@@ -115,24 +118,6 @@ export async function login(
     connectionID: matches[0].id!,
     access: credential.access,
     methodID: credential.methodID!,
-  }
-}
-
-// A saved login as the subscription the launch selector and the transport
-// guards check, like accounts.ts gives the active one.
-export async function loginSubscription(
-  ctx: ClaudeAccountsContext,
-  account: ClaudeAccount,
-): Promise<Subscription> {
-  const { connectionID, access, methodID } = await login(ctx, account)
-  return {
-    proof: {
-      connectionID,
-      providerID: OAUTH_PROVIDER,
-      methodID,
-      type: "oauth",
-    },
-    access,
   }
 }
 

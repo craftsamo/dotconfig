@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 
 # Quota's five-minute cache plus export-refresh grace; the same rule the OpenCode
-# preflight plugin applies (opencode/README.md "Subscription preflight").
+# preflight plugin applies (opencode/README.md "Model fallback for agents").
 FRESH_SECONDS = 360
 EXPORT_LIMIT = 1 << 20
 WINDOWS = ("5h", "Weekly")

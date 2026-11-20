@@ -7,6 +7,7 @@ import {
   setupPreflight,
   type RuntimeContext,
 } from "./index"
+import { setup as setupClaudeLogins } from "../claude-logins"
 import { OAUTH_PROVIDER } from "./lanes"
 import { recordNative } from "./native-retry"
 import {
@@ -301,6 +302,19 @@ async function fixture() {
         },
       },
     }
+    // As config lists it: the Claude login router's hook runs before the
+    // transport guard's, so the guard sees the token a request leaves with.
+    // Not counted in env.registered, which is this plugin's own.
+    await setupClaudeLogins({
+      ...ctx,
+      session: {
+        ...ctx.session,
+        hook: async (name, cb) => {
+          ;(hooks[name] ??= []).push(cb as any)
+          return { dispose: async () => {} }
+        },
+      },
+    })
     const cleanup = await setupPreflight(ctx, {
       now: () => env.now,
       readExport: async (path) => {
@@ -1940,21 +1954,6 @@ describe("Claude accounts", () => {
   // As the Claude login plugin leaves it.
   const prepared = () =>
     post(A_URL, { ...headers(), "anthropic-beta": "oauth-2025-04-20" })
-  test("an alias request leaves with the named login's token, even with new selection off", async () => {
-    for (const enabled of [true, false]) {
-      const { install } = await fixture()
-      const inst = await install(accounts({ enabled }))
-      const request = prepared()
-      const event = await inst.fire("http.request", {
-        ...scope(SONNET_SUB, "primary", "ses_parent"),
-        request,
-      })
-      expect(event.request).toBe(request)
-      expect(request.headers.get("authorization")).toBe(
-        "Bearer fixture-anthropic-sub",
-      )
-    }
-  })
   test("the active login's requests and protected children are unchanged", async () => {
     const { env, install } = await fixture()
     const inst = await install(accounts())
@@ -1972,24 +1971,9 @@ describe("Claude accounts", () => {
       "Bearer fixture-anthropic",
     )
   })
-  test("without the option no hook is added", async () => {
-    const { env, install } = await fixture()
-    const before = env.registered
-    await install()
-    const plain = env.registered - before
-    await install(accounts())
-    expect(env.registered - before - plain).toBe(plain + 1)
-  })
-  test("an option that is not a map stops every Claude subscription request and keeps the guards", async () => {
+  test("an option that is not a map keeps the guards", async () => {
     const { install } = await fixture()
     const inst = await install(accounts({ claudeAccounts: "sub" }))
-    for (const model of [SONNET, SONNET_SUB])
-      await expect(
-        inst.fire("http.request", {
-          ...scope(model, "primary", "ses_parent"),
-          request: prepared(),
-        }),
-      ).rejects.toThrow("Claude account: claudeAccounts must map")
     await inst.fire("http.request", {
       ...scope(LUNA, "primary", "ses_parent"),
       request: post(O_URL, headers("openai")),

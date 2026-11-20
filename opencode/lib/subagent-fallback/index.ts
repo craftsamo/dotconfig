@@ -1,4 +1,5 @@
-import { AccountRouter, loginSubscription } from "./claude-accounts"
+import { AccountRouter } from "../claude-logins/accounts"
+import { loginSubscription } from "./claude-logins"
 import { EmptyLanes } from "./empty-lanes"
 import { FAIL_PREFIX, fail } from "./errors"
 import { createGuards } from "./guards"
@@ -33,7 +34,7 @@ import {
   groupKey,
   type Dependencies,
 } from "./quota"
-import { supported, type Registration, type RuntimeContext } from "./runtime"
+import { type Registration, type RuntimeContext } from "./runtime"
 
 export { METADATA_KEY }
 export { MAX_CONTEXT_BYTES } from "./guards"
@@ -82,7 +83,7 @@ export async function setupPreflight(
     while (laneLaunched.size > 256)
       laneLaunched.delete(laneLaunched.values().next().value as string)
   }
-  // Other saved Claude logins, reached by alias model (claude-accounts.ts).
+  // Other saved Claude logins, reached by alias model (lib/claude-logins/accounts.ts).
   // Independent of `enabled`: an alias must never fall back to the active
   // login. Every configured suffix decides which login a model runs on; only
   // the labelled ones are places to move or launch.
@@ -173,14 +174,8 @@ export async function setupPreflight(
     guards.clear()
   }
   try {
-    // Before the transport guard, so the guard sees the token a request
-    // leaves with.
-    if (claudeAccounts.active)
-      registrations.push(
-        await ctx.session.hook("http.request", async (event) => {
-          await claudeAccounts.route(ctx, event, supported(ctx.app.version))
-        }),
-      )
+    // The transport guard sees the token a request leaves with because
+    // lib/claude-logins swaps it first: that plugin is listed earlier.
     registrations.push(await ctx.session.hook("context", guards.context))
     registrations.push(
       await ctx.session.hook("http.request", guards.httpRequest),

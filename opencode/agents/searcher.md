@@ -1,7 +1,9 @@
 ---
 description: "Fast web research subagent: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: google/antigravity-gemini-4-hydrogen-low
+# Temporarily bypass Antigravity; restore with the routes in opencode.jsonc.
+# model: google/antigravity-gemini-4-hydrogen-low
+model: xai/grok-4.7#low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

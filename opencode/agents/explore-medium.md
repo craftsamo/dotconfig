@@ -1,7 +1,9 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: google/antigravity-gemini-4-hydrogen-medium
+# Temporarily bypass Antigravity; restore with the routes in opencode.jsonc.
+# model: google/antigravity-gemini-4-hydrogen-medium
+model: openai/gpt-6.1-sol#medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

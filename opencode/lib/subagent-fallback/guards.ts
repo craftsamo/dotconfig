@@ -157,7 +157,7 @@ export function createGuards(
     )
       fail("alternate launch context was not checked")
     // A child on a saved login runs its route model's alias, and its Claude
-    // side requests leave on that login too (claude-accounts.ts).
+    // side requests leave on that login too (lib/claude-logins/accounts.ts).
     const bound =
       marker.login !== undefined && event.model.providerID === OAUTH_PROVIDER
     // The routes' models and the built-in ones, which children launched

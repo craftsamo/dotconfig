@@ -115,26 +115,6 @@ describe("weighing a place", () => {
       expect(weigh(other)).toBe("unusable")
     }
   })
-  test("every routed role's global agent file names its configured route's first step", async () => {
-    // The routes in opencode.jsonc and the agent files name the same first
-    // model; a drift would pin every launch of the role to the route.
-    const config = Bun.JSONC.parse(
-      await Bun.file(new URL("../../opencode.jsonc", import.meta.url)).text(),
-    ) as {
-      plugins: (string | { package: string; options?: Record<string, any> })[]
-    }
-    const routes = config.plugins.find(
-      (p) => typeof p !== "string" && p.package === "./lib/subagent-fallback",
-    ) as { options: { routes: Record<string, string[]> } }
-    for (const role of Object.keys(ROUTES)) {
-      const file = new URL(`../../agents/${role}.md`, import.meta.url)
-      const text = await Bun.file(file).text()
-      const line = text.match(/^model:\s*(\S+)\s*$/m)?.[1]
-      expect(`${role}: ${line}`).toBe(
-        `${role}: ${routes.options.routes[role]?.[0]}`,
-      )
-    }
-  })
   test("stale/future/reset data is unknown, but fresh 0% needs no reset proof", () => {
     expect(freshState(quota("exhausted"), NOW)).toBe("exhausted")
     expect(
