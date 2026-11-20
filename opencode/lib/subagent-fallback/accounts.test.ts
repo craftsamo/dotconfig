@@ -10,7 +10,11 @@ import type { AccountProof } from "./policy"
 function fixture(providerID = "anthropic") {
   const state = {
     provider: {
-      package: `@opencode/ai/providers/${providerID}`,
+      // As OpenCode 2.2+ reports them: OpenAI's is its Responses entrypoint.
+      package:
+        providerID === "openai"
+          ? "@opencode/ai/providers/openai/responses"
+          : `@opencode/ai/providers/${providerID}`,
       integrationID: providerID,
     },
     connection: { type: "credential", id: "fixture", method: "oauth" } as any,
@@ -62,10 +66,25 @@ describe("native subscription identity", () => {
     expect(await subscription(ctx, "other")).toBeUndefined()
     state.provider.package = "third-party"
     expect(await subscription(ctx, "anthropic")).toBeUndefined()
+    state.provider.package = "@opencode/ai/providers/anthropic-compatible"
+    expect(await subscription(ctx, "anthropic")).toBeUndefined()
     state.provider.package = "@opencode/ai/providers/anthropic"
     state.provider.integrationID = "other"
     expect(await subscription(ctx, "anthropic")).toBeUndefined()
     expect(state.resolves).toBe(0)
+  })
+  test("accepts an entrypoint of the provider's own package", async () => {
+    for (const [provider, pkg] of [
+      ["openai", "@opencode/ai/providers/openai/responses"],
+      ["openai", "@opencode/ai/providers/openai"],
+      ["anthropic", "@opencode/ai/providers/anthropic/messages"],
+    ]) {
+      const { ctx, state } = fixture(provider)
+      state.provider.package = pkg
+      expect((await subscription(ctx, provider))?.proof.providerID).toBe(
+        provider,
+      )
+    }
   })
   test("rejects env/API/absent connections before resolving", async () => {
     for (const connection of [
