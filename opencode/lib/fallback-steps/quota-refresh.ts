@@ -4,22 +4,22 @@ import type { RuntimeContext } from "./runtime"
 
 // OpenCode Quota checks its providers only when something asks (its TUI
 // sidebar, /quota, a model turn, a limit), so with no TUI open its export
-// goes stale and a launch falls back to the default route. A launch whose
-// providers' rows are stale asks Quota itself to check them, through the
-// RPC its TUI uses, and reads the export again once it is rewritten.
+// goes stale. A usable question whose provider's rows are stale asks Quota
+// itself to check them in the background, through the RPC its TUI uses,
+// and reads the export again once it is rewritten.
 //
 // Not a public interface: the id and the refresh input are those of
 // @slkiser/opencode-quota 6.0.0 (dist/rpc.js); re-check them with a bump.
 // A call needs only the id and the method names; Quota validates the
-// input. Anything that fails leaves the launch on the export it read.
+// input. Anything that fails leaves the answer on the export it read.
 export const QUOTA_RPC = {
   id: "slkiser.opencode-quota",
   methods: { refresh: {} },
   events: {},
 } as const
 
-// The longest a launch waits for Quota's check (about a second when the
-// providers answer); a check still running goes on for the next launch.
+// The longest a refresh waits for Quota's check (about a second when the
+// providers answer); a check still running can serve the next question.
 export const REFRESH_WAIT_MS = 5_000
 // Quota writes the export just after its check answers.
 export const REWRITE_POLLS = 10
@@ -36,7 +36,7 @@ const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v)
 
 // Whether the export's part for one of these providers is missing or older
-// than the launch selector trusts. A provider Quota reports unavailable
+// than the usable answer trusts. A provider Quota reports unavailable
 // (not set up) is not: a check cannot change that.
 export function staleFor(
   snapshot: unknown,
@@ -57,13 +57,13 @@ export function staleFor(
   })
 }
 
-// After asking for a set of providers, a launch asks again no sooner than
+// After asking for a set of providers, a refresh asks again no sooner than
 // this: rows a check left stale (a provider Quota writes no part for, one
-// that keeps failing) would otherwise cost every launch the wait.
+// that keeps failing) would otherwise trigger a check for every question.
 export const ASK_AGAIN_MS = 60_000
 
-// One per launcher. Launches that find the same providers stale share one
-// check, and wait on it no longer than REFRESH_WAIT_MS or their own abort.
+// One per usable handler. Refreshes that find the same providers stale share
+// one check, and wait no longer than REFRESH_WAIT_MS or their own abort.
 export class QuotaRefresher {
   private asked = new Map<string, number>()
   private running = new Map<string, Promise<boolean>>()

@@ -1,18 +1,17 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { fileStore } from "../subagent-fallback/saved"
+import { fileStore } from "./saved"
 import {
   dependencies,
   exportPath,
   type Dependencies,
-} from "../subagent-fallback/quota"
+} from "./quota"
 
 // What the plugin reads and keeps, injectable for tests. `saved` holds the
 // lanes' daily tries; `exportFile` is Quota's JSON export.
 export type StepsDeps = Dependencies & { exportFile: string }
 
-// Beside the credit-lane state, apart from the old preflight's file, which
-// subagent-fallback still writes.
+// Beside the credit-lane state.
 export function statePath(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home = homedir(),

@@ -4,10 +4,10 @@ import {
   type ClaudeAccountsContext,
 } from "../claude-logins/accounts"
 import type { Subscription } from "./accounts"
-import { OAUTH_PROVIDER } from "./lanes"
+import { OAUTH_PROVIDER } from "../claude-logins/models"
 
-// A saved login as the subscription the launch selector and the transport
-// guards check, like accounts.ts gives the active one.
+// A saved login as the subscription checked for a step's usable answer,
+// like accounts.ts gives the active one.
 export async function loginSubscription(
   ctx: ClaudeAccountsContext,
   account: ClaudeAccount,

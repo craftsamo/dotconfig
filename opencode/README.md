@@ -465,8 +465,7 @@ question two seconds, and a check takes about one, so the step is weighed on
 the export at hand and the next question reads the rewritten one. Questions at
 the same time share one check, and the same provider is asked again no sooner
 than a minute later. That RPC is Quota's own, not a published interface:
-re-check its id and input when bumping Quota (`quota-refresh.ts`, which
-`lib/fallback-steps` imports).
+re-check its id and input when bumping Quota (`lib/fallback-steps/quota-refresh.ts`).
 
 When that fails too (no Quota, an RPC that changed), or before the first
 export, the step is usable. A different account's rows cannot refuse a step.
@@ -474,7 +473,7 @@ A partial multi-login export can still use complete matching-account rows.
 This is a best-effort launch preference, not an exact prediction of whether a
 task fits its remaining quota.
 
-**What changed from the old `lib/subagent-fallback` plugin.**
+**What changed from the old `lib/subagent-fallback` plugin (since removed).**
 
 - There are no protected-child markers and no transport or context guards: a
   child launched on a step is an ordinary session, and nothing checks its
@@ -497,9 +496,8 @@ task fits its remaining quota.
 the releases in its `SUPPORTED_VERSIONS` (`runtime.ts`). Keep the package listed last, after Quota, and bump it
 deliberately: re-check the `usable` and `limit` answers and the `limited`
 event. Run the tests from the repo root with
-`bun test opencode/lib/fallback-steps opencode/lib/claude-logins opencode/lib/subagent-fallback`
-(the last still tests code `lib/fallback-steps` imports, and is no longer
-loaded); no test-runner script or new dependency is installed. Tests use
+`bun test opencode/lib/fallback-steps opencode/lib/claude-logins`;
+no test-runner script or new dependency is installed. Tests use
 synthetic public exports and mocked OpenCode transports; they do not probe
 providers or establish real billing/entitlement behavior.
 

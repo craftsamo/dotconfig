@@ -3,7 +3,7 @@ import {
   LIMITS_RPC,
 } from "@craftsamo/opencode-model-fallback/rpc"
 import type { ClaudeAccount } from "../claude-logins/accounts"
-import { OAUTH_PROVIDER } from "../subagent-fallback/lanes"
+import { OAUTH_PROVIDER } from "../claude-logins/models"
 import { activeLogin } from "./active"
 import type { StepsDeps } from "./deps"
 import type { StepsContext } from "./runtime"

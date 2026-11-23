@@ -1,7 +1,7 @@
 import type { ClaudeAccountsContext, RoutedRequest } from "./accounts"
 
-// V2 structural API (see SUPPORTED_VERSIONS), like
-// lib/subagent-fallback/runtime.ts: no SDK dependency.
+// V2 structural API (see SUPPORTED_VERSIONS), with no SDK dependency.
+// lib/fallback-steps imports these types.
 export type Registration = { dispose(): Promise<void> }
 export type RuntimeContext = ClaudeAccountsContext & {
   app: { version: string }
@@ -15,8 +15,7 @@ export type RuntimeContext = ClaudeAccountsContext & {
 }
 
 // Releases whose http.request hook contract was checked against the upstream
-// source. Same list as lib/subagent-fallback/runtime.ts; both move together
-// until that directory is deleted.
+// source.
 export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2", "2.3.0"]
 export const supported = (version: string) =>
   SUPPORTED_VERSIONS.includes(version)

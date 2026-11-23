@@ -1,20 +1,16 @@
-// Copies of what lib/subagent-fallback (lanes.ts, policy.ts) holds, so this
-// plugin outlives it; keep them equal until that directory is deleted.
+// lib/fallback-steps reads these from here.
 export type ModelRef = {
   id: string
   providerID: string
   variant?: string
 }
 
-// Mirrors OAUTH_PROVIDER in lib/subagent-fallback/lanes.ts.
 export const OAUTH_PROVIDER = "anthropic"
 
-// Mirrors METHODS.anthropic in lib/subagent-fallback/policy.ts: the OAuth
-// method the Claude login plugin registers. An API key never qualifies.
+// The OAuth method the Claude login plugin registers. An API key never qualifies.
 export const CLAUDE_METHODS: readonly string[] = ["claude-max"]
 
-// The login suffix a model ID ends in; the longest one wins. Mirrors
-// longestSuffix in lib/subagent-fallback/lanes.ts.
+// The login suffix a model ID ends in; the longest one wins.
 export function longestSuffix(
   id: string,
   suffixes: readonly string[],

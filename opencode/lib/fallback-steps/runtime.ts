@@ -9,11 +9,17 @@ import type { ClaudeAccountsContext } from "../claude-logins/accounts"
 import type {
   AccountsContext,
   IdentityContext,
-} from "../subagent-fallback/accounts"
-import type {
-  Registration,
-  RuntimeContext as PreflightContext,
-} from "../subagent-fallback/runtime"
+} from "./accounts"
+import type { Registration } from "../claude-logins/runtime"
+
+export type RuntimeContext = {
+  // Another plugin's RPC methods, by its definition (quota-refresh.ts).
+  rpc?: (definition: {
+    id: string
+    methods: Record<string, object>
+    events: Record<string, object>
+  }) => Record<string, ((input: unknown) => Promise<unknown>) | undefined>
+}
 
 // V2 structural API, like lib/claude-logins/runtime.ts: no SDK dependency.
 // The fallback's `limited` events come in OpenCode's envelope, the payload
@@ -34,12 +40,12 @@ type StepsRegistry = {
 }
 
 // `rpc` registers the handlers, hears the fallback's events and asks another
-// plugin's RPC (Quota's refresh, subagent-fallback/quota-refresh.ts).
+// plugin's RPC (Quota's refresh, quota-refresh.ts).
 export type StepsContext = AccountsContext &
   ClaudeAccountsContext &
   IdentityContext & {
     options: Record<string, unknown>
     rpc: ((definition: typeof LIMITS_RPC) => LimitsClient) &
-      NonNullable<PreflightContext["rpc"]> &
+      NonNullable<RuntimeContext["rpc"]> &
       StepsRegistry
   }

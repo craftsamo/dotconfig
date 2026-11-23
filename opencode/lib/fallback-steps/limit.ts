@@ -2,13 +2,13 @@ import type {
   StepsLimitInput,
   StepsLimitOutput,
 } from "@craftsamo/opencode-model-fallback/rpc"
-import type { EmptyLanes } from "../subagent-fallback/empty-lanes"
+import type { EmptyLanes } from "./empty-lanes"
 import {
   antigravityLimit,
   classify,
   type RetryError,
-} from "../subagent-fallback/lanes"
-import { ANTIGRAVITY_PROVIDER } from "../subagent-fallback/policy"
+} from "./lanes"
+import { ANTIGRAVITY_PROVIDER } from "./policy"
 import type { StepsDeps } from "./deps"
 import { parseStep } from "./step"
 

@@ -1,8 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname } from "node:path"
 
-// What the preflight keeps across restarts, in epoch ms: when each lane's
+// What the store keeps across restarts, in epoch ms: when each lane's
 // cooldown ends, when a lane known empty had its daily try, and when a lane
 // last refused a request for its balance. Beside the credit-lane state;
 // nothing here is a secret. Without it a restart forgets them and costs a
@@ -17,17 +16,6 @@ export type SavedStore = {
   save(saved: Saved): void
 }
 
-export function savedPath(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-  home = homedir(),
-): string {
-  return join(
-    env.XDG_STATE_HOME || join(home, ".local", "state"),
-    "opencode",
-    "subagent-preflight.json",
-  )
-}
-
 const times = (value: unknown): Record<string, number> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? Object.fromEntries(
@@ -38,9 +26,9 @@ const times = (value: unknown): Record<string, number> =>
       )
     : {}
 
-// A file that cannot be read or written leaves the preflight as it was
-// without one: it only ever saves rejected requests.
-export function fileStore(path = savedPath()): SavedStore {
+// A file that cannot be read or written leaves the state in memory only:
+// persistence only ever saves rejected requests.
+export function fileStore(path: string): SavedStore {
   return {
     load() {
       try {

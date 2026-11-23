@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import type { ModelRef } from "../claude-logins/models"
 import {
   ANTIGRAVITY_QUOTA_ID,
   classifyFamily,
@@ -10,11 +11,10 @@ import {
 } from "../credit-lanes/antigravity"
 import { recordCheckpoint } from "../credit-lanes/collect"
 import { readLaneBook, type LaneBook } from "./empty-lanes"
-import { fileStore, type SavedStore } from "./saved"
+import type { SavedStore } from "./saved"
 import {
   QUOTA_MAX_AGE_MS,
   type AccountProof,
-  type ModelRef,
   type QuotaProof,
 } from "./policy"
 
@@ -42,7 +42,6 @@ export const dependencies: Dependencies = {
   antigravityReserve: () => antigravityReserve(),
   creditEmpty: (provider) => recordCheckpoint(provider, 0, "empty"),
   readLanes: readLaneBook,
-  saved: fileStore(),
 }
 
 export function exportPath(
@@ -189,12 +188,6 @@ export function readQuota(
 export function antigravityFamily(model: ModelRef): Family | undefined {
   return classifyFamily(model.id.replace(/^antigravity-/, ""))
 }
-// The place a limit on one group marks (index.ts `limited`).
-export const ANTIGRAVITY_GROUPS: readonly Family[] = [
-  "gemini-pro",
-  "gemini-flash",
-  "claude",
-]
 export const groupKey = (family: Family) => `google#${family}`
 export function antigravityKey(model: ModelRef): string | undefined {
   const family = antigravityFamily(model)

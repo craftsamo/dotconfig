@@ -1,9 +1,8 @@
 import { accountOf, type ClaudeAccount } from "../claude-logins/accounts"
-import type { ModelRef } from "../claude-logins/models"
+import { OAUTH_PROVIDER, type ModelRef } from "../claude-logins/models"
 import { familyName } from "../credit-lanes/antigravity"
-import { OAUTH_PROVIDER } from "../subagent-fallback/lanes"
-import { ANTIGRAVITY_PROVIDER } from "../subagent-fallback/policy"
-import { antigravityFamily, groupKey } from "../subagent-fallback/quota"
+import { ANTIGRAVITY_PROVIDER } from "./policy"
+import { antigravityFamily, groupKey } from "./quota"
 import { LOGIN_NAMES } from "./names"
 
 // A usage window several steps share: a credit lane (every model of it), a
