@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { ClaudeAccountsContext } from "../claude-logins/accounts"
-import { loginSubscription } from "./claude-logins"
+import { loginSubscription } from "./logins"
 
 test("a saved login is the subscription its connection proves, without activating it", async () => {
   const resolved: string[] = []

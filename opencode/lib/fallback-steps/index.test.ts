@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { readFile, writeFile } from "node:fs/promises"
-import { EMPTY_PROBE_MS } from "../subagent-fallback/empty-lanes"
+import { EMPTY_PROBE_MS } from "./empty-lanes"
 import { statePath } from "./deps"
 import {
   agyRow,

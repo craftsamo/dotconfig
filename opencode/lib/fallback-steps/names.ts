@@ -1,4 +1,4 @@
-import { OAUTH_PROVIDER } from "../subagent-fallback/lanes"
+import { OAUTH_PROVIDER } from "../claude-logins/models"
 
 // How the subscription providers a step can run on are named in a reason.
 export const LOGIN_NAMES: Readonly<Record<string, string>> = {

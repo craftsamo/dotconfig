@@ -7,21 +7,20 @@ import {
   accountOf,
   type AccountRouter,
 } from "../claude-logins/accounts"
-import type { ModelRef } from "../claude-logins/models"
+import { OAUTH_PROVIDER, type ModelRef } from "../claude-logins/models"
 import { familyName } from "../credit-lanes/antigravity"
 import {
   identify,
   subscription,
   type Subscription,
-} from "../subagent-fallback/accounts"
-import { loginSubscription } from "../subagent-fallback/claude-logins"
-import type { EmptyLanes } from "../subagent-fallback/empty-lanes"
-import { OAUTH_PROVIDER } from "../subagent-fallback/lanes"
+} from "./accounts"
+import { loginSubscription } from "./logins"
+import type { EmptyLanes } from "./empty-lanes"
 import {
   ANTIGRAVITY_PROVIDER,
   freshState,
   type QuotaProof,
-} from "../subagent-fallback/policy"
+} from "./policy"
 import {
   antigravityFamily,
   antigravityKey,
@@ -31,8 +30,8 @@ import {
   readAntigravity,
   readQuota,
   SpentWindows,
-} from "../subagent-fallback/quota"
-import { QuotaRefresher } from "../subagent-fallback/quota-refresh"
+} from "./quota"
+import { QuotaRefresher } from "./quota-refresh"
 import type { StepsDeps } from "./deps"
 import type { StepsContext } from "./runtime"
 import { activeLogin } from "./active"
@@ -65,8 +64,8 @@ const spentReason = (
 // The active login of a provider, looked up once for a question.
 type ActiveLogin = (providerID: string) => Promise<Subscription | undefined>
 
-// The decision on one step: the first reason the route's launch preflight
-// had to pass it over (a window a limit held spent, credit lane known empty,
+// The decision on one step: the first reason to pass it over
+// (a window a limit held spent, credit lane known empty,
 // subscription or Antigravity group spent or without an approved login),
 // else usable. What the fallback package covers itself (the route walk, the
 // catalog, cooldowns) is not here.

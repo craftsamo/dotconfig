@@ -2,7 +2,7 @@ import {
   identify,
   subscription,
   type Subscription,
-} from "../subagent-fallback/accounts"
+} from "./accounts"
 import type { StepsContext } from "./runtime"
 
 // The provider's active subscription login, its proof named after the login
