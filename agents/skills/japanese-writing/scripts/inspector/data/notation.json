@@ -1,5 +1,5 @@
 {
-  "source": "Microsoft Japanese Localization Style Guide (2025-07) as house notation default",
+  "source": "Japanese technical and business prose house defaults",
   "classes": {
     "JA": "[ぁ-ゖァ-ヺー㐀-䶿一-鿿々〆]",
     "HK": "[ぁ-ゖ㐀-䶿一-鿿々〆]",
@@ -8,15 +8,15 @@
   "rules": [
     {
       "id": "space_ja_alnum",
-      "severity": "warn",
+      "severity": "info",
       "anchor": "N1",
-      "reason": "日本語と英字・数字・コードの間に半角スペースを入れる (数字も対象):「Git の履歴」「10 月 8 日」「第 2 会議室」。残すなら先に例外を確認する"
+      "reason": "日本語と英字・インラインコードの間は半角スペースを入れるのが既定:「Git の履歴」「`git status` を実行」。スペースなしで統一された文書ならそのまま保つ"
     },
     {
       "id": "space_between_fullwidth",
       "severity": "warn",
       "anchor": "N1",
-      "reason": "ひらがな・漢字の間の空白は詰める",
+      "reason": "ひらがな・漢字の間の不要な空白は詰める",
       "patterns": ["(?<={HK})[ \u3000]+(?={HK})"]
     },
     {
@@ -30,7 +30,7 @@
       "id": "space_inside_brackets",
       "severity": "warn",
       "anchor": "N4",
-      "reason": "括弧や引用符の内側に空白を入れない:「(タイトル)」「[新規]」",
+      "reason": "括弧や引用符の内側に空白を入れない:「（補足）」「(補足)」「[新規]」",
       "patterns": ["[(\\[「『“（][ \u3000]+", "(?<![ \u3000])[ \u3000]+[)\\]」』”）]"],
       "empty_pairs": {"(": ")", "[": "]"}
     },
@@ -45,16 +45,22 @@
       "id": "space_after_mark",
       "severity": "warn",
       "anchor": "N3",
-      "reason": "「?」「!」の後に文が続くときは半角スペースを入れる:「保存しますか? 次へ」",
+      "reason": "半角の「?」「!」の後に文が続くときは半角スペースを入れる:「保存しますか? 次へ」",
       "patterns": ["(?<={JA})[?!]+(?=[^\\s?!()\\]}）」』”’\"'>*_~\u0000])"]
     },
     {
       "id": "paren_outer_space",
-      "severity": "warn",
+      "severity": "info",
       "anchor": "N4",
-      "reason": "半角括弧と日本語の間に半角スペースを入れる:「列 A (タイトル) を選ぶ」",
+      "reason": "半角括弧を使う場合は日本語との間に半角スペースを入れるか、全角括弧「（）」に統一する",
       "patterns": ["(?<={JA})\\(", "\\)(?={JA})"],
-      "access_key": "\\((?:[A-Z0-9]|TM|C)\\)"
+      "access_key": "\\((?:[A-Z0-9]|TM|C|R)\\)"
+    },
+    {
+      "id": "paren_style_mix",
+      "severity": "info",
+      "anchor": "N4",
+      "reason": "本文中で全角括弧「（）」と半角括弧「()」が混在している（{suggest}）。文書内でどちらかに統一する"
     },
     {
       "id": "space_around_slash",
@@ -71,9 +77,9 @@
     },
     {
       "id": "number_unit_space",
-      "severity": "warn",
+      "severity": "info",
       "anchor": "N2",
-      "reason": "数字と単位の間に半角スペースを入れる:「{suggest}」",
+      "reason": "数字と英字単位の間は半角スペースを入れるのが既定:「{suggest}」（詰めて統一された文書ならそのまま保つ）",
       "units": ["kg", "g", "mg", "km", "m", "cm", "mm", "KB", "MB", "GB", "TB", "PB", "Kbps", "Mbps", "Gbps",
                 "Hz", "kHz", "MHz", "GHz", "ms", "px", "pt", "dpi", "W", "kW", "V", "mAh", "mL", "L"],
       "patterns": [["(?<![A-Za-z0-9_.\\-])(?P<num>\\d+(?:[.,]\\d+)*)(?P<unit>{UNITS})(?![A-Za-z0-9])",
@@ -104,21 +110,6 @@
       "patterns": [["，", "、"], ["．", "。"]]
     },
     {
-      "id": "fullwidth_paren",
-      "severity": "warn",
-      "anchor": "N4",
-      "reason": "全角括弧は半角「()」にし、外側に半角スペースを入れる",
-      "patterns": ["（[^（）\\n\u0000\ue000]*）|[（）]"]
-    },
-    {
-      "id": "fullwidth_mark",
-      "severity": "warn",
-      "anchor": "N3",
-      "reason": "全角の「{found}」は半角「{suggest}」で書く",
-      "patterns": ["[？！：]+"],
-      "suggest": "nfkc"
-    },
-    {
       "id": "fullwidth_symbol",
       "severity": "warn",
       "anchor": "N5",
@@ -134,26 +125,11 @@
       "patterns": ["\u3000+"]
     },
     {
-      "id": "wave_dash_range",
-      "severity": "info",
-      "anchor": "N5",
-      "reason": "数値の範囲は「～」ではなく「から」で示す:「{suggest}」",
-      "patterns": [["(?<!\\d)(?P<a>\\d+(?:[ \\t]*[A-Za-z%]+)?)[ \\t]*[～〜~][ \\t]*(?P<b>\\d+)", "\\g<a> から \\g<b>"]],
-      "copyright_line": "©|\\([Cc]\\)|(?i:copyright)"
-    },
-    {
       "id": "dash",
-      "severity": "warn",
-      "anchor": "N5",
-      "reason": "ダッシュ「{found}」は避け、読点・括弧・文の区切りで言い換える",
-      "patterns": ["(?:(?<={JA})|(?<={JA} ))[—–―─]+|(?<![—–―─])[—–―─]+(?= ?{JA})"]
-    },
-    {
-      "id": "ellipsis_char",
       "severity": "info",
       "anchor": "N5",
-      "reason": "「{found}」ではなく半角ピリオド 3 つの「...」を使う",
-      "patterns": ["[…‥]+"]
+      "reason": "文中に詰めて入れたダッシュ「{found}」は、読点・括弧・文の区切りにできないか確認する",
+      "patterns": ["(?<={JA})[—–―─]+(?={JA})"]
     },
     {
       "id": "straight_double_quote",
@@ -163,9 +139,9 @@
     },
     {
       "id": "long_vowel",
-      "severity": "warn",
+      "severity": "info",
       "anchor": "N6",
-      "reason": "カタカナ語の長音は「{suggest}」と書く",
+      "reason": "カタカナ語の長音は「{suggest}」が一般的（分野の慣用や文書内の統一表記ならそのまま保つ）",
       "missing": ["コンピュータ", "ユーザ", "サーバ", "プリンタ", "フォルダ", "ブラウザ", "パラメータ", "エディタ",
                   "ドライバ", "スキャナ", "マネージャ", "コンテナ", "ヘッダ", "フッタ", "フィルタ", "アダプタ",
                   "モニタ", "センサ", "コントローラ", "プロバイダ", "インストーラ", "ビューア", "プレイヤ",
@@ -184,30 +160,16 @@
       "severity": "info",
       "anchor": "N6",
       "reason": "「{found}」は「{suggest}」に表記をそろえる",
-      "patterns": [["インタフェース", "インターフェイス"], ["インターフェース", "インターフェイス"], ["ウイスキー", "ウィスキー"]]
-    },
-    {
-      "id": "katakana_compound_space",
-      "severity": "info",
-      "anchor": "N6",
-      "reason": "英語の複合語に当たるカタカナ語は「{suggest}」と区切る",
-      "patterns": [
-        ["ダイアログボックス", "ダイアログ ボックス"], ["テキストボックス", "テキスト ボックス"],
-        ["チェックボックス", "チェック ボックス"], ["リストボックス", "リスト ボックス"],
-        ["コンボボックス", "コンボ ボックス"], ["メニューバー", "メニュー バー"], ["タスクバー", "タスク バー"],
-        ["ツールバー", "ツール バー"], ["スクロールバー", "スクロール バー"], ["タイトルバー", "タイトル バー"],
-        ["ステータスバー", "ステータス バー"], ["アドレスバー", "アドレス バー"], ["プログレスバー", "プログレス バー"],
-        ["コントロールパネル", "コントロール パネル"], ["コマンドプロンプト", "コマンド プロンプト"]
-      ]
+      "patterns": [["インタフェース", "インターフェイス"], ["ウイスキー", "ウィスキー"]]
     },
     {
       "id": "ka_counter_katakana",
-      "severity": "warn",
+      "severity": "info",
       "anchor": "N8",
-      "reason": "助数詞「{found}」はカタカナではなく「{suggest}」と書く",
+      "reason": "助数詞「{found}」は「{suggest}」と書くのが一般的",
       "patterns": [
-        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケヶカヵ](?=[月所国条])", "\\g<num> か"],
-        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケコ](?!{KATA})", "\\g<num> 個"]
+        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケヶカヵ](?P<tail>[月所国条])", "\\g<num>か\\g<tail>"],
+        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケコ](?!{KATA})", "\\g<num>個"]
       ]
     },
     {
@@ -226,7 +188,7 @@
       "id": "kana_preferred",
       "severity": "info",
       "anchor": "N7",
-      "reason": "「{found}」はかなで「{suggest}」と書く",
+      "reason": "形式名詞・補助動詞・接続詞の「{found}」はかなで「{suggest}」と書くのが一般的",
       "patterns": [
         ["(?<=[てで])下さい", "ください"],
         ["(?<=[てで])頂(?=[かきくけこいっ])", "いただ"],
@@ -253,15 +215,13 @@
       "id": "formal_wording",
       "severity": "info",
       "anchor": "N9",
-      "reason": "硬い言い回し「{found}」は「{suggest}」で足りないか確認する",
+      "reason": "冗長な言い回し「{found}」は「{suggest}」と簡潔に書けないか確認する",
       "patterns": [
         ["が可能です", "できます"],
         ["が可能となります", "できるようになります"],
         ["が可能になります", "できるようになります"],
         ["することにより", "すると"],
-        ["、および", "、"],
-        ["推奨します", "お勧めします"],
-        ["推奨されます", "お勧めします"]
+        ["、および", "、"]
       ]
     },
     {
@@ -317,7 +277,7 @@
       "id": "noun_wo_jikkou",
       "severity": "info",
       "anchor": "N9",
-      "reason": "「{found}」は「{suggest}」の形で短く書けないか確認する",
+      "reason": "「{found}」は「{suggest}」と短く書けないか確認する",
       "patterns": [["(?P<noun>インストール|削除|保存|変更|作成|追加|更新|移動|コピー|ダウンロード|アップロード|起動|終了|検索|表示|設定)を(?:実行|行)(?:し|い|う|っ)",
                     "\\g<noun>する"]]
     },
@@ -344,7 +304,7 @@
       "id": "heading_polite_ending",
       "severity": "info",
       "anchor": "N9",
-      "reason": "見出しが「{found}」で終わっている。体言止めか、である調にする",
+      "reason": "見出しが「{found}」で終わっている。体言止めか簡潔な言い切りにする",
       "pattern": "(?:です|ます|でした|ました)。?$"
     }
   ]

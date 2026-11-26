@@ -1,4 +1,4 @@
-"""Notation checks: the Microsoft Japanese style guide as the house default.
+"""Notation checks: Japanese technical and business prose house defaults.
 
 Most rules are data-driven regexes from ``data/notation.json`` run over a
 per-row view of the literal text. A few rules need context that a single
@@ -43,13 +43,14 @@ def _compile_patterns(rule):
 _TABLE = {rule["id"]: _compile_patterns(rule) for rule in _DATA["rules"] if "patterns" in rule}
 _JA = re.compile(_CLASSES["JA"])
 _ALNUM_BOUNDARY = re.compile(
-    _expand("(?<={JA})(?=[A-Za-z0-9{CODE}])|(?<=[A-Za-z0-9{CODE}])(?={JA})", {"CODE": CODE})
+    _expand("(?<={JA})(?=[A-Za-z{CODE}])|(?<=[A-Za-z{CODE}])(?={JA})", {"CODE": CODE})
 )
 _SLASH = re.compile(r"(?<!\s)(\s*)/(\s*)")
 _ACCESS_KEY = re.compile(_RULES["paren_outer_space"]["access_key"])
 _PHOTO_MM = re.compile(_RULES["number_unit_space"]["photo_mm"])
-_COPYRIGHT = re.compile(_RULES["wave_dash_range"]["copyright_line"])
 _HEADING_POLITE = re.compile(_RULES["heading_polite_ending"]["pattern"])
+_FULL_PAREN = re.compile(r"（[^（）\n\u0000\ue000]+）")
+_HALF_PAREN = re.compile(r"\([^()\n\u0000\ue000]+\)")
 _KATA = _CLASSES["KATA"]
 
 
@@ -134,17 +135,11 @@ def _keep_ideographic_space(view, match):
     return bool(view[:match.start()].strip())
 
 
-def _keep_wave_dash_range(view, match):
-    years = len(match["a"]) == 4 and len(match["b"]) == 4
-    return not (years and _COPYRIGHT.search(view))
-
-
 _FILTERS = {
     "space_inside_brackets": _keep_space_inside_brackets,
     "paren_outer_space": _keep_paren_outer_space,
     "number_unit_space": _keep_number_unit_space,
     "ideographic_space": _keep_ideographic_space,
-    "wave_dash_range": _keep_wave_dash_range,
 }
 
 
@@ -206,8 +201,31 @@ def _heading_polite_ending(emitter, row, view):
         emitter.emit("heading_polite_ending", row, match.start(), match.end())
 
 
+def _half_paren_hits(row, view):
+    hits = []
+    for match in _HALF_PAREN.finditer(view):
+        inner = match[0][1:-1]
+        if not inner.strip() or _ACCESS_KEY.fullmatch(match[0]):
+            continue
+        if _JA.search(inner) or _JA.search(view, max(0, match.start() - 2), min(len(view), match.end() + 2)):
+            hits.append((row, match.start(), match.end()))
+    return hits
+
+
+def _paren_style_mix(emitter, full_hits, half_hits):
+    if not full_hits or not half_hits:
+        return
+    minority = full_hits if len(full_hits) < len(half_hits) else half_hits
+    if len(full_hits) == len(half_hits):
+        minority = half_hits if half_hits[0][0].line > full_hits[0][0].line else full_hits
+    row, start, end = minority[0]
+    summary = f"全角 {len(full_hits)} 箇所 / 半角 {len(half_hits)} 箇所"
+    emitter.emit("paren_style_mix", row, start, end, summary)
+
+
 _DEDICATED = {
     "space_ja_alnum": _space_ja_alnum,
+    "paren_style_mix": None,
     "space_around_slash": _space_around_slash,
     "straight_double_quote": _straight_double_quote,
     "long_vowel": _long_vowel,
@@ -217,14 +235,20 @@ _DEDICATED = {
 
 def run(inspection):
     emitter = _Emitter(inspection)
+    full_hits, half_hits = [], []
     for row in inspection.doc.rows_of(TEXT_KINDS):
         if not row.text.strip():
             continue
         view = _view(row)
+        full_hits.extend((row, m.start(), m.end()) for m in _FULL_PAREN.finditer(view))
+        half_hits.extend(_half_paren_hits(row, view))
         for rule_id in _RULES:
             if rule_id in _DEDICATED:
-                _DEDICATED[rule_id](emitter, row, view)
+                fn = _DEDICATED[rule_id]
+                if fn is not None:
+                    fn(emitter, row, view)
             else:
                 _table_rule(emitter, rule_id, row, view)
+    _paren_style_mix(emitter, full_hits, half_hits)
     inspection.executed(*_RULES)
     inspection.stats(MODE, {"rules_checked": len(_RULES), "by_rule": emitter.counts})
