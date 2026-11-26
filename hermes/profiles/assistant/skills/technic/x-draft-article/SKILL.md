@@ -1,5 +1,5 @@
 ---
-name: draft-article
+name: x-draft-article
 description: "Use only when the user asked, in this conversation, for an X Article draft they created to be finished in the browser's editor. Nothing is ever published."
 version: 1.0.0
 author: CraftSamo
@@ -7,21 +7,24 @@ license: MIT
 metadata:
   hermes:
     tags: [x, twitter, x-article, browser]
+    category: technic
 ---
 
 # Finishing an X Article draft in the browser
 
-One of the two exceptions to `x-access:read`'s rule that the browser
-stays off x.com, beside post drafts (`x-access:draft-post`). It writes into
-the user's main account, so the conditions are strict.
+One of the two exceptions to the rule that the browser stays off x.com (the
+X reads go through the x-tools tools), beside post drafts
+(`skill_view(name="x-draft-post")`). It writes into the user's main account,
+so the conditions are strict.
 
-- Read first, write second. Load `x-access:read` for the `x` tool's
-  mechanics: reading the user's own posts before drafting in their voice, and
-  proving after the save that nothing went out.
+- Read first, write second. Load `skill_view(name="x-tools:posts")` for the
+  mechanics of the x-tools read tools (`x_post_read`, …): reading the user's
+  own posts before drafting in their voice, and proving after the save that
+  nothing went out.
 - Publishing, scheduling, posting, replying, liking, following, DMs and
   account pages stay the user's, whatever the page offers.
-- A browser step is not a way around a tool limit. Anything the `x` tool can
-  read goes through the tool.
+- A browser step is not a way around a tool limit. Anything the x-tools read
+  tools (`x_post_read`, …) can read goes through those tools.
 
 ## When
 
@@ -34,7 +37,7 @@ the user's main account, so the conditions are strict.
   images for this draft before you open the editor (autosave writes at
   once). X's automation rules prohibit scripting the website and draft work
   is not a stated exception: say so once per job and record the user's
-  decision, as `x-access:draft-post` describes.
+  decision, as `skill_view(name="x-draft-post")` describes.
 - **Stop at a saved draft.** Never press publish or schedule, and never
   change the audience or paid settings. Open nothing else on x.com
   (timeline, profile, notifications, account pages).

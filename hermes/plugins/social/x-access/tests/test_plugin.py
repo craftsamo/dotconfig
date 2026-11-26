@@ -157,14 +157,14 @@ def test_searcher_gets_only_the_public_reads():
     assert "only when x_search is not available" in schema["description"]
 
 
-def test_the_draft_skill_reaches_only_the_profile_that_saves_drafts():
-    expected = {"assistant": {"read", "draft-post", "draft-article"}, "marketer": {"read"},
+def test_the_read_skill_reaches_only_reader_profiles():
+    expected = {"assistant": {"read"}, "marketer": {"read"},
                 "searcher": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
-    for profile in ("marketer", "searcher"):
+    for profile in ("assistant", "marketer", "searcher"):
         ctx = Ctx(profile)
         plugin.register(ctx)
         for path in ctx.skills.values():

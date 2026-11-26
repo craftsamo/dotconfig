@@ -22,8 +22,6 @@ ALL_READERS = {"assistant", "marketer", "searcher"}
 EXPECTED = {
     "social/x-access": {
         "read": ALL_READERS,
-        "draft-post": {"assistant"},
-        "draft-article": {"assistant"},
     },
     "social/youtube-access": {
         "read": ALL_READERS,
