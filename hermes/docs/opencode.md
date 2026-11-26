@@ -291,8 +291,9 @@ the person's agent rules), anything naming `deploy`, `publish`, `secret`,
 `--remote` or `--prod` (a project's task runner can reach those past every other
 rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (every shell push,
 `gh stack push`, `submit` and `sync` included, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
-aliases and extensions, edits under `.git/`, the Signal, Telegram, Discord, WhatsApp and Cloudflare tools
-`signal_*`, `telegram_*`, `discord_*`, `whatsapp_*` and `cloudflare_*` with their reads, the github-tools writes `github_*` but its read tools,
+aliases and extensions, edits under `.git/`, the Signal, Telegram, Discord, WhatsApp, Cloudflare and X tools
+`signal_*`, `telegram_*`, `discord_*`, `whatsapp_*`, `cloudflare_*` and x-tools' `x_*_read`,
+`x_media_download` and `x_grant_*` with their reads, the github-tools writes `github_*` but its read tools,
 and in a write run asks for `github_pr_create`, `github_stack_link` and
 `github_pr_edit` for a PR's labels, assignees, reviewers and milestone only,
 with board arguments refused), and last the person's own denies
@@ -307,10 +308,11 @@ though an identifier spelled like one (`gh_api`) does not. They guard a
 cooperative agent's spellings, not a sandbox: several spaces between gh's
 words are not covered, and the ruleset (a couple of thousand rules, re-sent
 every turn) is capped by a test.
-The Signal, Telegram, Discord, WhatsApp and Cloudflare tools are denied whole, reads included, which also hides them from
+The Signal, Telegram, Discord, WhatsApp, Cloudflare and X tools are denied whole, reads included, which also hides them from
 the run: the Assistant reaches the person's accounts through its own plugins and
 cards, and a run's ask would reach only the caller, who must never approve a send
-or a change.
+or a change. The X tools also spend the reading account's shared caps; they are
+denied by name, since `x_*` would take OpenCode's own `x_search` with them.
 The gated git writes, per-command configuration (`git -c`, `--config-env`)
 and branch moves ask in a write run and are denied in a read-only one, whose
 session rules hold denies only: a read-only agent may deny those itself, and

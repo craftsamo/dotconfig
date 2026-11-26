@@ -2560,6 +2560,11 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                          "cloudflare_dns_record_add", "cloudflare_dns_record_delete",
                          "cloudflare_zone_cache_purge_all", "cloudflare_grant_create"):
                 assert policy.decide(rules, tool, "example.com") == "deny", (kind, tool)
+            for tool in ("x_account_read", "x_post_read", "x_user_read", "x_list_read", "x_community_read",
+                         "x_trend_read", "x_grant_read", "x_media_download", "x_grant_create",
+                         "x_grant_revoke"):
+                assert policy.decide(rules, tool, "*") == "deny", (kind, tool)
+            assert policy.decide(rules, "x_search", "*") != "deny", kind
             for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):
