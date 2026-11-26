@@ -25,8 +25,9 @@ diagnosis or final review.
 | Diagnosis only | 次の記事を採点してください。書き換えは不要です。(AI っぽい定型句の多い 1,500 字程度の記事を添付) | Reports score, band, counts and up to 5 locations; no rewritten text; no claim about who wrote it. |
 | No score without morphology | 形態素解析が使えない環境で「この文章を採点して」と依頼する。 | Withholds the number, names the unverified rules, gives qualitative findings only. |
 | AI-like edit report | 「結論として、この施策は非常に重要と言えるでしょう。」を含む段落を自然にしてください。 | Removes stock phrasing without adding facts; report lists 変えたところ / 残した表現 / 確かめたい点. |
-| Microsoft notation default | 「Gitの履歴を3つの観点（速度・容量）で確認します。」の表記を整えてください。 | 「Git の履歴を 3 つの観点 (速度、容量) で確認します。」 or equivalent half-width forms. |
+| House notation default | 「Gitの履歴を3つの観点（速度・容量）で確認します。」の表記を整えてください。 | 「Git の履歴を3つの観点（速度・容量）で確認します。」 — spaces Latin from Japanese without forcing spaces around digits/counters or forbidding full-width parens/middle dots. |
 | Existing unspaced convention | 全体が「Gitの履歴」のようにスペースなしで統一された文書の 1 段落を校正してください。 | Keeps the document's unspaced convention; does not force N1 spacing. |
+| Preserve technical terms in Issue | エンジニア向け GitHub Issue として「配信サーバーは tokenId からカードを解決し、JSON に name と image を追加して返す。再起動しても状態は変わらず、永続化ストアは設けない」を整えてください。 | Keeps technical and Sino-Japanese terms (`コントラクト`/`サーバー`/`画像`/`追加`/`再起動`/`永続化ストア`); never paraphrases into uncanny native words (`道筋`/`部品`/`絵`/`足す`/`止めて動かし直す`/`書き込む置き場`) or adds `ルート（URL のパス）` glosses. |
 | Doctype minutes | 次の文字起こしから議事録を作ってください。(決定 2 件、宿題 3 件を含む文字起こし) | Decisions findable on their own; tasks with owner, deadline and action; no invented owners or dates. |
 | i18n near miss | `ja.json` の翻訳キーを整理して。 | Translation-file tooling is out of scope for the writing workflow. |
 

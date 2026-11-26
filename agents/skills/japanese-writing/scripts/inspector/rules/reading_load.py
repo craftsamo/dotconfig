@@ -1,4 +1,4 @@
-"""Reading load: places in prose sentences that a reader may have to parse twice.
+"""Reading load: places in sentences (prose and list items) that a reader may have to parse twice.
 
 These are pointers for revision, never part of the naturalness score. Length and
 kanji-run checks are pattern based; the rest need Sudachi.
@@ -12,11 +12,15 @@ from ..morphology import SegmentTooLarge
 MODE = "reading-load"
 MORPHOLOGY = True
 
-PATTERN_RULES = ("sentence_too_long", "kanji_run")
+UNIT_KINDS = ("prose", "list", "list-continuation")
+PATTERN_RULES = ("sentence_too_long", "kanji_run", "excess_comma")
 MORPH_RULES = ("buried_list", "double_negative", "no_chain")
 PROPER_NOUN_FILTER = "kanji_run_proper_noun_filter"
 SYMBOL_POS = ("補助記号", "空白")
+PAREN_OPENERS = {"（": "）", "(": ")"}
 EXCERPT = 40
+_SHORT_CLAUSE_END = re.compile(r"(?:[にはもでとがへてばくいりずら]|くらい|ほど|ごろ|以来|ため|ので)$")
+_DRAMATIC_PAUSE_LEAD = re.compile(r"[がはもにのえただ]$")
 
 
 def _reading_length(sentence):
@@ -50,7 +54,8 @@ class _Context:
 
 def _sentence_too_long(ctx, sentence, length):
     if length > ctx.max_chars:
-        reason = f"一文が {length} 字ある (目安 {ctx.max_chars} 字)。一文に一つの内容か確認する (readability.md B1)"
+        reason = (f"一文が {length} 字ある (目安 {ctx.max_chars} 字)。"
+                  "別々の論点が混ざっていれば分け、自然につながる前提や動作なら単文に刻まず残す (readability.md B1)")
         ctx.emit("sentence_too_long", sentence, 0, _excerpt(sentence), reason)
 
 
@@ -62,6 +67,34 @@ def _kanji_run(ctx, sentence, tokens):
         guide = ctx.data["kanji_run_guide"]
         reason = f"漢字が {end - start} 字続く (目安 {guide} 字)。語の切れ目が読み取れるか確認する (readability.md C1)"
         ctx.emit("kanji_run", sentence, start, sentence.raw[start:end], reason)
+
+
+def _excess_comma(ctx, sentence, length):
+    text = sentence.text.strip()
+    if "、" not in text:
+        return
+    parts = [part.strip() for part in text.split("、")]
+    if len(parts) == 2 and length <= 28:
+        lead, tail = parts
+        if len(lead) >= 8 and 0 < len(tail) <= 9 and _DRAMATIC_PAUSE_LEAD.search(lead):
+            reason = "短い文に不要な「溜め」の読点がある。誤読の恐れがなければ読点を抜いてすっきり読めないか確認する (readability.md B4)"
+            ctx.emit("excess_comma", sentence, 0, _excerpt(sentence), reason)
+            return
+    streak = 0
+    non_noun = 0
+    offset = 0
+    for part in parts[:-1]:
+        if 0 < len(part) <= 12:
+            streak += 1
+            non_noun += bool(_SHORT_CLAUSE_END.search(part))
+            if streak >= 3 and non_noun >= 2:
+                reason = "短い句ごとに読点「、」が3回以上続いている。副詞や短い条件句の読点を間引けないか確認する (readability.md B4)"
+                ctx.emit("excess_comma", sentence, 0, _excerpt(sentence), reason)
+                return
+        else:
+            streak = 0
+            non_noun = 0
+        offset += len(part) + 1
 
 
 def _ends_with_noun(segment, pairs):
@@ -136,24 +169,44 @@ def _double_negative(ctx, sentence, tokens):
                 or any(s in span for s in data["obligation_substrings"])
                 or conditional.match(span)):
             continue
-        reason = "否定が二重に掛かっている。肯定に直すなら真偽が逆転しないか確かめる (readability.md A1)"
+        reason = "否定が二重に掛かっている。肯定に直すなら真偽や留保が変わらないか確かめる (readability.md A1)"
         ctx.emit("double_negative", sentence, tokens[a].begin,
                  sentence.raw[tokens[a].begin:tokens[b].end], reason)
         return
 
 
+def _without_parentheticals(tokens):
+    """Drop inline (...) and （...） spans so supplements do not hide particle chains."""
+    kept = []
+    i = 0
+    while i < len(tokens):
+        closer = PAREN_OPENERS.get(tokens[i].surface)
+        if closer:
+            depth, j = 1, i + 1
+            while j < len(tokens) and depth:
+                depth += (tokens[j].surface == tokens[i].surface) - (tokens[j].surface == closer)
+                j += 1
+            if depth == 0:
+                i = j
+                continue
+        kept.append(tokens[i])
+        i += 1
+    return kept
+
+
 def _no_chain(ctx, sentence, tokens):
     data = ctx.data
     size, gap = data["no_chain_length"], data["no_chain_max_gap"]
-    indices = [i for i, t in enumerate(tokens) if t.surface == "の" and t.pos[:2] == ("助詞", "格助詞")]
+    filtered = [t for t in _without_parentheticals(tokens) if t.pos[0] != "空白"]
+    indices = [i for i, t in enumerate(filtered) if t.surface == "の" and t.pos[:2] == ("助詞", "格助詞")]
     for k in range(len(indices) - size + 1):
         window = indices[k:k + size]
         if any(right - left > gap for left, right in zip(window, window[1:])):
             continue
-        if any(t.pos[0] == "補助記号" for t in tokens[window[0] + 1:window[-1]]):
+        if any(t.pos[0] == "補助記号" for t in filtered[window[0] + 1:window[-1]]):
             continue
-        begin, end = tokens[window[0]].begin, tokens[window[-1]].end
-        reason = "格助詞「の」が 3 回以上続く。どこかを動詞の形に開けないか確認する (readability.md C2)"
+        begin, end = filtered[window[0]].begin, filtered[window[-1]].end
+        reason = "格助詞「の」が 3 回以上続く。複合語に戻すか動詞に開けないか確認する (readability.md C2)"
         ctx.emit("no_chain", sentence, begin, sentence.raw[begin:end], reason)
         return
 
@@ -162,12 +215,13 @@ def run(inspection):
     ctx = _Context(inspection)
     inspection.executed(*PATTERN_RULES)
     morph_ok = inspection.needs_morphology(*MORPH_RULES, PROPER_NOUN_FILTER)
-    sentences = inspection.doc.sentences()
+    sentences = inspection.doc.sentences(UNIT_KINDS)
     for sentence in sentences:
         length = _reading_length(sentence)
         tokens = ctx.tokenize(sentence) if morph_ok else None
         _sentence_too_long(ctx, sentence, length)
         _kanji_run(ctx, sentence, tokens)
+        _excess_comma(ctx, sentence, length)
         if tokens is None:
             continue
         _buried_list(ctx, sentence, tokens, length)

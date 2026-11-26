@@ -10,7 +10,7 @@ REFERENCES = SKILL / "references"
 ANCHORS = {
     "readability.md": ["A1", "A2", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "C1", "C2", "C3", "C4",
                        "D1", "E1", "F1", "H1", "H2", "H3", "I1", "J1", "J2", "J3"],
-    "expression.md": [f"X{n}" for n in range(1, 11)],
+    "expression.md": [f"X{n}" for n in range(1, 13)],
     "notation.md": [f"N{n}" for n in range(1, 12)],
     "revision.md": [f"R{n}" for n in range(1, 6)],
 }

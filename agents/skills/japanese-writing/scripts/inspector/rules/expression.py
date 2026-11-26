@@ -1,4 +1,4 @@
-"""Expression habits: formatting excess, stock phrases, ending rhythm and stance.
+"""Expression habits: formatting excess, stock phrases, unnatural paraphrasing, ending rhythm and stance.
 
 Also provides the sentence-ending classifier shared with the revision mode.
 """
@@ -16,6 +16,7 @@ MORPHOLOGY = False
 DATA = catalog.load("expression")
 UNIT_KINDS = ("prose", "list", "list-continuation")
 LIST_KINDS = ("list", "list-continuation")
+LIST_FRIENDLY_GENRES = ("tech", "business")
 GATE_CHARS = 300
 BOLD_LIMIT = 3.0
 LIST_LIMIT = 0.25
@@ -27,6 +28,8 @@ _EMPHASIS = re.compile(r"\*\*|__|\*")
 _BOLD_SPAN = re.compile(r"\*\*[^*]+\*\*")
 _LINK_BULLET = re.compile(r"\[[^\]]*\]\(https?://")
 _METAPHORS = [dict(entry, regex=re.compile(entry["pattern"])) for entry in DATA["metaphor_verbs"]]
+_PARAPHRASES = [dict(entry, regex=re.compile(entry["pattern"])) for entry in DATA["unnatural_paraphrase"]]
+_UNNATURAL_HEADINGS = DATA["unnatural_headings"]
 _FILLERS = [dict(entry, regex=re.compile(entry["pattern"])) for entry in DATA["meta_filler"]]
 _ENDING_TRAIL = re.compile(r"[。！？!?\s*_]+$")
 _DASH = re.compile(r"[—―]{1,2}")
@@ -203,11 +206,11 @@ def _density(inspection):
             f"太字が 1000 字あたり {bold_rate:.1f} 箇所ある。目安は 1000 字あたり 3 以下。"
             "要点だけに絞れるか確認する (expression.md X10)",
         )
-    if chars > GATE_CHARS and list_ratio > LIST_LIMIT:
+    if chars > GATE_CHARS and list_ratio > LIST_LIMIT and inspection.genre not in LIST_FRIENDLY_GENRES:
         inspection.finding(
             MODE, "excess_list", "warn", 1, 1, f"箇条書き {lists} 行 / {len(rows)} 行",
             f"箇条書きの行が全体の {list_ratio * 100:.1f}% を占める。目安は 25% 以下。"
-            "理由や経緯は文章で書けるか確認する (expression.md X10)",
+            "並列項目であれば残し、経緯や理由なら文章でつなげるか確認する (expression.md X10)",
         )
     return {"char_count": chars, "list_ratio": round(list_ratio, 3), "bold_per_1000": round(bold_rate, 2)}
 
@@ -219,32 +222,69 @@ def _end_type(text):
     return next((end for end in DATA["sentence_endings"] if tail.endswith(end)), None)
 
 
+CHOPPY_MAX_CHARS = 22
+CHOPPY_UNLINKED_MAX_CHARS = 38
+CHOPPY_MIN_RUN = 4
+_CLAUSE_LINK = re.compile(
+    r"(?:[きぎしじちびみりえけげせてでねへべめれずがば]|ので|ため|ながら|つつ|ものの|けれど|から|ると|えば|たら|なら)、"
+)
+
+
+def _is_choppy_unit(text):
+    stripped = text.strip()
+    if len(stripped) <= CHOPPY_MAX_CHARS:
+        return True
+    return len(stripped) <= CHOPPY_UNLINKED_MAX_CHARS and not _CLAUSE_LINK.search(stripped)
+
+
 def _end_repetition(inspection):
-    inspection.executed("sentence_end_repetition")
-    sentences = [s for s in inspection.doc.sentences(UNIT_KINDS) if len(s.text.strip()) > 3]
-    run = 1
-    for index in range(1, len(sentences)):
-        current = _end_type(sentences[index].text)
-        if current is not None and current == _end_type(sentences[index - 1].text):
-            run += 1
-            if run == 3:
-                trio = sentences[index - 2:index + 1]
-                last = sentences[index]
-                inspection.span_finding(
-                    MODE, "sentence_end_repetition", "warn", last.row, last.start, last.end,
-                    f"文末「{current}」が 3 文続いている。言い切りや問いかけを混ぜて単調さを避けられるか"
-                    "確認する (expression.md X7)",
-                    [s.line for s in trio],
-                )
-        else:
-            run = 1
-    return len(sentences)
+    inspection.executed("sentence_end_repetition", "choppy_sentence_run")
+    all_sentences = [s for s in inspection.doc.sentences(UNIT_KINDS) if len(s.text.strip()) > 3]
+    # Parallel list items are expected to share endings (notation.md N9), and headings or
+    # blank lines start a new rhythm unit; check consecutive sentences within each prose paragraph.
+    prose_by_line = {}
+    for sentence in inspection.doc.sentences(("prose",)):
+        if len(sentence.text.strip()) > 3:
+            prose_by_line.setdefault(sentence.row.line, []).append(sentence)
+    for rows in inspection.doc.paragraphs(("prose",)):
+        paragraph_sentences = [s for row in rows for s in prose_by_line.get(row.line, ())]
+        run = 1
+        for index in range(1, len(paragraph_sentences)):
+            current = _end_type(paragraph_sentences[index].text)
+            if current is not None and current == _end_type(paragraph_sentences[index - 1].text):
+                run += 1
+                if run == 3:
+                    trio = paragraph_sentences[index - 2:index + 1]
+                    last = paragraph_sentences[index]
+                    inspection.span_finding(
+                        MODE, "sentence_end_repetition", "warn", last.row, last.start, last.end,
+                        f"同一段落内で文末「{current}」が 3 文続いている。常体を混ぜず、接続助詞での結合や状態表現で整えられるか"
+                        "確認する (expression.md X7)",
+                        [s.line for s in trio],
+                    )
+            else:
+                run = 1
+        short_run = []
+        for sentence in paragraph_sentences:
+            if _is_choppy_unit(sentence.text):
+                short_run.append(sentence)
+                if len(short_run) == CHOPPY_MIN_RUN:
+                    last = sentence
+                    inspection.span_finding(
+                        MODE, "choppy_sentence_run", "warn", last.row, last.start, last.end,
+                        f"接続助詞や連用形でつながない短めの単文が同一段落で{CHOPPY_MIN_RUN}文以上続いている。"
+                        "同じ主語の前提や一連の動作を「〜で、」「〜が、」「〜て、」で自然な一文に結べないか確認する (expression.md X7)",
+                        [s.line for s in short_run],
+                    )
+            else:
+                short_run = []
+    return len(all_sentences)
 
 
 def _style_mix(inspection):
     inspection.executed("ending_style_mix")
     forms = {"polite": [], "plain": []}
-    for sentence in inspection.doc.sentences(("prose",)):
+    for sentence in inspection.doc.sentences(UNIT_KINDS):
         form = register(sentence.text) if _terminated(sentence) else ""
         if form:
             forms[form].append(sentence)
@@ -349,10 +389,33 @@ def _metaphors(inspection, row, clean, offsets):
             continue
         spans[entry["id"]] = match.span()
         left, right = _span(offsets, *match.span())
+        anchor = "X4" if entry["id"] == "shiranai" else "X5"
         inspection.span_finding(
             MODE, "metaphor_verb", "warn", row, left, right,
-            f"比喩や直訳調の言い回し ({entry['label']}) がある。字義どおりでなければ"
-            "具体的な動作や結果に書き換えられるか確認する (expression.md X5)",
+            f"比喩や擬人化の言い回し ({entry['label']}) がある。字義どおりでなければ"
+            f"具体的な仕様・動作・結果で書けないか確認する (expression.md {anchor})",
+        )
+
+
+def _paraphrases(inspection, row, clean, offsets):
+    if row.kind == "heading":
+        title = clean.strip()
+        suggest = _UNNATURAL_HEADINGS.get(title)
+        if suggest:
+            inspection.finding(
+                MODE, "unnatural_paraphrase", "warn", row.line, row.content_start + 1, row.raw.strip(),
+                f"見出し「{title}」は定型語を不自然に和語化した表現になりやすい。"
+                f"「{suggest}」など標準的な見出し語にできないか確認する (expression.md X11)",
+            )
+    for entry in _PARAPHRASES:
+        match = entry["regex"].search(clean)
+        if not match:
+            continue
+        left, right = _span(offsets, *match.span())
+        inspection.span_finding(
+            MODE, "unnatural_paraphrase", "warn", row, left, right,
+            f"不自然な言い換え・回りくどい和語化 ({entry['label']}) の疑いがある。"
+            "自然な漢語熟語や技術用語で簡潔に書けないか確認する (expression.md X11)",
         )
 
 
@@ -373,7 +436,7 @@ def _fillers(inspection, sentence):
 
 
 def _row_checks(inspection):
-    inspection.executed("emoji", "slop_vocabulary", "metaphor_verb", "meta_filler")
+    inspection.executed("emoji", "slop_vocabulary", "metaphor_verb", "unnatural_paraphrase", "meta_filler")
     for row in inspection.doc.rows_of(TEXT_KINDS + ("table",)):
         _emoji(inspection, row)
         if row.kind == "table":
@@ -381,6 +444,7 @@ def _row_checks(inspection):
         clean, offsets = _without_emphasis(row.visible)
         _slop(inspection, row, clean, offsets)
         _metaphors(inspection, row, clean, offsets)
+        _paraphrases(inspection, row, clean, offsets)
     for sentence in inspection.doc.sentences(UNIT_KINDS):
         _fillers(inspection, sentence)
 
