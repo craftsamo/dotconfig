@@ -551,8 +551,10 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   adopt_dir "$h/cron"
   [ -d "$p/scripts" ] && copy_entries "hermes/profiles/$n/scripts" "$h/scripts"
   [ -d "$p/skills" ]  && link_entries "hermes/profiles/$n/skills" "$h/skills"
-  [ -d "$p/cron.d" ]  && link_entries "hermes/profiles/$n/cron.d" "$h/cron.d"
-  [ -d "$p/webhook.d" ] && link_entries "hermes/profiles/$n/webhook.d" "$h/webhook.d"
+  # A profile whose last tracked job or route was deleted still has links to
+  # prune: link_entries drops them, and the sync then retires the job.
+  { [ -d "$p/cron.d" ] || [ -d "$h/cron.d" ]; } && link_entries "hermes/profiles/$n/cron.d" "$h/cron.d"
+  { [ -d "$p/webhook.d" ] || [ -d "$h/webhook.d" ]; } && link_entries "hermes/profiles/$n/webhook.d" "$h/webhook.d"
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$h/.no-bundled-skills"
   link "$HOME/.hermes/plugins" "$h/plugins"
 done
