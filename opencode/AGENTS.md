@@ -196,10 +196,10 @@ the running build of the worktree and report its summary.
 <JapaneseWritingSkills>
 
 Load `japanese-writing` to write, rewrite, proofread or diagnose Japanese
-deliverable text (articles, business documents, messages, essays). Its
-SKILL.md supplies the design, draft, inspect and converge workflow,
-readability and expression catalogs, Microsoft-style notation defaults,
-document-type guides, a 0-100 naturalness diagnosis and a read-only
+deliverable text (GitHub Issues, PR descriptions, technical specs, articles,
+business documents, messages, essays). Its SKILL.md supplies a subtraction-first
+workflow, readability and expression catalogs, pragmatic Japanese notation
+defaults, document-type guides, a 0-100 naturalness diagnosis and a read-only
 inspector. The user's instructions and the project's conventions outrank its
 defaults.
 
