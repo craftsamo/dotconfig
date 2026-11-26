@@ -57,9 +57,21 @@ def test_a_tracked_manifest_names_no_conversation():
         assert not (set(spec) & S.LOCAL_ONLY_KEYS), d
 
 
-def test_the_repository_tracks_at_least_one_manifest():
-    """x-snapshot is the first; a repository with none would leave the install path untested."""
-    assert any(d.name == "x-snapshot" for d in manifest_dirs())
+def test_a_manifest_in_the_tracked_shape_loads(tmp_path: Path):
+    """The repository may track no job, so the shape the tracked ones must have is loaded from a fixture."""
+    profile = tmp_path / "profile"
+    job = profile / S.MANIFEST_DIR / "sample"
+    job.mkdir(parents=True)
+    (job / S.MANIFEST_FILE).write_text('schedule: "0 */6 * * *"\nmode: no_agent\n', encoding="utf-8")
+    run = job / S.RUN_SCRIPT
+    run.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    run.chmod(0o755)
+
+    manifests, errors = S.load_manifests(profile)
+    assert errors == []
+    assert len(manifests) == 1 and manifests[0].name == "sample"
+    assert manifests[0].spec == {"schedule": "0 */6 * * *", "mode": "no_agent"}
+    assert manifests[0].run_script == run
 
 
 def test_no_tracked_script_registers_its_own_job():
