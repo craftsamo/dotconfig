@@ -118,14 +118,6 @@
         // without a variant stands for every variant, and a move keeps the session's.
         // The first step's model is the one the agent file names.
         //
-        // Temporarily skip all Antigravity routes (2026-11-15): upstream reports
-        // an OpenCode prompt-triggered 429 followed by a misleading 403.
-        // https://github.com/NoeFabris/opencode-antigravity-auth/issues/622
-        // Restore the commented steps in place after the upstream fix is verified:
-        // https://github.com/NoeFabris/opencode-antigravity-auth/pull/623
-        // The remaining steps keep their order; the route overrides agent defaults.
-        //
-        // Normal routing, before this temporary suspension:
         // Gemini 4 Hydrogen on Antigravity leads the explore tiers below max, the
         // worker, the refactorer and the searcher, and backs up the deep
         // searcher; Claude closes every route: Claude on Antigravity first
@@ -137,67 +129,67 @@
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
-            // "google/antigravity-claude-opus-5-5-high",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
             "anthropic-credit-main/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
-            // "google/antigravity-gemini-4-hydrogen-high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "openai/gpt-6.1-sol#high",
-            // "google/antigravity-claude-sonnet-5-5-high",
+            "google/antigravity-claude-sonnet-5-5-high",
             "anthropic/claude-sonnet-5-5#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
-            // "google/antigravity-gemini-4-hydrogen-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            // "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "reviewer": [
             "openai/gpt-6.1-sol#medium",
-            // "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker": [
-            // "google/antigravity-gemini-4-hydrogen-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            // "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "refactorer": [
-            // "google/antigravity-gemini-4-hydrogen-medium",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
-            // "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker-deep": [
             "anthropic/claude-sonnet-5-5#high",
-            // "google/antigravity-claude-sonnet-5-5-high",
+            "google/antigravity-claude-sonnet-5-5-high",
             "openai/gpt-6.1-sol#high",
-            // "google/antigravity-gemini-4-hydrogen-high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-spark": [
-            // "google/antigravity-gemini-4-hydrogen-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna-fast#low",
             "anthropic/claude-haiku-5-5#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "explore-small": [
-            // "google/antigravity-gemini-4-hydrogen-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna#low",
             "anthropic/claude-haiku-5-5#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
@@ -211,14 +203,14 @@
           ],
           "debugger": [
             "openai/gpt-6.1-sol#high",
-            // "google/antigravity-claude-opus-5-5-high",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high"
           ],
           "reviewer-deep": [
             "openai/gpt-6.1-sol#high",
-            // "google/antigravity-claude-opus-5-5-high",
+            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high"
@@ -226,12 +218,12 @@
           "searcher-deep": [
             "xai/grok-4.7#medium",
             "openai/gpt-6.1-sol#medium",
-            // "google/antigravity-gemini-4-hydrogen-high",
-            // "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-gemini-4-hydrogen-high",
+            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium"
           ],
           "searcher": [
-            // "google/antigravity-gemini-4-hydrogen-low",
+            "google/antigravity-gemini-4-hydrogen-low",
             "xai/grok-4.7#low",
             "openai/gpt-6.1-sol#low",
             "anthropic/claude-haiku-5-5#low"
