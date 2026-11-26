@@ -441,11 +441,6 @@ weekly too, which v3 tells apart by row id), Monthly usage credits and Code
 Review rows are ignored. Published 0% (or less)
 counts as empty, even if rounded.
 
-Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
-(`five_hour: null`) and shows it as "Unexpected reply"
-([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
-`lib/fallback-steps` then sees the login as unknown, not exhausted.
-
 **Freshness.** The export is rewritten only when Quota checks its providers,
 so it can be old. An empty window with a reset time still in the
 future is trusted at any age, because a window cannot recover before its reset

@@ -9,7 +9,7 @@ import type { RuntimeContext } from "./runtime"
 // and reads the export again once it is rewritten.
 //
 // Not a public interface: the id and the refresh input are those of
-// @slkiser/opencode-quota 6.0.0 (dist/rpc.js); re-check them with a bump.
+// @slkiser/opencode-quota 6.3.0 (dist/rpc.js); re-check them with a bump.
 // A call needs only the id and the method names; Quota validates the
 // input. Anything that fails leaves the answer on the export it read.
 export const QUOTA_RPC = {
