@@ -4,6 +4,7 @@ from collections import Counter
 import unittest
 
 from japanese_writing import helpers
+from japanese_writing.test_outline import fake_morphology
 
 reading_load = helpers.module("rules.reading_load")
 MORPH_AVAILABLE = helpers.MORPH_AVAILABLE
@@ -44,6 +45,14 @@ class PatternTests(unittest.TestCase):
         text = "詳しくは `" + "x" * 120 + "` を見る。"
         self.assertEqual(counts(run(text))["sentence_too_long"], 0)
 
+    def test_excess_comma_flags_choppy_commas_and_dramatic_short_pauses(self):
+        dramatic = "ペン先が紙に引っかかる感触が、妙に新鮮だった。"
+        self.assertEqual(counts(run(dramatic, genre="essay"))["excess_comma"], 1)
+        choppy_lead = "それ以来、月に一度くらい、特に急ぎの用がなくても、封筒を買いに寄るようになった。"
+        self.assertEqual(counts(run(choppy_lead, genre="essay"))["excess_comma"], 1)
+        self.assertEqual(counts(run("ただし、例外もあります。"))["excess_comma"], 0)
+        self.assertEqual(counts(run("対象は北海道、青森県、岩手県、宮城県の四道県だ。"))["excess_comma"], 0)
+
     def test_kanji_run_without_morphology_is_flagged_unverified(self):
         report = run("システム更新計画策定支援業務を確認した。標準化推進を決めた。")
         self.assertEqual(counts(report)["kanji_run"], 1)
@@ -54,11 +63,33 @@ class PatternTests(unittest.TestCase):
         self.assertIn("sentence_too_long", report["executed"])
         self.assertEqual(report["status"], "partial")
 
-    def test_prose_only(self):
+    def test_list_items_are_inspected_while_headings_are_excluded(self):
         text = "- " + LONG + "\n\n# 更新計画策定支援業務\n"
         report = run(text)
-        self.assertEqual(report["findings"], [])
-        self.assertEqual(report["stats"]["reading-load"]["sentences"], 0)
+        self.assertEqual(counts(report)["sentence_too_long"], 1)
+        self.assertEqual(counts(report)["kanji_run"], 0)
+        self.assertEqual(report["stats"]["reading-load"]["sentences"], 1)
+
+    def test_no_chain_across_parenthetical_in_list_item(self):
+        lexicon = {
+            "デッキ": ("名詞", "普通名詞"),
+            "カード": ("名詞", "普通名詞"),
+            "JSON": ("名詞", "固有名詞"),
+            "ティア": ("名詞", "普通名詞"),
+            "の": ("助詞", "格助詞"),
+            "(": ("補助記号", "括弧開"),
+            ")": ("補助記号", "括弧閉"),
+            "、": ("補助記号", "読点"),
+            "。": ("補助記号", "句点"),
+            "は": ("助詞", "係助詞"),
+            "で": ("助詞", "格助詞"),
+            "決まり": ("動詞", "一般"),
+            "ます": ("助動詞",),
+        }
+        text = "- レアは、デッキの版 (#50) のカードの JSON のティアで決まります。"
+        report = run(text, fake_morphology(lexicon))
+        self.assertEqual(counts(report)["no_chain"], 1)
+        self.assertIn("readability.md C2", report["findings"][0]["reason"])
 
 
 @unittest.skipUnless(MORPH_AVAILABLE, "SudachiPy with the pinned dictionary is not installed")

@@ -13,7 +13,8 @@
     "tech": {
       "nominal_min_chars": 3000,
       "lead_repeat_threshold": 7,
-      "antithesis_rate_critical_above": 0.045
+      "antithesis_rate_critical_above": 0.045,
+      "disabled_rules": ["high_bullet_ratio"]
     },
     "business": {
       "nominal_min_chars": 3000,
@@ -83,7 +84,7 @@
     "であることは間違いない",
     "に他ならない"
   ],
-  "antithesis_patterns": ["ではなく、?.{0,30}", "だけでなく.{0,10}も"],
+  "antithesis_patterns": ["ではなく、?.{0,30}", "だけでなく.{0,10}も", "わけでは(?:ない|ありません)", "というより(?:は|も)?"],
   "antithesis_min_hits": 3,
   "antithesis_info_below": 0.02,
   "inanimate_subject_patterns": [
@@ -114,7 +115,7 @@
   ],
   "numeric_quantity": "[0-9０-９]+(年代|年間|世紀|年|月|日|時間|時|分|秒|人|円|%|％|kg|km|cm|mm|g|m|回|件|個|つ|割|倍|台|社|名|冊|本|杯|軒)?",
   "bold_span": "\\*\\*[^*\\n]+\\*\\*",
-  "boilerplate_heading_words": ["まとめ", "おわりに", "終わりに", "さいごに", "最後に", "結論", "総括", "conclusion"],
+  "boilerplate_heading_words": ["まとめ", "おわりに", "終わりに", "さいごに", "最後に", "結論", "総括", "振り返って", "ふりかえって", "振り返り", "ふりかえり", "試してみて", "やってみて", "conclusion"],
   "numbered_phase": "(フェーズ|ステップ|段階|ステージ)\\s*[0-9０-９]",
   "emoji_symbol": "[\\U0001F300-\\U0001FAFF\\u2600-\\u27BF\\u2B50]"
 }

@@ -94,6 +94,10 @@ class SurfacePatternTests(unittest.TestCase):
     def test_antithesis_below_three_hits_is_silent(self):
         self.assertEqual(counts(run("量ではなく質だ。\n値段ではなく味だ。"))["antithesis_repetition"], 0)
 
+    def test_antithesis_catches_wakedewanai_and_toiuyori(self):
+        text = "特別な店を見つけたわけではない。常連というより顔見知りに近い。定例がなくなったわけではありません。\n"
+        self.assertEqual(counts(run(text))["antithesis_repetition"], 3)
+
     def test_low_sentence_variance(self):
         uniform = "".join(["今日は川沿いを歩いた。", "明日は山の上に登る。", "昨日は家で本を読んだ。",
                            "朝は駅前で人と会った。", "夜は台所で鍋を煮た。"])
@@ -151,13 +155,14 @@ class StructuralTests(unittest.TestCase):
         report = run(text, experimental=True)
         self.assertEqual(counts(report)["high_bullet_ratio"], 1)
         self.assertEqual(findings(report, "high_bullet_ratio")[0]["related_lines"], [1, 2, 3, 4])
+        self.assertEqual(counts(run(text, experimental=True, genre="tech"))["high_bullet_ratio"], 0)
         prose = "\n\n".join(["本文です。"] * 10)
         self.assertEqual(counts(run(prose, experimental=True))["high_bullet_ratio"], 0)
 
     def test_boilerplate_heading_and_numbered_phase_with_full_width_zero(self):
-        text = "## まとめ\n\nステップ０で準備し、ステップ１で書き、ステップ２で見直す。\n\n## 手順の背景\n"
+        text = "## まとめ\n\nステップ０で準備し、ステップ１で書き、ステップ２で見直す。\n\n## 振り返って\n"
         report = run(text, experimental=True)
-        self.assertEqual(counts(report)["boilerplate_heading"], 1)
+        self.assertEqual(counts(report)["boilerplate_heading"], 2)
         self.assertEqual(counts(report)["numbered_phase_structure"], 1)
         self.assertEqual(stats(report)["structural"]["numbered_phase_hit_count"], 3)
 

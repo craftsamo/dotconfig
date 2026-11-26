@@ -83,14 +83,14 @@ full depth); everything conditional lives in `references/` and is read when
 
 | File                         | Content                                                              |
 | ---------------------------- | -------------------------------------------------------------------- |
-| `constitution.md`            | 12 drafting principles                                               |
-| `readability.md`             | readability principles and the A1–J3 catalog                         |
-| `expression.md`              | stock phrasing, translationese, rhythm, specificity (X1–X10)         |
-| `notation.md`                | house notation (N1–N11), Microsoft style based                       |
-| `revision.md`                | meaning preservation, stance, decision ledger, convergence (R1–R5)   |
-| `genres.md`, `doctypes/*.md` | genre adjustments; minutes, report, guide, memo, slide               |
-| `evaluation.md`              | 0-100 diagnosis and the six-axis final review (each ≥ 90, mean ≥ 92) |
-| `inspection.md`              | how to run and read the inspector                                    |
+| `constitution.md`            | 12 drafting principles                                                       |
+| `readability.md`             | readability principles and the A1–J3 catalog                                 |
+| `expression.md`              | stock phrasing, translationese, unnatural paraphrasing, rhythm (X1–X12)      |
+| `notation.md`                | house notation and register defaults (N1–N11)                                |
+| `revision.md`                | meaning preservation, stance, decision ledger, convergence (R1–R5)           |
+| `genres.md`, `doctypes/*.md` | genre adjustments (`tech` covers Issues/PRs/specs); minutes, report, guide, memo, slide |
+| `evaluation.md`              | 0-100 diagnosis and the six-axis final review (each ≥ 90, mean ≥ 92)         |
+| `inspection.md`              | how to run and read the inspector                                            |
 
 Inspector findings cite these anchors in their `reason`, and
 `agents/tests/test_japanese_writing.py` keeps the anchors and the citations in
@@ -111,7 +111,7 @@ under `rules/` and the word lists and patterns as data under `data/`:
 | `naturalness`, `reading-load` | natural-japanese lint lanes (default, experimental, reading load) |
 | `outline`, `terms`            | natural-japanese outline/terms                                    |
 | `expression`, `revision`      | yomiyasu lint and diff                                            |
-| `notation`                    | Microsoft Japanese style guide (own rule set)                     |
+| `notation`                    | Japanese technical and business prose house defaults              |
 | `structure`                   | this repo                                                         |
 
 Hermes Writer reaches it only through the `writing_inspect` tool; other
@@ -144,12 +144,16 @@ deliberate:
   contradict the house notation;
 - its `〜に他なりません` pattern is fixed.
 
-Notation follows the
-[Microsoft Japanese Localization Style Guide](https://aka.ms/japanese-styleguide)
-(PDF of 2025-07-18). UI-only rules are not generalized to prose. Where the
-guide is silent or inconsistent, `notation.md` records the house choice: the
-kana list, `℃`, full-width characters in its own examples. Documents that
-consistently follow another convention, such as JTF's unspaced style, keep it.
+Notation (`notation.md`) sets pragmatic defaults for Japanese technical and
+business prose: half-width spaces around Latin words, inline code and Latin
+units (`Git の履歴`, `100 MB`), unspaced Japanese dates and counters (`10月8日`,
+`第4版`, `3か月`), consistent full-width or half-width parentheses within a
+document, natural wave dashes (`1〜2文`) and spaced reference dashes (`— #63`),
+unspaced katakana compounds (`ダイアログボックス`, `インラインコード`), and
+polite `です・ます` by default (including GitHub Issues and PR descriptions
+unless a repository uses plain style, while `だ・である` serves papers, formal
+policies and regulations). Documents that consistently follow another
+convention, such as JTF's unspaced style, keep it.
 
 Do not import upstream semantic models, corpora, calibration scripts or
 subagent orchestration. When upstream changes, compare behavior through the

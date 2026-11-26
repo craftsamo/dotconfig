@@ -179,7 +179,7 @@ def _low_sentence_variance(ctx):
     cv = _cv(lengths)
     if cv < SENTENCE_VARIANCE_CV:
         excerpt = f"文数={len(lengths)} 平均{mean(lengths):.1f}字 CV={cv:.3f}"
-        reason = "文の長さがそろいすぎている。長短の差で読みのリズムを作れるか確認する (expression.md X7)"
+        reason = "文の長さがそろいすぎている。不自然な短文に刻まず、つながる動作を一文に結んで緩急を作れるか確認する (expression.md X7)"
         ctx.emit("low_sentence_variance", "warn", ctx.sentences[0].line, 1, excerpt, reason)
 
 
@@ -259,7 +259,7 @@ def _nominal_ending(ctx):
     ctx.stats.update(nominal_ending_count=count, nominal_ending_ratio=ratio)
     if total >= NOMINAL_MIN_SENTENCES and chars >= ctx.profile["nominal_min_chars"] and count == 0:
         line = pairs[-1][0].line
-        reason = "体言止めが一つもなく、文末が単調になりやすい。言い切りの変化を入れられるか確認する (expression.md X7)"
+        reason = "体言止めが0件（参考通知）。無理に体言止めや常体を混ぜる必要はない (expression.md X7)"
         ctx.emit("nominal_ending", "info", line, 1, f"体言止め0件（{total}文、約{chars}字）", reason)
 
 
@@ -364,7 +364,7 @@ def _rhythm(ctx):
     line = pairs[0][0].line
     if burstiness < BURSTINESS_BELOW:
         excerpt = f"burstiness={burstiness:.3f} 平均{average:.1f}拍 SD={spread:.1f}"
-        reason = "文の長短の差が小さく、リズムが平板になっている。短い文や長い文を混ぜられるか確認する (expression.md X7)"
+        reason = "文の長短の差が小さい。単文の細切れを足すのではなく、関連する文をつないで自然な呼吸にできるか確認する (expression.md X7)"
         ctx.emit("low_burstiness", "warn", line, 1, excerpt, reason)
     if autocorr is not None and autocorr > AUTOCORR_ABOVE:
         reason = "隣り合う文の長さが連動している。同じ長さの型が続いていないか確認する (expression.md X7)"
