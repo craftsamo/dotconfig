@@ -20,7 +20,7 @@
     "opencode-antigravity-auth@2.1.2",
     // Rewrites `tools.opencode.` to `tools["opencode"].` in the system prompt
     // of google/antigravity-* requests (lib/antigravity-guard): Google answers
-    // a system prompt holding `tools.opencode.session_move`, which OpenCode's
+    // a system prompt holding `tools.opencode.session.move`, which OpenCode's
     // Code Mode prompt always does, with a fake 429 that the Antigravity
     // plugin turns into 403 Forbidden. Drop it once upstream ships the fix:
     // https://github.com/NoeFabris/opencode-antigravity-auth/pull/623

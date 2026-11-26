@@ -34,7 +34,7 @@ operator line; put multi-line text in a file with `write` and pass the path
 <SessionLocation>
 
 When this session will keep working in a worktree or another directory
-outside its current Location, move it with `session_move` through `execute`.
+outside its current Location, move it with `session.move` through `execute`.
 Create a task worktree with the package's `git_worktree_add`, not
 `git worktree add`: it cuts a branch from the fetched default branch at
 `~/Worktrees/<repository>/<branch>` and records it where the TUI lists it.

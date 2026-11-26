@@ -44,7 +44,7 @@ function request(id = "antigravity-gemini-4-hydrogen-low"): RequestEvent {
   return {
     sessionID: "session",
     model: { providerID: "google", id },
-    system: [{ type: "text", text: "Use tools.opencode.session_move" }],
+    system: [{ type: "text", text: "Use tools.opencode.session.move" }],
   }
 }
 
@@ -68,10 +68,10 @@ describe("Antigravity guard", () => {
     const cleanup = await setupAntigravityGuard(f.ctx)
     const event = request()
     await f.requests[0](event)
-    expect(event.system[0].text).toBe('Use tools["opencode"].session_move')
+    expect(event.system[0].text).toBe('Use tools["opencode"].session.move')
     const other = request("gemini-3-pro")
     await f.requests[0](other)
-    expect(other.system[0].text).toBe("Use tools.opencode.session_move")
+    expect(other.system[0].text).toBe("Use tools.opencode.session.move")
     await cleanup()
   })
 
@@ -118,7 +118,7 @@ describe("Antigravity guard", () => {
           replaced: index === 0 ? 1 : 0,
         })
         expect(new Date(entry.at).toISOString()).toBe(entry.at)
-        expect(line).not.toContain("session_move")
+        expect(line).not.toContain("session.move")
       }
       await f.retries[0]({
         sessionID: "session",

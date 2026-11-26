@@ -8,8 +8,8 @@ import {
 
 describe("system signature", () => {
   test("rewrites the signature and counts it", () => {
-    expect(neutralizeText("Use tools.opencode.session_move")).toEqual({
-      text: 'Use tools["opencode"].session_move',
+    expect(neutralizeText("Use tools.opencode.session.move")).toEqual({
+      text: 'Use tools["opencode"].session.move',
       count: 1,
     })
   })
@@ -22,7 +22,7 @@ describe("system signature", () => {
   })
 
   test("is idempotent", () => {
-    const first = neutralizeText("tools.opencode.session_move")
+    const first = neutralizeText("tools.opencode.session.move")
     expect(neutralizeText(first.text)).toEqual({ text: first.text, count: 0 })
   })
 
