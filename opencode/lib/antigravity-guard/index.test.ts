@@ -5,19 +5,29 @@ import { setupAntigravityGuard } from "./index"
 
 type GuardContext = Parameters<typeof setupAntigravityGuard>[0]
 type Hook = GuardContext["session"]["hook"]
-type RequestEvent = Parameters<Parameters<Hook>[1]>[0]
+type RequestCallback = Parameters<Hook>[1]
+type RequestEvent = Parameters<RequestCallback>[0]
+type RetryArgs = Hook extends {
+  (...args: infer First): unknown
+  (...args: infer Last): unknown
+} ? First : never
+type RetryCallback = RetryArgs[1]
+type RetryEvent = Parameters<RetryCallback>[0]
 
 function fixture() {
+  const requests: RequestCallback[] = []
+  const retries: RetryCallback[] = []
   const hooks: {
-    kind: Parameters<Hook>[0]
-    callback: Parameters<Hook>[1]
+    kind: Parameters<Hook>[0] | RetryArgs[0]
     options: Parameters<Hook>[2]
     disposed: boolean
   }[] = []
   const ctx: GuardContext = {
     session: {
       async hook(kind, callback, options) {
-        const hook = { kind, callback, options, disposed: false }
+        if (kind === "retry") retries.push(callback as RetryCallback)
+        else requests.push(callback as RequestCallback)
+        const hook = { kind, options, disposed: false }
         hooks.push(hook)
         return {
           async dispose() {
@@ -27,7 +37,7 @@ function fixture() {
       },
     },
   }
-  return { ctx, hooks }
+  return { ctx, hooks, requests, retries }
 }
 
 function request(id = "antigravity-gemini-4-hydrogen-low"): RequestEvent {
@@ -47,6 +57,7 @@ describe("Antigravity guard", () => {
       { kind: "compaction", options: { providerID: "google" } },
       { kind: "generate", options: { providerID: "google" } },
       { kind: "title", options: { providerID: "google" } },
+      { kind: "retry", options: { providerID: "google" } },
     ])
     await cleanup()
     expect(f.hooks.every((hook) => hook.disposed)).toBe(true)
@@ -56,11 +67,31 @@ describe("Antigravity guard", () => {
     const f = fixture()
     const cleanup = await setupAntigravityGuard(f.ctx)
     const event = request()
-    await f.hooks[0].callback(event)
+    await f.requests[0](event)
     expect(event.system[0].text).toBe('Use tools["opencode"].session_move')
     const other = request("gemini-3-pro")
-    await f.hooks[0].callback(other)
+    await f.requests[0](other)
     expect(other.system[0].text).toBe("Use tools.opencode.session_move")
+    await cleanup()
+  })
+
+  test.each([
+    ["antigravity-gemini-4-hydrogen-low", 403, { retry: false }],
+    ["antigravity-gemini-4-hydrogen-low", 500, { retry: true, delay: 1000 }],
+    ["gemini-3-pro", 403, { retry: true, delay: 1000 }],
+  ] as const)("retry for %s with %s", async (id, status, expected) => {
+    const f = fixture()
+    const cleanup = await setupAntigravityGuard(f.ctx)
+    const event: RetryEvent = {
+      sessionID: "session",
+      agent: "build",
+      model: { providerID: "google", id },
+      error: { type: "provider.unknown", message: "Error", status },
+      attempt: 1,
+      decision: { retry: true, delay: 1000 },
+    }
+    await f.retries[0](event)
+    expect(event.decision).toEqual(expected)
     await cleanup()
   })
 
@@ -73,9 +104,9 @@ describe("Antigravity guard", () => {
       const path = join(dir, "requests.jsonl")
       process.env.ANTIGRAVITY_GUARD_LOG = path
       const event = request()
-      await f.hooks[0].callback(event)
-      await f.hooks[0].callback(event)
-      await f.hooks[0].callback(request("gemini-3-pro"))
+      await f.requests[0](event)
+      await f.requests[0](event)
+      await f.requests[0](request("gemini-3-pro"))
       const lines = readFileSync(path, "utf8").trim().split("\n")
       expect(lines).toHaveLength(2)
       for (const [index, line] of lines.entries()) {
@@ -89,6 +120,24 @@ describe("Antigravity guard", () => {
         expect(new Date(entry.at).toISOString()).toBe(entry.at)
         expect(line).not.toContain("session_move")
       }
+      await f.retries[0]({
+        sessionID: "session",
+        agent: "build",
+        model: event.model,
+        error: { type: "provider.unknown", message: "Forbidden", status: 403 },
+        attempt: 1,
+        decision: { retry: true, delay: 1000 },
+      })
+      const retryLines = readFileSync(path, "utf8").trim().split("\n")
+      expect(retryLines).toHaveLength(3)
+      expect(JSON.parse(retryLines[2])).toEqual({
+        at: expect.any(String),
+        kind: "retry",
+        model: "google/antigravity-gemini-4-hydrogen-low",
+        refusal: "refused",
+        status: 403,
+      })
+      expect(retryLines[2]).not.toContain("Forbidden")
     } finally {
       if (previous === undefined) delete process.env.ANTIGRAVITY_GUARD_LOG
       else process.env.ANTIGRAVITY_GUARD_LOG = previous

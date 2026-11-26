@@ -24,6 +24,8 @@
     // Code Mode prompt always does, with a fake 429 that the Antigravity
     // plugin turns into 403 Forbidden. Drop it once upstream ships the fix:
     // https://github.com/NoeFabris/opencode-antigravity-auth/pull/623
+    // Also stops retries on Google's refusals (403, ToS suspension, bare 429):
+    // retry loops on the fake 429 got Antigravity accounts suspended.
     "./lib/antigravity-guard",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/settings.jsonc keeps it off Claude Code's Keychain.
