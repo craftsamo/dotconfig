@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = Path(__file__).resolve().parents[1]
+HERMES_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load(name, path):
@@ -16,7 +17,7 @@ def _load(name, path):
     return module
 
 
-rw = _load("ranking_watch", ROOT / "ranking_watch.py")
+rw = _load("x_ranking_watch", SCRIPTS / "x-ranking-watch.py")
 
 
 def test_parse_params():
@@ -132,7 +133,7 @@ def test_check_cli(monkeypatch, tmp_path, capsys):
             "sources": ["s1.rs"],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
     state_file = tmp_path / "state.json"
 
@@ -210,7 +211,7 @@ def test_check_state_reporting_and_silence(monkeypatch, tmp_path, capsys):
             "sources": ["s1.rs"],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
     state_file = tmp_path / "state.json"
 
@@ -276,7 +277,7 @@ def test_check_extra_line_and_no_diff_cleanup(monkeypatch, tmp_path, capsys):
             "sources": ["s1.rs"],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
     state_file = tmp_path / "state.json"
 
@@ -343,7 +344,7 @@ def test_forget(monkeypatch, tmp_path, capsys):
             "sources": [],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
     state_file = tmp_path / "state.json"
 
@@ -413,7 +414,7 @@ def test_malformed_state_file(monkeypatch, tmp_path, capsys):
             "sources": [],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
     state_file = tmp_path / "state.json"
 
@@ -453,7 +454,7 @@ def test_default_path_honours_hermes_local(monkeypatch, tmp_path):
     hermes_local = tmp_path / "custom_hermes_local"
     monkeypatch.setenv("HERMES_LOCAL", str(hermes_local))
 
-    expected = hermes_local / "x-access" / "ranking_watch.json"
+    expected = hermes_local / "x-ranking-watch" / "state.json"
     assert rw._default_state() == expected
 
 
@@ -469,7 +470,7 @@ def test_state_write_failure_still_reports(monkeypatch, tmp_path, capsys):
             "sources": [],
         },
     }
-    baseline_file = tmp_path / "ranking_baseline.json"
+    baseline_file = tmp_path / "x-ranking-baseline.json"
     baseline_file.write_text(json.dumps(base_data), encoding="utf-8")
 
     blocking_file = tmp_path / "not_a_dir"
@@ -498,12 +499,12 @@ def test_state_write_failure_still_reports(monkeypatch, tmp_path, capsys):
 
 
 def test_baseline_marketer_reference_consistency():
-    baseline_path = ROOT / "ranking_baseline.json"
+    baseline_path = SCRIPTS / "x-ranking-baseline.json"
     assert baseline_path.is_file()
     with open(baseline_path, encoding="utf-8") as f:
         baseline = json.load(f)
 
-    ref_path = ROOT.parents[2] / "profiles/marketer/skills/pipeline/references/x-ranking.md"
+    ref_path = HERMES_ROOT / "profiles/marketer/skills/pipeline/references/x-ranking.md"
     assert ref_path.is_file()
     ref_text = ref_path.read_text(encoding="utf-8")
 
@@ -554,12 +555,12 @@ def test_baseline_marketer_reference_consistency():
 
 
 def test_shell_script():
-    script_path = ROOT.parents[2] / "profiles/assistant/scripts/x-ranking-watch.sh"
+    script_path = HERMES_ROOT / "profiles/assistant/scripts/x-ranking-watch.sh"
     assert script_path.is_file()
     assert os.access(script_path, os.X_OK)
     text = script_path.read_text(encoding="utf-8")
-    assert "ranking_watch.py" in text
-    assert '"$engine" check' in text or 'ranking_watch.py" check' in text
+    assert "x-ranking-watch.py" in text
+    assert '"$engine" check' in text or 'x-ranking-watch.py" check' in text
 
     code_lines = [
         line for line in text.splitlines()
