@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { readFile } from "node:fs/promises"
-import { ANTIGRAVITY_MAX_WAIT_MS, KEY_REFUSED_WAIT_MS } from "./limit"
+import {
+  ANTIGRAVITY_MAX_WAIT_MS,
+  ANTIGRAVITY_TOS_WAIT_MS,
+  KEY_REFUSED_WAIT_MS,
+} from "./limit"
 import { LANE, savedFile, setup, useTempDir } from "./fixture"
 
 useTempDir()
@@ -150,6 +154,55 @@ describe("Antigravity's own refusal", () => {
     expect(await f.limit(model, error("Internal error"))).toEqual({
       limit: false,
     })
+  })
+  test("holds a forbidden request for an hour", async () => {
+    const f = await setup()
+    expect(
+      await f.limit(model, { ...error("Forbidden"), status: 403 }),
+    ).toEqual({
+      limit: true,
+      wait_ms: ANTIGRAVITY_MAX_WAIT_MS,
+      reason: "Antigravity refused the request",
+    })
+  })
+  test("holds a ToS suspension for a day", async () => {
+    const f = await setup()
+    expect(
+      await f.limit(model, {
+        ...error(
+          "This service has been disabled in this account for violation of Terms of Service",
+        ),
+        status: 403,
+      }),
+    ).toEqual({
+      limit: true,
+      wait_ms: ANTIGRAVITY_TOS_WAIT_MS,
+      reason: "Antigravity suspended the account (Terms of Service)",
+    })
+    expect(ANTIGRAVITY_TOS_WAIT_MS).toBe(24 * 60 * 60_000)
+  })
+  test("holds a bare resource-exhausted response for an hour", async () => {
+    const f = await setup()
+    expect(
+      await f.limit(model, {
+        ...error("Resource has been exhausted (e.g. check quota)."),
+        status: 429,
+        body: '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}',
+      }),
+    ).toEqual({
+      limit: true,
+      wait_ms: ANTIGRAVITY_MAX_WAIT_MS,
+      reason: "Antigravity refused the request",
+    })
+  })
+  test("does not hold another provider's forbidden request", async () => {
+    const f = await setup(options)
+    expect(
+      await f.limit("anthropic/claude-opus-5-5", {
+        ...error("Forbidden"),
+        status: 403,
+      }),
+    ).toEqual(NO_LIMIT)
   })
 })
 
