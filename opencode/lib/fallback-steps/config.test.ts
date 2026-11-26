@@ -89,6 +89,12 @@ test("every routed role's agent names its route's first step as its model", asyn
   }
 })
 
+test("opencode.jsonc declares the logged-in providers, so Quota writes no provider entry", () => {
+  expect((config as Record<string, unknown>).provider).toBeUndefined()
+  for (const provider of ["anthropic", "openai", "xai"])
+    expect(Object.keys(config.providers ?? {})).toContain(provider)
+})
+
 test("no plugin entry loads an obsolete local plugin", () => {
   expect(names.filter((name) => name.includes("subagent-fallback"))).toEqual([])
   expect(names).not.toContain("./lib/claude-logins")

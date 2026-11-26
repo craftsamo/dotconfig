@@ -782,6 +782,11 @@
         },
       },
     },
+    // Declared, though they need no settings: OpenCode Quota writes a
+    // `provider` entry into this file for every logged-in provider that no
+    // config file names.
+    "anthropic": {},
+    "xai": {},
     // Console credit lanes: the monthly API credits that Max plans grant, one
     // Console org per plan. The names are opaque labels; which org each one
     // is lives in the private overlay. They cannot be used by Claude Code or
