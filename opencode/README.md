@@ -348,6 +348,9 @@ lane's empty balance, a lane's refused key, and Antigravity's quota protection
 ("Quota protection: …" or "All N account(s) rate-limited …", held for the wait
 it gives, an hour at most). What the plugin keeps (a lane's tries and
 refusals) is in `~/.local/state/opencode/fallback-steps.json`.
+Google's refusal of an Antigravity request (403, a bare 429, or a ToS
+suspension, which `lib/antigravity-guard` also keeps from being retried) is a
+limit too, held for an hour, or a day for a suspension.
 
 A Google Antigravity step (`google/antigravity-*`, "Accounts" below) is
 weighed by its model's quota group (Gemini Pro, Gemini Flash or Claude) as

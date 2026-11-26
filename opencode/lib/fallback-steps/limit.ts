@@ -2,6 +2,7 @@ import type {
   StepsLimitInput,
   StepsLimitOutput,
 } from "@craftsamo/opencode-model-fallback/rpc"
+import { antigravityRefusal } from "../antigravity-guard/refusal"
 import type { EmptyLanes } from "./empty-lanes"
 import {
   antigravityLimit,
@@ -18,15 +19,19 @@ export const KEY_REFUSED_WAIT_MS = 15 * 60_000
 // Antigravity states how long its quota is protected; never pass it over
 // longer than this, or for this long when it states none.
 export const ANTIGRAVITY_MAX_WAIT_MS = 60 * 60_000
+/** A ToS suspension needs an appeal; do not keep knocking. */
+export const ANTIGRAVITY_TOS_WAIT_MS = 24 * 60 * 60_000
 // Requests in flight report an empty balance together: one checkpoint a
 // minute per lane.
 const CHECKPOINT_EVERY_MS = 60_000
 
 const NO_LIMIT: StepsLimitOutput = { limit: false }
 
-// The package's own rule takes a quota error or a long rate limit for a
-// limit. What it asks here is the rest: a lane's empty balance or refused
-// key, and Antigravity's own refusal of a spent group.
+/**
+ * The package's own rule takes a quota error or a long rate limit for a
+ * limit. What it asks here is the rest: a lane's empty balance or refused
+ * key, and Antigravity's request refusals or quota protection of a spent group.
+ */
 export function createLimit(state: {
   deps: StepsDeps
   creditLanes: readonly string[]
@@ -77,6 +82,24 @@ export function createLimit(state: {
         return NO_LIMIT
       }
       if (model.providerID === ANTIGRAVITY_PROVIDER) {
+        const refusal = antigravityRefusal({
+          type: error.type,
+          status: error.status,
+          message: error.message,
+          body: error.body,
+        })
+        if (refusal === "tos")
+          return {
+            limit: true,
+            wait_ms: ANTIGRAVITY_TOS_WAIT_MS,
+            reason: "Antigravity suspended the account (Terms of Service)",
+          }
+        if (refusal === "refused")
+          return {
+            limit: true,
+            wait_ms: ANTIGRAVITY_MAX_WAIT_MS,
+            reason: "Antigravity refused the request",
+          }
         const wait = antigravityLimit(failure)
         if (wait === null) return NO_LIMIT
         return {
