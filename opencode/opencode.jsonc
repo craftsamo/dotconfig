@@ -18,6 +18,13 @@
     // and re-test a login, a request, and the text of its quota-protection
     // and rate-limit errors, which lib/fallback-steps reads (limit.ts).
     "opencode-antigravity-auth@2.1.2",
+    // Rewrites `tools.opencode.` to `tools["opencode"].` in the system prompt
+    // of google/antigravity-* requests (lib/antigravity-guard): Google answers
+    // a system prompt holding `tools.opencode.session_move`, which OpenCode's
+    // Code Mode prompt always does, with a fake 429 that the Antigravity
+    // plugin turns into 403 Forbidden. Drop it once upstream ships the fix:
+    // https://github.com/NoeFabris/opencode-antigravity-auth/pull/623
+    "./lib/antigravity-guard",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/settings.jsonc keeps it off Claude Code's Keychain.
     // Pinned: lib/fallback-steps and Hermes' funding board read its export
