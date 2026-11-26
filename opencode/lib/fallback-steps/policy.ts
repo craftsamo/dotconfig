@@ -1,4 +1,4 @@
-import { CLAUDE_METHODS } from "../claude-logins/models"
+import { CLAUDE_METHODS } from "./models"
 
 export type QuotaProof = {
   state: "available" | "exhausted" | "unknown"

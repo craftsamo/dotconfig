@@ -1,7 +1,7 @@
 ---
 description: "Implements already-designed code changes whose inner logic is hard: algorithms, state and concurrency, error paths, edge cases spread across files. The caller fixes files, signatures and behavior; it makes no design decisions. Runs on a stronger, costlier model than worker: use worker for routine spec'd work. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: anthropic/claude-sonnet-5-5-sub#high
+model: anthropic/claude-sonnet-5-5#high
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

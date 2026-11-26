@@ -1,22 +1,22 @@
 {
   "lanes": [
     {
-      "provider": "anthropic-credit-main",
-      "label": "Main",
-      "keyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
+      "provider": "anthropic-credit-team",
+      "label": "Team",
+      "keyEnv": "ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY",
       "amount": 100,
       "renewalDay": 1
     },
     {
-      "provider": "anthropic-credit-sub",
-      "label": "Sub",
-      "keyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
+      "provider": "anthropic-credit-main",
+      "label": "Main",
+      "keyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
       "amount": 100,
       "renewalDay": 15
     }
   ],
   "hermes": {
     "root": "~/.hermes",
-    "order": ["anthropic-credit-sub", "anthropic-credit-main"]
+    "order": ["anthropic-credit-team", "anthropic-credit-main"]
   }
 }

@@ -1,27 +1,19 @@
-import { accountOf, type ClaudeAccount } from "../claude-logins/accounts"
-import { OAUTH_PROVIDER, type ModelRef } from "../claude-logins/models"
+import type { ModelRef } from "./models"
 import { familyName } from "../credit-lanes/antigravity"
 import { ANTIGRAVITY_PROVIDER } from "./policy"
 import { antigravityFamily, groupKey } from "./quota"
 import { LOGIN_NAMES } from "./names"
 
-// A usage window several steps share: a credit lane (every model of it), a
-// Claude login (its plain and alias models), a subscription provider, or an
-// Antigravity group. The fallback package cools down only the model that hit
-// a limit.
+/**
+ * A usage window several steps share: a credit lane (every model of it), a
+ * subscription provider, or an Antigravity group. The fallback package cools
+ * down only the model that hit a limit.
+ */
 export type Window = { key: string; name: string }
 
 export type WindowEnv = {
   creditLanes: readonly string[]
-  accounts: readonly ClaudeAccount[]
-  // The label of the active Claude login, when it has one.
-  activeLabel: () => Promise<string | undefined>
 }
-
-const claudeLogin = (label: string): Window => ({
-  key: `claude:${label}`,
-  name: `Claude login "${label}"`,
-})
 
 // The window a model draws on; undefined for a model that shares none.
 export async function windowOf(
@@ -31,15 +23,6 @@ export async function windowOf(
   const { providerID } = model
   if (env.creditLanes.includes(providerID))
     return { key: `lane:${providerID}`, name: `credit lane ${providerID}` }
-  if (providerID === OAUTH_PROVIDER) {
-    const account = accountOf(model, env.accounts)
-    if (account)
-      return account.label === "" ? undefined : claudeLogin(account.label)
-    const label = await env.activeLabel()
-    return label
-      ? claudeLogin(label)
-      : { key: "claude:active", name: "the active Claude login" }
-  }
   if (Object.hasOwn(LOGIN_NAMES, providerID))
     return {
       key: providerID,

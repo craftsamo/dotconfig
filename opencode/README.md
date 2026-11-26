@@ -289,18 +289,15 @@ name them:
 "explore-small": [
   "google/antigravity-gemini-4-hydrogen-low",
   "openai/gpt-6-luna#low",
-  "anthropic/claude-haiku-5-5-sub#low",
-  "anthropic/claude-haiku-5-5-main#low",
+  "anthropic/claude-haiku-5-5#low",
   "anthropic-credit-team/claude-haiku-5-5#low",
-  "anthropic-credit-main/claude-haiku-5-5#low",
-  "anthropic-credit-sub/claude-haiku-5-5#low"
+  "anthropic-credit-main/claude-haiku-5-5#low"
 ]
 ```
 
 The model says where a step runs: a provider listed in `creditLanes` is a
-credit lane ("Console credit lanes" below), an `anthropic` alias whose suffix
-`claudeAccounts` names is that saved login ("Claude accounts" below), and
-anything else runs on its provider's active login. A step without a variant
+credit lane ("Console credit lanes" below), and anything else runs on its
+provider's active login. A step without a variant
 stands for every variant, and a move keeps the session's. The first step's
 model is the one the agent's own file names; a test keeps the two in step.
 
@@ -335,15 +332,14 @@ model is the one the agent's own file names; a test keeps the two in step.
 `limited` event. A step is refused while:
 
 - its login has no approved OAuth login (Claude Pro/Max, a ChatGPT login, the
-  xAI device login or the Antigravity login), or a saved Claude login named
-  by an alias is missing or ambiguous;
+  xAI device login or the Antigravity login);
 - Quota reports its login's window exhausted (fresh, or until the reset an
   empty window gave). Missing or stale data is no reason to pass a login over;
 - its credit lane is known empty (below), or its Antigravity group is no more
   than the reserve above empty;
 - a limit holds its window. The package cools down only the model that hit
-  a limit, but a window is shared: a Claude login (its plain and alias
-  models), a credit lane (every model of it), a subscription provider's
+  a limit, but a window is shared: the Claude login (every Claude model),
+  a credit lane (every model of it), a subscription provider's
   login, or an Antigravity group. The hold is in memory and lasts for the end
   the limit gave.
 
@@ -382,7 +378,7 @@ are unchanged.
 | debugger, reviewer-deep            | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                             |
 | searcher-deep                      | grok-4.7 medium → gpt-6.1-sol medium → hydrogen high → agy sonnet medium → claude-sonnet-5-5 medium |
 | searcher                           | hydrogen low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
-| build, plan, debug, design, review | claude-opus-5-5 (active login → Main → Sub) → the lanes; no variant, so a session keeps its own     |
+| build, plan, debug, design, review | claude-opus-5-5 (active login) → the lanes; no variant, so a session keeps its own                  |
 
 "hydrogen" is Gemini 4 Hydrogen on Antigravity, whose efforts are models of their
 own (`antigravity-gemini-4-hydrogen-low`, `-medium`, `-high`); the pinned
@@ -393,19 +389,18 @@ Flash. "agy sonnet" and
 …), drawing on the Antigravity Claude group that Sonnet and Opus share. It
 has no Haiku and no xhigh, so the Haiku routes go without it and explore-max
 takes Opus high there. Claude closes every route: Claude on Antigravity first,
-an included pool whose group resets every five hours, then the Sub
-and Main logins, then the paid lanes (Team, Main, Sub) as the very last
+an included pool whose group resets every five hours, then the active Claude
+login, then the paid lanes (Team, Main) as the very last
 stops; the searchers have no lane. Native model IDs are
 explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
 `claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini 4 Hydrogen leads
 the explore tiers below max, the worker, the refactorer and the searcher:
-it keeps the ChatGPT window and the Claude logins for the work behind it.
-worker-deep retains its Sonnet-first policy for hard implementation: its
-Sonnet logins come first, then Claude on Antigravity, then Sol, then Hydrogen,
-and the paid lanes still close it. Claude on Antigravity follows the logins
-there rather than leading, so
-the first step (the model its agent file names) stays a Claude login's, and
-such a child still moves to the other login on a window limit. (Antigravity steps are
+it keeps the ChatGPT window and the Claude login for the work behind it.
+worker-deep retains its Sonnet-first policy for hard implementation: the
+active Claude login on Sonnet comes first, then Claude on Antigravity, then
+Sol, then Hydrogen, and the paid lanes still close it. Claude on Antigravity
+follows the login there rather than leading, so the first step (the model its
+agent file names) stays on the Claude login. (Antigravity steps are
 commented out of the routes since 2026-11-15, after an upstream 429 followed
 by a misleading 403; restore them in place once the fix is verified.)
 explore-max stays on Sol
@@ -419,7 +414,7 @@ the xAI device login, or the Antigravity login). Neither plugin buys
 credits, enables auto-purchase, or changes account settings or logins.
 
 The primary agents (build, plan, debug, design, review) run Opus: a session
-that hits a limit moves through the active login, Main, Sub and then the
+that hits a limit moves through the active login and then the
 lanes, in its own variant.
 
 **Shared information.** `lib/fallback-steps` reads Quota's public JSON export (v2 from Quota 5,
@@ -430,8 +425,7 @@ enabled in `opencode-quota/settings.jsonc`. Quota's background service rewrites
 the file after its own checks; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota.
 
-Rows are matched to the OpenCode connection being weighed: the active one, or
-a saved Claude login, whose rows Quota exports under the same provider. In v2
+Rows are matched to the active OpenCode connection being weighed. In v2
 a row's `sourceId` is the connection ID. v3 has none: a row's `account` is the
 login's label (with the plan after it in parentheses for ChatGPT), so a login
 matches by a label no other login of the integration carries, and the
@@ -446,6 +440,11 @@ already be spent behind the scenes. Model-specific rows (such as Claude Fable,
 weekly too, which v3 tells apart by row id), Monthly usage credits and Code
 Review rows are ignored. Published 0% (or less)
 counts as empty, even if rounded.
+
+Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
+(`five_hour: null`) and shows it as "Unexpected reply"
+([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
+`lib/fallback-steps` then sees the login as unknown, not exhausted.
 
 **Freshness.** The export is rewritten only when Quota checks its providers,
 so it can be old. An empty window with a reset time still in the
@@ -492,17 +491,17 @@ task fits its remaining quota.
   and the lanes' tries and refusals survive it).
 - The retry recorder is gone: the package reads the provider's own wait.
 
-**Setup.** The package needs OpenCode 2.1.2 or later; `lib/claude-logins` is pinned to
-the releases in its `SUPPORTED_VERSIONS` (`runtime.ts`). Keep the package listed last, after Quota, and bump it
+**Setup.** The package needs OpenCode 2.1.2 or later. Keep the package listed
+last, after Quota, and bump it
 deliberately: re-check the `usable` and `limit` answers and the `limited`
 event. Run the tests from the repo root with
-`bun test opencode/lib/fallback-steps opencode/lib/claude-logins`;
+`bun test opencode/lib/fallback-steps`;
 no test-runner script or new dependency is installed. Tests use
 synthetic public exports and mocked OpenCode transports; they do not probe
 providers or establish real billing/entitlement behavior.
 
 Options of `lib/fallback-steps`: `creditLanes` (ordered provider IDs; `[]`
-turns the lanes off) and `claudeAccounts` ("Claude accounts" below). The
+turns the lanes off). The
 package's own settings (`max_wait_ms`, `cooldown_ms`, `cooldown_scope`,
 `state_dir`) keep their defaults.
 
@@ -512,7 +511,7 @@ package's own settings (`max_wait_ms`, `cooldown_ms`, `cooldown_scope`,
 "Accounts") through `options.creditLanes`, a list of provider IDs. A route's
 step on a lane provider is a credit lane step; an empty list turns the lanes
 off (the lane steps are then judged like any other provider's). Lane steps
-close every Claude route, after the saved logins, so the credits are the very
+close every Claude route, after the Claude login, so the credits are the very
 last stops.
 
 - **Launches and moves** follow the route ("Model fallback for agents"
@@ -526,8 +525,6 @@ last stops.
   the route is written that way. Only requests on the session's own model
   count: compaction and title requests never move it. These fail before
   anything is generated, so nothing is billed twice.
-- **Claude logins** ("Claude accounts" below) are steps of their own: an alias
-  model on the route.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty. Each
   empty-balance error also records a $0 checkpoint for the balance estimate
@@ -550,7 +547,7 @@ last stops.
   removing it costs only a rejected request per lane.
 - **Whose wait counts.** OpenCode Quota's `waitForQuotaReset` (on by default)
   sets a rate limit's wait to the reset of any used-up row of the model's
-  provider: another Claude login's window, the Fable weekly window, or a lane's
+  provider: the Fable weekly window or a lane's
   $0 estimate. The model fallback reads the wait the provider itself asked
   for, which no plugin changes, so a short limit Quota stretched is not taken
   for a limit; it is listed after Quota for that reason.
@@ -640,74 +637,6 @@ Quota's own `local-estimate` mode was tried and dropped: it re-reads the whole
 25 GB history database on every refresh (about a minute), which stalled the
 service into a restart loop.
 
-## Claude accounts
-
-OpenCode sends an integration's requests with its one active login
-(`opencode auth switch` changes it for every session at once), and the Claude
-login plugin rewrites requests of provider `anthropic` only, so a second Claude
-Pro/Max login cannot be a provider of its own the way a credit lane is. The
-local plugin `lib/claude-logins` reaches it through alias models instead:
-
-- `providers.anthropic.models` in `opencode.jsonc` defines
-  `claude-<model>-main` and `claude-<model>-sub` for Fable, Opus, Sonnet and
-  Haiku, each with `modelID` set to the real model: it sends the real model ID
-  and inherits its variants, limits and prices. `/models` lists them as
-  "Claude Opus 5.5 (Main OAuth)" and so on.
-- The option `claudeAccounts` maps a model-ID suffix to the label of a saved
-  login (`{ "sub": "Sub OAuth", "main": "Main OAuth" }`). A request on an
-  alias model leaves with that login's token in place of the active one's,
-  whichever login is active, so a route names each login the same way; the
-  plain models keep the active login. The side requests of a session on an alias model (compaction
-  on the compaction agent's Haiku, a title on a Claude model) follow the
-  session's model, so it never draws on the active login's window; warming
-  sends the session's own model. A session with no stored model (on the
-  default model) follows its last own request instead, so an alias is not
-  meant as the default `model`.
-- The option sits in two entries: `lib/claude-logins` (which swaps the token)
-  and `lib/fallback-steps` (which reads it to judge the steps on those logins).
-  Keep the two maps equal; a test checks it.
-- The token is swapped after the login plugin rewrote the request
-  (`lib/claude-logins` is listed right after the login plugin, and hooks run in
-  load order), and only the `authorization` header changes, in place: the login
-  plugin restores tool names in the response by the identity of that request.
-  The body it builds does not depend on the account.
-- Anything unexpected stops the request rather than sending it on the active
-  login: an entry with no label, no saved login with that label or two, a
-  login that is not Claude Pro/Max, a host other than `api.anthropic.com`, a
-  request the login plugin did not rewrite (no bearer token or no
-  `oauth-2025-04-20` beta flag), or a release missing from
-  `SUPPORTED_VERSIONS`. An option that is not a map stops every Claude
-  subscription request until it is fixed: no alias can be told apart then.
-  None of this depends on `enabled`.
-- A session reaches the login by picking the alias model in `/models`, by
-  moving there on a limit ("Model fallback for agents" above), or, for a new
-  specialist, through a step of its route on that alias.
-
-To add a login, run `opencode auth login anthropic --method claude-max` from a
-browser signed into that account. A new login becomes the active one: switch
-back right away (`opencode auth switch anthropic "Sub OAuth"`), then give the
-new login the label the option names, from the TUI's account list or with
-`opencode api patch /api/credential/<credential id> --data
-'{"label":"Main OAuth"}'` (`opencode auth list --format json` shows the ID).
-The labels are opaque; which account each one is lives in the private overlay.
-Quota lists every saved login under its label (`Sub OAuth`, `Main OAuth`),
-without marking the active one; `sidebar.names` in its settings renames rows.
-
-Limits:
-
-- The login plugin's 429 diagnostics name the active login for an alias
-  request: it records the connection before the swap.
-- The swap relies on how the login plugin tracks requests: after bumping it,
-  run a tool call on an alias model end to end.
-- Stateless generation (`ctx.generate`) runs no session hooks, so an alias
-  there gets neither the login plugin's rewrite nor the swap.
-- Moving a session between logins starts a new prompt cache ("Prompt cache"
-  below).
-- Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
-  (`five_hour: null`) and shows it as "Unexpected reply"
-  ([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
-  `lib/fallback-steps` then sees that login as unknown, not exhausted.
-
 ## Prompt cache
 
 Anthropic's cache lives five minutes from its last use, per workspace, and a
@@ -739,18 +668,14 @@ A move to a credit lane (see above) therefore pays one full write.
   own PKCE rows (`hermes/docs/models-auth.md` "Authentication inheritance"),
   so the three logins are independent even where two of them are the same
   account. Log in from a browser signed into the account OpenCode should use:
-  `opencode auth login anthropic --method claude-max`. Several accounts can be
-  saved; one is active at a time (`opencode auth switch`, label `Sub OAuth`),
-  and another is reached through alias models (label `Main OAuth`, see "Claude
-  accounts"), picked by hand or as the last stop after the credit lanes. Which
-  account each is lives in the private overlay.
+  `opencode auth login anthropic --method claude-max`. OpenCode uses one active
+  Claude login.
 - **Anthropic Console credit lanes**: the monthly API credits that Max plans
   grant (one Console org per plan, spent before any purchased balance and lost
   at the end of the billing cycle). They work only through an API key, never
-  in Claude Code or as extra usage. Three providers, `anthropic-credit-team`,
-  `anthropic-credit-main` and `anthropic-credit-sub`, read
-  `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY`, `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` and
-  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` from the Keychain project `opencode`; the
+  in Claude Code or as extra usage. Two providers, `anthropic-credit-team` and
+  `anthropic-credit-main`, read `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` and
+  `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` from the Keychain project `opencode`; the
   names are opaque labels, and which org (and whose grant) each one is lives
   in the private overlay with `lanes.json`. A key whose grant expires on
   someone else's schedule goes first in `creditLanes`, so it is spent while it

@@ -5,12 +5,12 @@ import type {
   STEPS_RPC,
   StepsHandlers,
 } from "@craftsamo/opencode-model-fallback/rpc"
-import type { ClaudeAccountsContext } from "../claude-logins/accounts"
 import type {
   AccountsContext,
   IdentityContext,
 } from "./accounts"
-import type { Registration } from "../claude-logins/runtime"
+
+type Registration = { dispose(): Promise<void> }
 
 export type RuntimeContext = {
   // Another plugin's RPC methods, by its definition (quota-refresh.ts).
@@ -21,9 +21,11 @@ export type RuntimeContext = {
   }) => Record<string, ((input: unknown) => Promise<unknown>) | undefined>
 }
 
-// V2 structural API, like lib/claude-logins/runtime.ts: no SDK dependency.
-// The fallback's `limited` events come in OpenCode's envelope, the payload
-// under `data`.
+/**
+ * V2 structural API with no SDK dependency.
+ * The fallback's `limited` events come in OpenCode's envelope, the payload
+ * under `data`.
+ */
 type LimitsClient = {
   events: {
     on(
@@ -42,7 +44,6 @@ type StepsRegistry = {
 // `rpc` registers the handlers, hears the fallback's events and asks another
 // plugin's RPC (Quota's refresh, quota-refresh.ts).
 export type StepsContext = AccountsContext &
-  ClaudeAccountsContext &
   IdentityContext & {
     options: Record<string, unknown>
     rpc: ((definition: typeof LIMITS_RPC) => LimitsClient) &

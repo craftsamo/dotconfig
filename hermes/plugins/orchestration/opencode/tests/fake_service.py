@@ -48,9 +48,7 @@ class Fake:
              **tools},
             {"providerID": "anthropic", "id": "claude-opus-5-5-fast", "variants": [{"id": "high"}], **tools},
             {"providerID": "anthropic", "id": "claude-fable-5-1", "variants": [{"id": "high"}], **tools},
-            # The same model from another saved login (an alias) and from a Console credit lane.
-            {"providerID": "anthropic", "id": "claude-opus-5-5-main", "modelID": "claude-opus-5-5",
-             "variants": [{"id": "high"}, {"id": "medium"}], **tools},
+            # The same model from a Console credit lane, with its canonical provider identity.
             {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "modelID": "claude-opus-5-5",
              "canonical": "anthropic", "variants": [{"id": "high"}, {"id": "medium"}], **tools},
             {"providerID": "openai", "id": "gpt-6.1-sol", "variants": [{"id": "medium"}, {"id": "high"}],

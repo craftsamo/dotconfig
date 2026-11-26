@@ -4,17 +4,10 @@
     // Claude Pro/Max through OpenCode's own OAuth login (`opencode auth login
     // anthropic --method claude-max`), not Claude Code's Keychain entries, so
     // Claude Code's and Hermes' logins are never touched. Anthropic does not
-    // permit subscription use outside Claude Code; this is an accepted risk,
-    // and so is using a second login through the alias models below, which
-    // Anthropic may read as spreading work across accounts to avoid limits.
+    // permit subscription use outside Claude Code; this is an accepted risk.
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
-    // Swaps the token of requests on alias models for the saved login their
-    // suffix names. Runs after the login plugin above rewrites a request
-    // (hooks run in load order). The map must equal lib/fallback-steps'
-    // claudeAccounts below, which judges those logins' steps.
-    { "package": "./lib/claude-logins", "options": { "claudeAccounts": { "sub": "Sub OAuth", "main": "Main OAuth" } } },
     // Gemini and Claude on a Google Antigravity plan through a Google OAuth
     // login (`opencode auth login google`, "Google OAuth (Antigravity)"); its
     // models are google/antigravity-*, picked by hand or named by a
@@ -97,15 +90,8 @@
         // route's step can run a Claude model on. [] turns them off.
         "creditLanes": [
           "anthropic-credit-team",
-          "anthropic-credit-main",
-          "anthropic-credit-sub"
-        ],
-        // Saved Claude Pro/Max logins: model-ID suffix → login label
-        // (`opencode auth list`), as lib/claude-logins above swaps them.
-        "claudeAccounts": {
-          "sub": "Sub OAuth",
-          "main": "Main OAuth"
-        }
+          "anthropic-credit-main"
+        ]
       }
     },
     // Launches a routed agent on the first usable step of its route and moves
@@ -119,9 +105,8 @@
         // takes the first usable step, whatever model the agent file names
         // (its prompt and permissions stay); a session that hits a limit moves
         // to the next usable step after its own. The provider says where a
-        // step runs: a credit lane, a claudeAccounts login by its alias
-        // suffix, or else the provider's active login. A step without a
-        // variant stands for every variant, and a move keeps the session's.
+        // step runs: a credit lane or else the provider's active login. A step
+        // without a variant stands for every variant, and a move keeps the session's.
         // The first step's model is the one the agent file names.
         //
         // Temporarily skip all Antigravity routes (2026-11-15): upstream reports
@@ -136,181 +121,140 @@
         // worker, the refactorer and the searcher, and backs up the deep
         // searcher; Claude closes every route: Claude on Antigravity first
         // (its own quota group, Sonnet or Opus; it has no Haiku and no xhigh),
-        // then the saved logins, then the paid credit lanes as the very last
-        // stops. worker-deep keeps its Sonnet-first policy for hard implementation:
-        // the Sonnet logins come first, then Claude on Antigravity, then Sol,
-        // then Hydrogen, then the lanes.
+        // then the active Claude login, then the paid credit lanes as the very
+        // last stops. worker-deep keeps its Sonnet-first policy for hard implementation:
+        // the active Claude login on Sonnet comes first, then Claude on Antigravity,
+        // then Sol, then Hydrogen, then the lanes.
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
             // "google/antigravity-claude-opus-5-5-high",
-            "anthropic/claude-opus-5-5-sub#xhigh",
-            "anthropic/claude-opus-5-5-main#xhigh",
+            "anthropic/claude-opus-5-5#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
-            "anthropic-credit-main/claude-opus-5-5#xhigh",
-            "anthropic-credit-sub/claude-opus-5-5#xhigh"
+            "anthropic-credit-main/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
             // "google/antigravity-gemini-4-hydrogen-high",
             "openai/gpt-6.1-sol#high",
             // "google/antigravity-claude-sonnet-5-5-high",
-            "anthropic/claude-sonnet-5-5-sub#high",
-            "anthropic/claude-sonnet-5-5-main#high",
+            "anthropic/claude-sonnet-5-5#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
-            "anthropic-credit-main/claude-sonnet-5-5#high",
-            "anthropic-credit-sub/claude-sonnet-5-5#high"
+            "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
             // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             // "google/antigravity-claude-sonnet-5-5-medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+            "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "reviewer": [
             "openai/gpt-6.1-sol#medium",
             // "google/antigravity-claude-sonnet-5-5-medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+            "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker": [
             // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             // "google/antigravity-claude-sonnet-5-5-medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+            "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "refactorer": [
             // "google/antigravity-gemini-4-hydrogen-medium",
             "openai/gpt-6.1-sol#medium",
             // "google/antigravity-claude-sonnet-5-5-medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+            "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker-deep": [
-            "anthropic/claude-sonnet-5-5-sub#high",
-            "anthropic/claude-sonnet-5-5-main#high",
+            "anthropic/claude-sonnet-5-5#high",
             // "google/antigravity-claude-sonnet-5-5-high",
             "openai/gpt-6.1-sol#high",
             // "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
-            "anthropic-credit-main/claude-sonnet-5-5#high",
-            "anthropic-credit-sub/claude-sonnet-5-5#high"
+            "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-spark": [
             // "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna-fast#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low",
+            "anthropic/claude-haiku-5-5#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
-            "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low"
+            "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "explore-small": [
             // "google/antigravity-gemini-4-hydrogen-low",
             "openai/gpt-6-luna#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low",
+            "anthropic/claude-haiku-5-5#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
-            "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low"
+            "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "verifier": [
             "openai/gpt-6-luna#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low",
+            "anthropic/claude-haiku-5-5#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
-            "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low"
+            "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "debugger": [
             "openai/gpt-6.1-sol#high",
             // "google/antigravity-claude-opus-5-5-high",
-            "anthropic/claude-opus-5-5-sub#high",
-            "anthropic/claude-opus-5-5-main#high",
+            "anthropic/claude-opus-5-5#high",
             "anthropic-credit-team/claude-opus-5-5#high",
-            "anthropic-credit-main/claude-opus-5-5#high",
-            "anthropic-credit-sub/claude-opus-5-5#high"
+            "anthropic-credit-main/claude-opus-5-5#high"
           ],
           "reviewer-deep": [
             "openai/gpt-6.1-sol#high",
             // "google/antigravity-claude-opus-5-5-high",
-            "anthropic/claude-opus-5-5-sub#high",
-            "anthropic/claude-opus-5-5-main#high",
+            "anthropic/claude-opus-5-5#high",
             "anthropic-credit-team/claude-opus-5-5#high",
-            "anthropic-credit-main/claude-opus-5-5#high",
-            "anthropic-credit-sub/claude-opus-5-5#high"
+            "anthropic-credit-main/claude-opus-5-5#high"
           ],
           "searcher-deep": [
             "xai/grok-4.7#medium",
             "openai/gpt-6.1-sol#medium",
             // "google/antigravity-gemini-4-hydrogen-high",
             // "google/antigravity-claude-sonnet-5-5-medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium"
+            "anthropic/claude-sonnet-5-5#medium"
           ],
           "searcher": [
             // "google/antigravity-gemini-4-hydrogen-low",
             "xai/grok-4.7#low",
             "openai/gpt-6.1-sol#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low"
+            "anthropic/claude-haiku-5-5#low"
           ],
           // The primary agents, all on Opus: a session that hits a limit
-          // moves through the logins, then the lanes, in its own variant. A
-          // session switched to another model (/models) is off its route and
+          // moves through the active login, then the lanes, in its own variant.
+          // A session switched to another model (/models) is off its route and
           // left to OpenCode; nothing moves one back.
           "build": [
             "anthropic/claude-opus-5-5",
-            "anthropic/claude-opus-5-5-main",
-            "anthropic/claude-opus-5-5-sub",
             "anthropic-credit-team/claude-opus-5-5",
-            "anthropic-credit-main/claude-opus-5-5",
-            "anthropic-credit-sub/claude-opus-5-5"
+            "anthropic-credit-main/claude-opus-5-5"
           ],
           "plan": [
             "anthropic/claude-opus-5-5",
-            "anthropic/claude-opus-5-5-main",
-            "anthropic/claude-opus-5-5-sub",
             "anthropic-credit-team/claude-opus-5-5",
-            "anthropic-credit-main/claude-opus-5-5",
-            "anthropic-credit-sub/claude-opus-5-5"
+            "anthropic-credit-main/claude-opus-5-5"
           ],
           "debug": [
             "anthropic/claude-opus-5-5",
-            "anthropic/claude-opus-5-5-main",
-            "anthropic/claude-opus-5-5-sub",
             "anthropic-credit-team/claude-opus-5-5",
-            "anthropic-credit-main/claude-opus-5-5",
-            "anthropic-credit-sub/claude-opus-5-5"
+            "anthropic-credit-main/claude-opus-5-5"
           ],
           "design": [
             "anthropic/claude-opus-5-5",
-            "anthropic/claude-opus-5-5-main",
-            "anthropic/claude-opus-5-5-sub",
             "anthropic-credit-team/claude-opus-5-5",
-            "anthropic-credit-main/claude-opus-5-5",
-            "anthropic-credit-sub/claude-opus-5-5"
+            "anthropic-credit-main/claude-opus-5-5"
           ],
           "review": [
             "anthropic/claude-opus-5-5",
-            "anthropic/claude-opus-5-5-main",
-            "anthropic/claude-opus-5-5-sub",
             "anthropic-credit-team/claude-opus-5-5",
-            "anthropic-credit-main/claude-opus-5-5",
-            "anthropic-credit-sub/claude-opus-5-5"
+            "anthropic-credit-main/claude-opus-5-5"
           ]
         }
       }
@@ -838,46 +782,6 @@
         },
       },
     },
-    // The saved Claude logins (claudeAccounts above). The login plugin
-    // rewrites requests of provider anthropic only, so another login cannot
-    // be a provider of its own: these aliases sit under anthropic, send the
-    // real model (modelID) and inherit its variants, limits and prices.
-    "anthropic": {
-      "models": {
-        "claude-fable-5-2-sub": {
-          "modelID": "claude-fable-5-2",
-          "name": "Claude Fable 5.2 (Sub OAuth)",
-        },
-        "claude-opus-5-5-sub": {
-          "modelID": "claude-opus-5-5",
-          "name": "Claude Opus 5.5 (Sub OAuth)",
-        },
-        "claude-sonnet-5-5-sub": {
-          "modelID": "claude-sonnet-5-5",
-          "name": "Claude Sonnet 5.5 (Sub OAuth)",
-        },
-        "claude-haiku-5-5-sub": {
-          "modelID": "claude-haiku-5-5",
-          "name": "Claude Haiku 5.5 (Sub OAuth)",
-        },
-        "claude-fable-5-2-main": {
-          "modelID": "claude-fable-5-2",
-          "name": "Claude Fable 5.2 (Main OAuth)",
-        },
-        "claude-opus-5-5-main": {
-          "modelID": "claude-opus-5-5",
-          "name": "Claude Opus 5.5 (Main OAuth)",
-        },
-        "claude-sonnet-5-5-main": {
-          "modelID": "claude-sonnet-5-5",
-          "name": "Claude Sonnet 5.5 (Main OAuth)",
-        },
-        "claude-haiku-5-5-main": {
-          "modelID": "claude-haiku-5-5",
-          "name": "Claude Haiku 5.5 (Main OAuth)",
-        },
-      },
-    },
     // Console credit lanes: the monthly API credits that Max plans grant, one
     // Console org per plan. The names are opaque labels; which org each one
     // is lives in the private overlay. They cannot be used by Claude Code or
@@ -907,20 +811,6 @@
       "package": "@opencode/ai/providers/anthropic",
       "env": [
         "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY"
-      ],
-      "models": {
-        "claude-fable-5-2": {},
-        "claude-opus-5-5": {},
-        "claude-sonnet-5-5": {},
-        "claude-haiku-5-5": {},
-      },
-    },
-    "anthropic-credit-sub": {
-      "name": "Anthropic Sub Credit",
-      "canonical": "anthropic",
-      "package": "@opencode/ai/providers/anthropic",
-      "env": [
-        "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY"
       ],
       "models": {
         "claude-fable-5-2": {},

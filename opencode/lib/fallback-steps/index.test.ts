@@ -58,61 +58,13 @@ describe("Claude subscription", () => {
       reason: `the active Claude login has no included quota left until ${UNTIL}`,
     })
   })
-  test("an alias runs on its own saved login, never combined with the active one", async () => {
-    const options = { claudeAccounts: { sub: "Sub" } }
-    const exported = fresh(
-      "anthropic",
-      row("anthropic", "Main"),
-      row("anthropic", "Sub", 0),
-    )
-    const f = await setup(options, exported)
-    expect(await f.ask("anthropic/claude-opus-5-5-sub#high")).toEqual({
-      usable: false,
-      reason: `Claude login "Sub" has no included quota left until ${UNTIL}`,
-    })
-    expect(await f.ask("anthropic/claude-opus-5-5")).toEqual({ usable: true })
-    const spentMain = await setup(
-      options,
-      fresh("anthropic", row("anthropic", "Main", 0), row("anthropic", "Sub")),
-    )
-    expect(await spentMain.ask("anthropic/claude-opus-5-5-sub")).toEqual({
-      usable: true,
-    })
-  })
-  test("an alias whose login is missing or has no label is refused with the account error", async () => {
-    const gone = await setup({ claudeAccounts: { sub: "Gone" } })
-    expect(await gone.ask("anthropic/claude-opus-5-5-sub")).toEqual({
-      usable: false,
-      reason: 'Claude account: no saved Claude login is labelled "Gone"',
-    })
-    const blank = await setup({ claudeAccounts: { sub: " " } })
-    expect(await blank.ask("anthropic/claude-opus-5-5-sub")).toEqual({
-      usable: false,
-      reason:
-        'Claude account: claudeAccounts gives the "sub" models no login label',
-    })
-  })
-  test("the longest configured suffix claims the model", async () => {
-    const f = await setup(
-      { claudeAccounts: { sub: "Sub", "team-sub": "Gone" } },
-      fresh("anthropic", row("anthropic", "Sub")),
-    )
-    const answer = await f.ask("anthropic/claude-opus-5-5-team-sub")
-    expect(answer.reason).toContain('"Gone"')
-  })
-  test("a malformed claudeAccounts refuses every Claude subscription step", async () => {
-    const f = await setup({ claudeAccounts: ["sub"] })
-    const reason =
-      "Claude account: claudeAccounts must map model-ID suffixes to login labels"
+  test("a sole labelled active login is refused when exhausted rows have no account text", async () => {
+    const { account, ...unlabelled } = row("anthropic", "Main", 0)
+    const f = await setup({}, fresh("anthropic", unlabelled))
     expect(await f.ask("anthropic/claude-opus-5-5")).toEqual({
       usable: false,
-      reason,
+      reason: `the active Claude login has no included quota left until ${UNTIL}`,
     })
-    expect(await f.ask("anthropic/claude-opus-5-5-sub")).toEqual({
-      usable: false,
-      reason,
-    })
-    expect(await f.ask("openrouter/some-model")).toEqual({ usable: true })
   })
   test("no approved Claude login is refused", async () => {
     const f = await setup({}, {}, { logins: { ...LOGINS, anthropic: [] } })

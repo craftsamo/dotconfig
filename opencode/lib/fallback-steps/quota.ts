@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import type { ModelRef } from "../claude-logins/models"
+import type { ModelRef } from "./models"
 import {
   ANTIGRAVITY_QUOTA_ID,
   classifyFamily,

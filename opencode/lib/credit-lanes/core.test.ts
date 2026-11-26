@@ -149,23 +149,23 @@ describe("ledger", () => {
 })
 
 describe("allocateHermes", () => {
-  const ORDER = ["sub", "main"]
+  const ORDER = ["team", "main"]
   test("the first lane takes what fits, the rest moves on", () => {
-    expect(allocateHermes(ORDER, { sub: 30, main: 30 }, { sub: 10, main: 100 })).toEqual({
-      sub: 10,
+    expect(allocateHermes(ORDER, { team: 30, main: 30 }, { team: 10, main: 100 })).toEqual({
+      team: 10,
       main: 20,
     })
   })
   test("the next lane takes no more than Hermes spent since its own checkpoint", () => {
-    expect(allocateHermes(ORDER, { sub: 30, main: 5 }, { sub: 0, main: 100 })).toEqual({
-      sub: 0,
+    expect(allocateHermes(ORDER, { team: 30, main: 5 }, { team: 0, main: 100 })).toEqual({
+      team: 0,
       main: 5,
     })
   })
   test("a lane without a full room keeps what does not fit nowhere, and absent lanes are skipped", () => {
     expect(allocateHermes(ORDER, { main: 30 }, { main: 12 })).toEqual({ main: 12 })
-    expect(allocateHermes(ORDER, { sub: 30, main: 30 }, { sub: -5, main: 0 })).toEqual({
-      sub: 0,
+    expect(allocateHermes(ORDER, { team: 30, main: 30 }, { team: -5, main: 0 })).toEqual({
+      team: 0,
       main: 0,
     })
   })
@@ -252,7 +252,7 @@ describe("format", () => {
       },
       NOW,
     )
-    const text = format([s], ["anthropic-credit-sub", "anthropic-credit-main"])
+    const text = format([s], ["anthropic-credit-team", "anthropic-credit-main"])
     expect(text).toContain(
       "Main (anthropic-credit-main): $130.00 left of $200.00 (65%), renews on day 13",
     )

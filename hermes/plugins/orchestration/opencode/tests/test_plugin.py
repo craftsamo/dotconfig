@@ -809,8 +809,6 @@ def test_callers_own_models_are_refused_for_every_role(fixture):
     pinned = run("plan", directory)
     assert "your own model" in pinned["error"], pinned
     assert "your own model" in run("plan", directory, model="anthropic/claude-opus-5-5-fast")["error"]
-    assert "your own model" in run("plan", directory, model="anthropic/claude-opus-5-5-main")["error"], \
-        "another login's alias of the model is the same model"
     assert "allowed_providers" in run("plan", directory, model="anthropic-credit-team/claude-opus-5-5")["error"], \
         "a credit lane is a provider of its own: the caller names it only when it is allowed"
     ok = run("plan", directory, model="openai/gpt-6-sol", variant="high")
@@ -1726,7 +1724,7 @@ def test_catalog_lists_models_defaults_and_your_own(fixture, monkeypatch):
     names = [m["model"] for m in listed["models"]]
     assert "xai/grok-4.7" not in names and "openai/gpt-image-3" not in names
     assert {m["model"] for m in listed["models"] if m.get("yours")} == {
-        "anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-fast", "anthropic/claude-opus-5-5-main"}
+        "anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-fast"}
     sol = next(m for m in listed["models"] if m["model"] == "openai/gpt-6.1-sol")
     assert sol["variants"] == ["medium", "high"] and sol["context"] == 400000
     assert sol["cost_per_mtok"] == {"input": 2, "output": 10}
@@ -1782,7 +1780,7 @@ def test_catalog_reduces_config_sources_to_their_shape(fixture):
 
 
 def test_a_continuing_turn_keeps_the_stop_the_service_moved_the_session_to(fixture):
-    """OpenCode moves a session to a credit lane or another login of the same model on a
+    """OpenCode moves a session to a credit lane of the same model on a
     limit; re-sending the configured spelling would move it back, so a continuing turn
     keeps the stop unless the caller names a model this turn."""
     home, directory, _, fake = fixture
@@ -1795,12 +1793,12 @@ def test_a_continuing_turn_keeps_the_stop_the_service_moved_the_session_to(fixtu
     # A role switch keeps the stop and takes the new role's variant.
     moved = run("build", session_id=sid, approval="yes")
     assert moved.get("engine") == "anthropic-credit-team/claude-opus-5-5#medium", moved
-    fake.sessions[sid]["model"] = {"providerID": "anthropic", "id": "claude-opus-5-5-main", "variant": "high"}
-    assert run("plan", session_id=sid)["engine"] == "anthropic/claude-opus-5-5-main#high"
+    fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
+    assert run("plan", session_id=sid)["engine"] == "anthropic-credit-team/claude-opus-5-5#high"
     # A variant alone changes the effort, not the stop.
     assert "variant requires a model" in run("plan", session_id=sid, variant="medium")["error"]
     configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, model: 'anthropic/claude-opus-5-5#high'}\n")
-    assert run("plan", session_id=sid, variant="medium")["engine"] == "anthropic/claude-opus-5-5-main#medium"
+    assert run("plan", session_id=sid, variant="medium")["engine"] == "anthropic-credit-team/claude-opus-5-5#medium"
     # A stop that lacks the wanted variant is left for the wanted model (the medium the
     # last turn chose is bound to the session).
     lane = next(m for m in fake.models if m["providerID"] == "anthropic-credit-team")
@@ -1833,10 +1831,15 @@ def test_catalog_models_name_the_stops_and_providers_their_canonical(fixture):
     home, directory, _, _ = fixture
     configure(home, "model:\n  default: claude-opus-5-5\n")
     listed = {m["model"]: m for m in json.loads(plugin.opencode_catalog({"what": "models"}))["models"]}
-    assert listed["anthropic/claude-opus-5-5-main"]["stop_of"] == "anthropic/claude-opus-5-5"
-    assert listed["anthropic/claude-opus-5-5-main"]["yours"] is True
     assert "stop_of" not in listed["anthropic/claude-opus-5-5"]
     assert "anthropic-credit-team/claude-opus-5-5" not in listed, "lanes outside allowed_providers are not offered"
+    (home / "config.yaml").write_text(
+        CONFIG.replace("[anthropic, openai]", "[anthropic, anthropic-credit-team, openai]") +
+        "model:\n  default: claude-opus-5-5\n")
+    listed = {m["model"]: m for m in json.loads(plugin.opencode_catalog({"what": "models"}))["models"]}
+    assert listed["anthropic-credit-team/claude-opus-5-5"]["stop_of"] == "anthropic/claude-opus-5-5"
+    assert listed["anthropic-credit-team/claude-opus-5-5"]["yours"] is True
+    assert "your own model" in run("plan", directory, model="anthropic-credit-team/claude-opus-5-5")["error"]
     assert catalog("providers", directory)["providers"] == [
         {"id": "anthropic", "name": "Anthropic", "activation": "enabled"},
         {"id": "anthropic-credit-team", "canonical": "anthropic", "activation": "enabled"},
@@ -1847,15 +1850,15 @@ def test_catalog_models_name_the_stops_and_providers_their_canonical(fixture):
 EXPORT = {
     "version": 2, "exportedAt": 1_000_000, "providers": {
         "anthropic": {"status": "ok", "fetchedAt": 999_990, "entries": [
-            {"name": "[Claude Sub OAuth] (active) 5h", "resultType": "quota", "sourceId": "cred_SECRET1",
+            {"name": "[Claude Work] (active) 5h", "resultType": "quota", "sourceId": "cred_SECRET1",
              "window": "5h", "resetAt": 1_003_600, "percentRemaining": 77},
-            {"name": "[Claude Sub OAuth] (active) Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+            {"name": "[Claude Work] (active) Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
              "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 82},
-            {"name": "[Claude Sub OAuth] (active) Fable Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+            {"name": "[Claude Work] (active) Fable Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
              "resetAt": 1_300_000, "percentRemaining": 73},
-            {"name": "[Claude Main OAuth] 5h", "resultType": "quota", "sourceId": "cred_SECRET2",
+            {"name": "[Claude Personal] 5h", "resultType": "quota", "sourceId": "cred_SECRET2",
              "window": "5h", "resetAt": 1_003_600, "percentRemaining": 0},
-            {"name": "[Claude Main OAuth] Weekly", "resultType": "quota", "sourceId": "cred_SECRET2",
+            {"name": "[Claude Personal] Weekly", "resultType": "quota", "sourceId": "cred_SECRET2",
              "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 40}]},
         "openai": {"status": "ok", "fetchedAt": 999_000, "entries": [
             {"name": "[OpenAI] (Plus) 5h", "resultType": "rate_limit", "sourceId": "cred_SECRET3",
@@ -1883,11 +1886,11 @@ def test_funding_board_shows_each_stop_without_its_connection_id(fixture, tmp_pa
     claude = stops["anthropic"]
     assert claude["kind"] == "subscription"
     sub, main = claude["accounts"]
-    assert sub["label"] == "Claude Sub OAuth" and sub["active"] is True and "empty" not in sub
+    assert sub["label"] == "Claude Work" and sub["active"] is True and "empty" not in sub
     assert sub["fresh"] is True, "fetched 110 seconds ago"
     assert sub["windows"]["5h"] == {"remaining_percent": 77, "resets": "1970-01-12T14:46:40+00:00"}
     assert sub["other"]["Fable Weekly"]["remaining_percent"] == 73
-    assert main["label"] == "Claude Main OAuth" and "active" not in main
+    assert main["label"] == "Claude Personal" and "active" not in main
     assert main["empty"] is True and main["windows"]["5h"]["empty"] is True, "one empty window empties the login"
     plus = stops["openai"]["accounts"][0]
     assert plus["fresh"] is False, "fetched over six minutes ago with nothing empty"
