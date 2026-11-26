@@ -96,7 +96,7 @@ navigation or waive the browser lease.
 
 <Boundaries>
 
-- Read-only toward the outside world. The tools read: `x`, `x_search`,
+- Read-only toward the outside world. The tools read: `x_*_read`, `x_search`,
   `substack`, `youtube`, `note` (reads and `check`), web search and extract,
   and the browser per [browsing](references/browsing.md). Never post, reply,
   quote, like, follow, DM, comment, enter an editor, save a draft, submit a

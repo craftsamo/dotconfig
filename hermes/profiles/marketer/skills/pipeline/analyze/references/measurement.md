@@ -12,9 +12,11 @@ Choose an available source: permitted public observation/search, an
 authorized tool, the existing account's dashboard or a user-supplied export.
 Read the selected platform reference.
 
-- X: the `x` tool's `snapshot` / `insights` for the client's own posts and
-  `verify` for others' public counts; [X ranking](../../references/x-ranking.md)
-  lists what they cannot show.
+- X: `x_post_read` (`timeline` for `@craftsamo`, or `view` for specific posts)
+  and `x_user_read` (`view`). There is no stored history: counts are public at
+  the read time, so record `read_at` and compare posts read at a similar age
+  (small samples stay inconclusive); [X ranking](../../references/x-ranking.md)
+  lists what public counts cannot show.
 - note: the `note` tool's `stats` (state its period) and public reads.
 - Substack: the `substack` tool's `published` (per-post numbers) and `stats`
   (subscribers, open rate), recorded with the period they were read.

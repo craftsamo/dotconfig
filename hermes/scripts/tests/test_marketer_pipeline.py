@@ -320,12 +320,19 @@ def test_actual_config_is_a_read_only_advisor():
     for platform in ("cli", "a2a"):
         tools = config["platform_toolsets"][platform]
         assert "specialist" in tools and "a2a" not in tools and "no_mcp" in tools
-        for reader in ("x_access", "x_search", "substack_access", "youtube_access", "note_access", "web"):
+        assert "x_access" not in tools
+        for reader in ("x_search", "substack_access", "youtube_access", "note_access", "web"):
             assert reader in tools
         if platform == "a2a":
             assert not {"browser", "terminal", "delegation"} & set(tools)
         else:
             assert "browser" in tools and "terminal" in tools
+    assert "x_access" not in config["toolsets"] and "x_access" not in config
+    assert "x-access" not in config["plugins"]["enabled"]
+    x_settings = config["plugins"]["entries"]["x-tools"]["settings"]
+    assert x_settings["toolsets"] == ["account", "posts", "users", "lists", "communities", "trends"]
+    assert x_settings["read_only"] is True
+    assert x_settings["require_plugins"] == ["x-tools-guard"]
     assert "clarify" in config["platform_toolsets"]["cli"]
     assert config["browser"]["use_real_profile"] is True
     assert config["browser"]["real_profile_pin"] == "Profile 13"

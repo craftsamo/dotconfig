@@ -75,8 +75,9 @@ it:
 
 Run as the hunt's hop loop, the anchor first:
 
-1. **Anchor.** Read the start's own profile: `x(action="user")` for an X
-   handle, `note(action="creator")`, `youtube(action="channels")`,
+1. **Anchor.** Read the start's own profile: `x_user_read` `view` (with
+   `handle`) for an X handle, `note(action="creator")`,
+   `youtube(action="channels")`,
    `substack(action="archive")` or the page itself. Record the handle, URL,
    display name, join or creation date, counts and every link it lists.
 2. **Follow its own links.** Open each listed account or site and check

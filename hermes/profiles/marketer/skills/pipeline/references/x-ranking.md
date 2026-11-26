@@ -118,13 +118,15 @@ not fit the message's purpose is skipped, not forced.
 
 ## Measuring
 
-The `x` tool (sub-account, public data only) records and summarizes the
-client's own posts: `snapshot` stores views, likes, replies, reposts, quotes
-and bookmarks with the read time; `insights` compares them offline by post age,
-format and posting hour. Shares, dwell, profile and link clicks, follows and
-negative feedback are not visible there; views are not unique readers. Missing
-is not zero. Compare posts at the same age; For You stops ranking a post after
-48 hours, so most change happens before then. Interpret through
+There is no stored history of past counts: read the client's own posts' public
+counts at the read time (`x_post_read` `timeline` for `@craftsamo`, or `view`
+for specific posts), which returns views, likes, replies, reposts, quotes and
+bookmarks together with `read_at`. Record `read_at` and compare posts read at
+a similar age; For You stops ranking a post after 48 hours, so most change
+happens before then. Shares, dwell, profile and link clicks, follows and
+negative feedback are not visible in public counts (those stay in X's own
+analytics in the browser under [X](platforms/x.md) browsing rules); views are
+not unique readers, and missing is not zero. Interpret through
 [Analyze](../analyze/SKILL.md); small samples stay inconclusive.
 
 ## Discovering conversations
@@ -133,13 +135,15 @@ Goal: places where the client can add something genuine, returned as
 candidates (link, why it fits, suggested angle for Writer). The user replies.
 
 - Topic sweeps and trends: `x_search` (xAI's semantic search over X).
-- Exact queries and context: `x` `search` (Latest or Top) and `thread`. Its
-  reads are paced and capped (shared with the Assistant): ask for what the
-  question needs and never poll.
-- Numbers for posts found elsewhere (an `x_search` citation, a competitor's
-  launch): `x` `verify` with up to 50 post URLs or ids at once. It reads
-  FxTwitter's public API outside the sub-account's caps and returns the real
-  author, text and public counts; only `ok` rows are evidence.
+- Exact queries and context: `x_post_read` `search` (`latest` or `top`),
+  `conversation` (ancestors + direct replies) and `thread` (author's self-reply
+  chain). Reading-account reads are paced and capped (shared with the Assistant
+  and Searcher): ask for what the question needs and never loop or poll.
+- Numbers and checks for posts found elsewhere (an `x_search` citation, a
+  competitor's launch): `x_post_read` `view` with up to 50 post URLs or ids at
+  once. It tries FxTwitter's public API first so it stays mostly outside the
+  reading account's caps, and returns the real author, `handle_mismatch`, text
+  and public counts with `read_at`; only `ok` rows are evidence.
 - A reply reaches mostly that conversation's readers and the client's
   followers: For You drops replies from accounts a viewer does not follow.
   Conversations of mutual follows and posts still inside 48 hours are where a
