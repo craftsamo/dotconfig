@@ -25,7 +25,7 @@
     // a stale export. Bump deliberately and re-check both and /quota_status.
     // It stretches a retry's wait to a window's reset, so it stays before the
     // model fallback, which reads the provider's own wait instead.
-    "@slkiser/opencode-quota@6.0.0",
+    "@slkiser/opencode-quota@6.3.0",
     // Signal through a linked device (craft-agent/signal-tools): reads and,
     // after an approval that shows what the call carries, sends. The account,
     // its sync service and mirror are shared with Hermes, so pin the same
