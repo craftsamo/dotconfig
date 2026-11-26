@@ -47,7 +47,7 @@ service"; rules: [`AGENTS.md`](../../AGENTS.md) "Gateway and A2A".
 cloned servers and browsers, voice catalogs and bundles, rendered settings —
 lives under one root outside the repository: `HERMES_LOCAL`, by default
 `~/.hermes/local/`, as `<root>/<engine>/`. The engine directory names
-(`web3`, `twscrape`, `qwen3-tts`, …) are fixed: the access guards recognise
+(`web3`, `qwen3-tts`, …) are fixed: the access guards recognise
 `local/<engine>` in a command. Every launcher, script, plugin and engine
 resolves the root through that one contract, never from its own source
 location, and every artifact an engine writes under its directory names
@@ -114,8 +114,6 @@ Not LaunchAgents: they build an engine (a hash-locked venv, or a helper app from
 in-tree sources, under the machine-local `~/.hermes/local/`) and report state without printing
 secrets.
 
-- `scripts/x-access.sh {install,status}` — the x-access engine venv and the
-  state of the sub-account's cookies; see [docs/x-access.md](../x-access.md).
 - `scripts/substack-access.sh {install,status}` — the substack-access engine
   venv and the state of the account's cookies; see
   [docs/substack-access.md](../substack-access.md).

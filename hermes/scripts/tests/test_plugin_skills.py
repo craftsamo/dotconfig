@@ -20,9 +20,6 @@ DESCRIPTION_BUDGET = 260
 
 ALL_READERS = {"assistant", "marketer", "searcher"}
 EXPECTED = {
-    "social/x-access": {
-        "read": ALL_READERS,
-    },
     "social/youtube-access": {
         "read": ALL_READERS,
         "manage": {"assistant"},
