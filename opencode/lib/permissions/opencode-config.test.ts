@@ -482,6 +482,49 @@ describe("agent rules over a project's catch-all", () => {
     }
   })
 
+  test("X media download and grants ask in build and are denied in plan, where reads and x_search stay open", () => {
+    for (const tool of ["x_media_download", "x_grant_create", "x_grant_revoke"]) {
+      expect([tool, decide("build", tool, "*")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "*")]).toEqual([tool, "deny"])
+    }
+    for (const tool of ["x_account_read", "x_post_read", "x_user_read", "x_list_read", "x_community_read", "x_trend_read"]) {
+      expect([tool, decide("build", tool, "*")]).toEqual([tool, "allow"])
+      expect([tool, decide("plan", tool, "*")]).toEqual([tool, "allow"])
+    }
+    expect(decide("plan", "x_grant_read", "*")).toBe("allow")
+    for (const id of ["x-account", "x-posts", "x-users", "x-lists", "x-communities", "x-trends", "x-media"]) {
+      expect([id, decide("build", "skill", id)]).toEqual([id, "allow"])
+      expect([id, decide("plan", "skill", id)]).toEqual([id, "allow"])
+    }
+    expect(decide("build", "x_search", "*")).toBe("allow")
+    expect(decide("plan", "x_search", "*")).toBe("allow")
+  })
+
+  test("read-only primaries read X but never download media or touch grants, leaving x_search unchanged", async () => {
+    for (const agent of ["design", "review", "debug"]) {
+      const text = await Bun.file(join(import.meta.dir, `../../agents/${agent}.md`)).text()
+      const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+      const effect = (tool: string) => {
+        let result = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, tool, false) && matches(r.resource, "*", false)) result = r.effect
+        return result
+      }
+      for (const tool of [
+        "x_account_read",
+        "x_post_read",
+        "x_user_read",
+        "x_list_read",
+        "x_community_read",
+        "x_trend_read",
+        "x_grant_read",
+      ])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "allow"])
+      for (const tool of ["x_media_download", "x_grant_create", "x_grant_revoke"])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
+      expect([agent, "x_search", effect("x_search")]).toEqual([agent, "x_search", "ask"])
+    }
+  })
+
   for (const agent of ["plan", "explore"]) {
     test(`${agent} denies Git writes and allows reads`, () => {
       for (const tool of ["git_commit_stage", "git_commit_create", "git_commit_amend", "git_commit_verify", "git_rebase_start", "git_rebase_resume", "git_rebase_split", "git_worktree_add", "git_worktree_remove", "git_push_send", "git_future_write"])
