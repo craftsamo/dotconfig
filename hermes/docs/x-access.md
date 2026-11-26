@@ -1,5 +1,9 @@
 # X access
 
+> [!NOTE]
+> Replaced by the third-party package ([x-tools.md](x-tools.md)). No profile
+> enables this plugin; it stays in the repository until it is removed.
+
 A read-only view of X (Twitter) for the Assistant and Marketer: the user's
 main account's posts and mentions, search, threads, profiles, a post's
 photos, videos and GIFs, a ledger of the main account's public counts, and

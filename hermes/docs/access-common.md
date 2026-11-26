@@ -39,7 +39,7 @@ restart. Short rule: [AGENTS.md](../AGENTS.md) "Secrets, auth and accounts".
 ## State directory and bridge process
 
 State lives outside every repository and is private (mode 700). The cookie
-services (X, note, Substack) keep pacing timestamps, caps, locks and
+services (note, Substack) keep pacing timestamps, caps, locks and
 the service's last verdict in `~/.<name>-access/`, with no secret; Stripe
 keeps its key's last verdict there the same way. The
 messaging plugins keep their mirror and outbox under
@@ -84,11 +84,12 @@ was changed.
   exists. Google, note and Stripe use the shared check
   `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal, Telegram, Discord, WhatsApp, GitHub, Git and Cloudflare packages
+  third-party Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare and X packages
   ([signal-tools.md](signal-tools.md), [telegram-tools.md](telegram-tools.md),
   [discord-tools.md](discord-tools.md), [whatsapp-tools.md](whatsapp-tools.md),
   [github-tools.md](github-tools.md),
-  [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md)); Substack and YouTube refuse through
+  [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md),
+  [x-tools.md](x-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
@@ -97,7 +98,7 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
-  Signal, Telegram, Discord, WhatsApp, GitHub, Git and Cloudflare are the exceptions: their package handlers
+  Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare and X are the exceptions: their package handlers
   are not ours, so only the guards' hooks refuse, and the profile validator refuses a
   config that enables a package without its guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at

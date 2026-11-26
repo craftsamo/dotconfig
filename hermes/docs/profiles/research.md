@@ -94,14 +94,16 @@ Marketer, and any the private overlay adds), each over a resident
 conversation it owns. Retrieval and link integrity remain its
 limits: no trust verdicts, synthesis, rankings or production. Beyond web
 search and `x_search`,
-it reads public X posts and named accounts' profiles, YouTube, note and
-Substack through the `x`, `youtube`, `note` and `substack` tools, each limited
-to a public-only action list (see [x-access.md](../x-access.md) "Profiles"),
+it reads public X posts and named accounts' profiles through `x_post_read`,
+`x_user_read` and `x_account_read` (`read_only`, with lower caps on the
+shared count; [x-tools.md](../x-tools.md)), YouTube, note and
+Substack through the `youtube`, `note` and `substack` tools (each limited
+to a public-only action list),
 and reads chains through `evm` and `solana`. When to use each service and what
 to record, kept to facts, is one reference per service in its
 `references/platforms/` (`x`, `youtube`, `note`, `substack`, `evm`, `solana`;
-Researcher keeps only the two chains); the `x` tool's `search` is only the
-fallback for when `x_search` is unavailable, within a capped share of the
+Researcher keeps only the two chains); `x_post_read` (`search`) is only the
+fallback for when `x_search` is unavailable, within those lower caps on the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 

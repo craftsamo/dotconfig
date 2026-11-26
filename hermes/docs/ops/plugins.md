@@ -30,7 +30,7 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `group/name`). `plugins.enabled` accepts the bare name, but `plugins.entries`
   (e.g. `allow_tool_override`) needs the full `group/name` key: a bare key is
   ignored and the plugin fails to load. Current groups:
-  `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
+  `messaging/` (chat accounts), `social/` (public platforms: note, substack,
   youtube), `web3/` (chain reads, Hyperliquid reads and the wallet), `orchestration/` (specialist,
   OpenCode and session-history transports), `workspace/` (the public drafts, repos and
   registry engines; a local overlay may add more), `guards/` (topology and Worker guards),
@@ -56,8 +56,9 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `signal-tools` ([signal-tools.md](../signal-tools.md)),
   `telegram-tools` ([telegram-tools.md](../telegram-tools.md)),
   `discord-tools` ([discord-tools.md](../discord-tools.md)),
-  `whatsapp-tools` ([whatsapp-tools.md](../whatsapp-tools.md)) and
-  `cloudflare-tools` ([cloudflare-tools.md](../cloudflare-tools.md)).
+  `whatsapp-tools` ([whatsapp-tools.md](../whatsapp-tools.md)),
+  `cloudflare-tools` ([cloudflare-tools.md](../cloudflare-tools.md)) and
+  `x-tools` ([x-tools.md](../x-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
   first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,
   `code` or `goal` in the chat's progress line (a message body or a local path

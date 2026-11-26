@@ -47,7 +47,7 @@ Each doc then holds only its own deltas.
 [Git](./docs/git-tools.md) ·
 [WhatsApp](./docs/whatsapp-tools.md) ·
 [Signal](./docs/signal-tools.md) · [Discord](./docs/discord-tools.md) ·
-[Telegram](./docs/telegram-tools.md) · [X](./docs/x-access.md) ·
+[Telegram](./docs/telegram-tools.md) · [X](./docs/x-tools.md) ·
 [note](./docs/note-access.md) · [Substack](./docs/substack-access.md) ·
 [YouTube](./docs/youtube-access.md) · [Stripe](./docs/stripe-access.md) ·
 [Cloudflare](./docs/cloudflare-tools.md) · [Web3](./docs/web3.md) ·
@@ -85,4 +85,5 @@ look arbitrary:
 [Discord tools](./docs/decisions/discord-tools-plugin.md) ·
 [WhatsApp tools](./docs/decisions/whatsapp-tools-plugin.md) ·
 [Cloudflare tools](./docs/decisions/cloudflare-tools-plugin.md) ·
+[X tools](./docs/decisions/x-tools-plugin.md) ·
 [gcloud mandates](./docs/decisions/gcloud-mandates.md).

@@ -51,13 +51,14 @@ pipeline: the client applies the shared writing acceptance contract.
 
 ### Read-only toward every service
 
-Marketer's tools only read: `x` and `x_search` ([x-access.md](../x-access.md)),
-`substack` ([substack-access.md](../substack-access.md)), `youtube`
-([youtube-access.md](../youtube-access.md)), `stripe`
-([stripe-access.md](../stripe-access.md)) have read-only Marketer schemas, the
-`cloudflare_*` tools ([cloudflare-tools.md](../cloudflare-tools.md)) run
-read-only there, and the `note` tool ([note-access.md](../note-access.md)) offers
-Marketer its reads and the offline `check`, never a save or preview. All of them also answer
+Marketer's tools only read: `x_search`, the `x_*_read` tools
+([x-tools.md](../x-tools.md)) and the `cloudflare_*` tools
+([cloudflare-tools.md](../cloudflare-tools.md)) run read-only there; `substack`
+([substack-access.md](../substack-access.md)), `youtube`
+([youtube-access.md](../youtube-access.md)) and `stripe`
+([stripe-access.md](../stripe-access.md)) have read-only Marketer schemas, and
+the `note` tool ([note-access.md](../note-access.md)) offers Marketer its reads
+and the offline `check`, never a save or preview. All of them also answer
 inbound A2A inquiries, without the browser or the lease, on budgets shared
 with the Assistant. The operating contract forbids every state change on a
 service (posting, replies, likes, follows, DMs, comments, editor entry, draft
