@@ -2,19 +2,9 @@ import type {
   StepsUsableInput,
   StepsUsableOutput,
 } from "@craftsamo/opencode-model-fallback/rpc"
-import {
-  AccountError,
-  accountOf,
-  type AccountRouter,
-} from "../claude-logins/accounts"
-import { OAUTH_PROVIDER, type ModelRef } from "../claude-logins/models"
+import type { ModelRef } from "./models"
 import { familyName } from "../credit-lanes/antigravity"
-import {
-  identify,
-  subscription,
-  type Subscription,
-} from "./accounts"
-import { loginSubscription } from "./logins"
+import { subscription, type Subscription } from "./accounts"
 import type { EmptyLanes } from "./empty-lanes"
 import {
   ANTIGRAVITY_PROVIDER,
@@ -74,7 +64,6 @@ export function createUsable(
   state: {
     deps: StepsDeps
     creditLanes: readonly string[]
-    claudeAccounts: AccountRouter
     // Lanes the balance estimate knows are empty, tried once a day.
     empty: EmptyLanes
     // Saves the daily tries for a restart.
@@ -83,7 +72,7 @@ export function createUsable(
     windows: Windows
   },
 ): (input: StepsUsableInput) => Promise<StepsUsableOutput> {
-  const { deps, creditLanes, claudeAccounts, empty, keep, windows } = state
+  const { deps, creditLanes, empty, keep, windows } = state
   const spent = new SpentWindows()
   const refresher = new QuotaRefresher()
 
@@ -128,21 +117,7 @@ export function createUsable(
     active: ActiveLogin,
   ): Promise<string | undefined> => {
     const name = LOGIN_NAMES[model.providerID]
-    const isClaude = model.providerID === OAUTH_PROVIDER
-    if (isClaude && claudeAccounts.broken) return claudeAccounts.broken.message
-    const account = isClaude
-      ? accountOf(model, claudeAccounts.accounts)
-      : undefined
-    let auth: Subscription | undefined
-    if (account) {
-      try {
-        const saved = await loginSubscription(ctx, account)
-        auth = { ...saved, proof: await identify(ctx, saved.proof) }
-      } catch (error) {
-        if (error instanceof AccountError) return error.message
-        throw error
-      }
-    } else auth = await active(model.providerID)
+    const auth = await active(model.providerID)
     if (!auth) return `no approved ${name} login`
     const { proof } = auth
     const now = deps.now()
@@ -152,7 +127,7 @@ export function createUsable(
       now,
     )
     return spentReason(
-      account ? `${name} login "${account.label}"` : `the active ${name} login`,
+      `the active ${name} login`,
       quota,
       now,
     )
@@ -188,14 +163,10 @@ export function createUsable(
   // estimate know of it.
   const heldReason = async (
     model: ModelRef,
-    active: ActiveLogin,
   ): Promise<string | undefined> => {
     if (windows.empty) return undefined
     const window = await windowOf(model, {
       creditLanes,
-      accounts: claudeAccounts.accounts,
-      activeLabel: async () =>
-        (await active(OAUTH_PROVIDER).catch(() => undefined))?.proof.label,
     })
     const until = window && windows.heldUntil(window.key, deps.now())
     return until === undefined
@@ -207,7 +178,7 @@ export function createUsable(
     model: ModelRef,
     active: ActiveLogin,
   ): Promise<string | undefined> => {
-    const held = await heldReason(model, active)
+    const held = await heldReason(model)
     if (held) return held
     if (creditLanes.includes(model.providerID))
       return laneReason(model.providerID)

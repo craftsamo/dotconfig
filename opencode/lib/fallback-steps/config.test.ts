@@ -45,11 +45,11 @@ test("opencode.jsonc lists the model fallback last, after Quota, at the version 
   )
 })
 
-test("opencode.jsonc lists lib/fallback-steps with credit lanes and Claude accounts", () => {
+test("opencode.jsonc lists lib/fallback-steps with credit lanes only", () => {
   const at = names.indexOf(STEPS)
   expect(at).toBeGreaterThanOrEqual(0)
   expect(optionsAt(at).creditLanes).toBeDefined()
-  expect(optionsAt(at).claudeAccounts).toBeDefined()
+  expect(optionsAt(at).claudeAccounts).toBeUndefined()
 })
 
 test("every route step is provider/model[#variant] on a known provider", () => {
@@ -67,6 +67,9 @@ test("every route step is provider/model[#variant] on a known provider", () => {
         `${role}: ${step} ok`,
       )
       const provider = match![1]
+      expect(provider).not.toBe("anthropic-credit-sub")
+      if (provider === "anthropic")
+        expect(match![2]).not.toMatch(/-(sub|main)$/)
       expect(`${role}: ${provider} ${known.has(provider)}`).toBe(
         `${role}: ${provider} true`,
       )
@@ -86,6 +89,7 @@ test("every routed role's agent names its route's first step as its model", asyn
   }
 })
 
-test("no plugin entry loads the old subagent-fallback or its retry recorder", () => {
+test("no plugin entry loads an obsolete local plugin", () => {
   expect(names.filter((name) => name.includes("subagent-fallback"))).toEqual([])
+  expect(names).not.toContain("./lib/claude-logins")
 })

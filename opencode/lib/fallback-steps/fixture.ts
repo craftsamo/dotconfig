@@ -22,7 +22,6 @@ export type Login = { id: string; label?: string; methodID: string }
 export const LOGINS: Record<string, Login[]> = {
   anthropic: [
     { id: "main-id", label: "Main", methodID: "claude-max" },
-    { id: "sub-id", label: "Sub", methodID: "claude-max" },
   ],
   openai: [{ id: "chatgpt-id", methodID: "chatgpt-browser" }],
   xai: [{ id: "xai-id", methodID: "device" }],
@@ -120,8 +119,6 @@ export async function setup(
   const handlers: { usable: any; limit: any } = {} as any
   const ctx: any = {
     options,
-    app: { version: "2.3.0" },
-    session: { get: async () => ({}) },
     provider: {
       get: async ({ providerID }: { providerID: string }) => {
         if (!logins[providerID]) throw new Error("no provider")

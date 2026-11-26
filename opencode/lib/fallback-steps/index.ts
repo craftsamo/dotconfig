@@ -1,5 +1,4 @@
 import { STEPS_RPC } from "@craftsamo/opencode-model-fallback/rpc"
-import { AccountRouter } from "../claude-logins/accounts"
 import { EmptyLanes } from "./empty-lanes"
 import { readOptions } from "./options"
 import { defaultDeps, type StepsDeps } from "./deps"
@@ -9,17 +8,16 @@ import type { StepsContext } from "./runtime"
 import { createUsable } from "./usable"
 import { Windows } from "./windows"
 
-// Answers the model fallback's questions (@craftsamo/opencode-model-fallback)
-// with what only dotconfig knows: Quota, the credit lanes' balance estimate
-// and the saved Claude logins; and holds the windows its limits spend.
+/**
+ * Answers the model fallback's questions (@craftsamo/opencode-model-fallback)
+ * with what only dotconfig knows: Quota, the credit lanes' balance estimate
+ * and the active logins; and holds the windows its limits spend.
+ */
 export async function setupFallbackSteps(
   ctx: StepsContext,
   deps: StepsDeps = defaultDeps,
 ): Promise<() => Promise<void>> {
-  const { creditLanes, claudeAccounts } = readOptions(ctx.options)
-  // A malformed `claudeAccounts` is kept, not thrown: its Claude steps are
-  // refused instead of running on the active login.
-  const accounts = AccountRouter.fromOption(claudeAccounts)
+  const { creditLanes } = readOptions(ctx.options)
   const empty = new EmptyLanes()
   if (creditLanes.length > 0)
     empty.restore(deps.saved?.load() ?? {}, deps.now())
@@ -31,7 +29,6 @@ export async function setupFallbackSteps(
     usable: createUsable(ctx, {
       deps,
       creditLanes,
-      claudeAccounts: accounts,
       empty,
       keep,
       windows,
@@ -41,7 +38,6 @@ export async function setupFallbackSteps(
   const unsubscribe = holdLimits(ctx, {
     deps,
     creditLanes,
-    accounts: accounts.accounts,
     windows,
   })
   return async () => {

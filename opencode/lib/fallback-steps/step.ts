@@ -1,4 +1,4 @@
-import type { ModelRef } from "../claude-logins/models"
+import type { ModelRef } from "./models"
 
 // `provider/model#default` runs the model as it is: no variant of its own.
 const NO_VARIANT = "default"

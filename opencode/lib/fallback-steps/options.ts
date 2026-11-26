@@ -1,11 +1,9 @@
-import { OAUTH_PROVIDER } from "../claude-logins/models"
+import { OAUTH_PROVIDER } from "./models"
 
 // The plugin's options in opencode.jsonc, read once at setup.
 export type StepsOptions = {
   // Console credit lanes in spending order. Empty turns them off.
   creditLanes: string[]
-  // Parsed by AccountRouter.fromOption, which keeps a malformed one.
-  claudeAccounts: unknown
 }
 
 export function readOptions(
@@ -18,6 +16,5 @@ export function readOptions(
             typeof id === "string" && id !== "" && id !== OAUTH_PROVIDER,
         )
       : [],
-    claudeAccounts: options.claudeAccounts,
   }
 }

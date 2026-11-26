@@ -2,9 +2,6 @@ import {
   LIMITED_EVENT,
   LIMITS_RPC,
 } from "@craftsamo/opencode-model-fallback/rpc"
-import type { ClaudeAccount } from "../claude-logins/accounts"
-import { OAUTH_PROVIDER } from "../claude-logins/models"
-import { activeLogin } from "./active"
 import type { StepsDeps } from "./deps"
 import type { StepsContext } from "./runtime"
 import { parseStep } from "./step"
@@ -19,11 +16,10 @@ export function holdLimits(
   state: {
     deps: StepsDeps
     creditLanes: readonly string[]
-    accounts: readonly ClaudeAccount[]
     windows: Windows
   },
 ): () => void {
-  const { deps, creditLanes, accounts, windows } = state
+  const { deps, creditLanes, windows } = state
   try {
     return ctx.rpc(LIMITS_RPC).events.on(LIMITED_EVENT, async (envelope) => {
       try {
@@ -33,10 +29,6 @@ export function holdLimits(
         if (!model || !Number.isFinite(until)) return
         const window = await windowOf(model, {
           creditLanes,
-          accounts,
-          activeLabel: async () =>
-            (await activeLogin(ctx, OAUTH_PROVIDER).catch(() => undefined))
-              ?.proof.label,
         })
         if (window) windows.hold(window.key, until, deps.now())
       } catch {}

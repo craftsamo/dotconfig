@@ -1,17 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { Windows, windowOf, type WindowEnv } from "./windows"
 
-const accounts = [
-  { suffix: "sub", label: "Sub OAuth" },
-  { suffix: "blank", label: "" },
-]
-const env = (label: string | undefined = "Main OAuth"): WindowEnv => ({
+const env: WindowEnv = {
   creditLanes: ["lane-a"],
-  accounts,
-  activeLabel: async () => label,
-})
-const of = (providerID: string, id: string, label?: string) =>
-  windowOf({ providerID, id }, label === undefined ? env() : env(label))
+}
+const of = (providerID: string, id: string) =>
+  windowOf({ providerID, id }, env)
 
 describe("windowOf", () => {
   test("every model of a lane shares the lane", async () => {
@@ -19,23 +13,13 @@ describe("windowOf", () => {
     expect(await of("lane-a", "claude-opus-5-5")).toEqual(lane)
     expect(await of("lane-a", "claude-haiku-5-5")).toEqual(lane)
   })
-  test("a Claude login's models share it, the active login by its label", async () => {
-    const sub = { key: "claude:Sub OAuth", name: 'Claude login "Sub OAuth"' }
-    expect(await of("anthropic", "claude-opus-5-5-sub")).toEqual(sub)
-    expect(await of("anthropic", "claude-haiku-5-5-sub")).toEqual(sub)
-    expect(await of("anthropic", "claude-opus-5-5")).toEqual({
-      key: "claude:Main OAuth",
-      name: 'Claude login "Main OAuth"',
-    })
-  })
-  test("the active login without a label is its own window", async () => {
-    expect(await of("anthropic", "claude-opus-5-5", "")).toEqual({
-      key: "claude:active",
+  test("Claude models share the active login's window", async () => {
+    const claude = {
+      key: "anthropic",
       name: "the active Claude login",
-    })
-  })
-  test("an alias without a login label has no window", async () => {
-    expect(await of("anthropic", "claude-opus-5-5-blank")).toBeUndefined()
+    }
+    expect(await of("anthropic", "claude-opus-5-5")).toEqual(claude)
+    expect(await of("anthropic", "claude-haiku-5-5")).toEqual(claude)
   })
   test("ChatGPT and xAI are one window each", async () => {
     expect(await of("openai", "gpt-6.1-sol")).toEqual({

@@ -4,7 +4,6 @@ import {
   HOUR_MS,
   LANE,
   LANE_AT,
-  LOGINS,
   NOW,
   RESET,
   setup,
@@ -15,13 +14,10 @@ import {
 
 useTempDir()
 
-const accounts = { claudeAccounts: { main: "Main", sub: "Sub" } }
 const held = (name: string, until = UNTIL) => ({
   usable: false,
   reason: `${name} hit a limit until ${until}`,
 })
-const MAIN = held('Claude login "Main"')
-const SUB = held('Claude login "Sub"')
 const LANE_UNTIL = new Date(LANE_AT + HOUR_MS).toISOString()
 const LANES = {
   readLanes: () => ({ lanes: [LANE], state: { [LANE.provider]: emptyLane } }),
@@ -29,35 +25,17 @@ const LANES = {
 
 describe("a window a limit spent", () => {
   test("a limit on one model of a Claude login passes over its other models until its end", async () => {
-    const f = await setup(accounts)
-    await f.limited("anthropic/claude-x-sub#high")
-    expect(await f.ask("anthropic/claude-y-sub")).toEqual(SUB)
-    expect(await f.ask("anthropic/claude-y-main")).toEqual(USABLE)
-    f.clock.now = RESET - 1
-    expect((await f.ask("anthropic/claude-y-sub")).usable).toBe(false)
-    f.clock.now = RESET
-    expect(await f.ask("anthropic/claude-y-sub")).toEqual(USABLE)
-  })
-  test("the plain model shares the account of the active login with its alias, and no other", async () => {
-    const f = await setup(accounts)
-    await f.limited("anthropic/claude-opus-5-5")
-    expect(await f.ask("anthropic/claude-haiku-5-5")).toEqual(MAIN)
-    expect(await f.ask("anthropic/claude-opus-5-5-main")).toEqual(MAIN)
-    expect(await f.ask("anthropic/claude-opus-5-5-sub")).toEqual(USABLE)
-    const other = await setup(accounts)
-    await other.limited("anthropic/claude-opus-5-5-main")
-    expect((await other.ask("anthropic/claude-opus-5-5")).usable).toBe(false)
-  })
-  test("an active login without a label is a window of its own", async () => {
-    const logins = {
-      ...LOGINS,
-      anthropic: [{ id: "main-id", methodID: "claude-max" }],
-    }
-    const f = await setup({}, {}, { logins })
-    await f.limited("anthropic/claude-opus-5-5")
+    const f = await setup({ creditLanes: [LANE.provider] })
+    await f.limited("anthropic/claude-opus-5-5#high")
     expect(await f.ask("anthropic/claude-haiku-5-5")).toEqual(
       held("the active Claude login"),
     )
+    expect(await f.ask(`${LANE.provider}/claude-haiku-5-5`)).toEqual(USABLE)
+    expect(await f.ask("openai/gpt-6.1-sol")).toEqual(USABLE)
+    f.clock.now = RESET - 1
+    expect((await f.ask("anthropic/claude-haiku-5-5")).usable).toBe(false)
+    f.clock.now = RESET
+    expect(await f.ask("anthropic/claude-haiku-5-5")).toEqual(USABLE)
   })
   test("a limit on a lane passes over its other models, not other lanes' or other providers'", async () => {
     const team = "anthropic-credit-team"
@@ -112,7 +90,7 @@ describe("a window a limit spent", () => {
     await f.emit(data({ until: new Date(NOW - 1).toISOString() }))
     expect(await f.ask("openai/gpt-6-luna")).toEqual(USABLE)
   })
-  test("an active login that cannot be looked up is the unlabelled one", async () => {
+  test("holding a window does not depend on looking up the active login", async () => {
     const f = await setup()
     f.ctx.provider.get = async () => {
       throw new Error("provider lookup failed")
