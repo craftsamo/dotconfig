@@ -145,9 +145,8 @@ An explicit choice binds its role on that session and its forks: a later turn
 of the same role keeps it, and a turn of another role runs on that role's own
 default unless it names a model.
 
-A Claude model has several stops: the active login, another saved login (an
-alias model, marked `stop_of` in the catalog) and the Console credit lanes
-(providers of their own). OpenCode moves a session between them itself when
+A Claude model has several stops: the subscription login and the Console
+credit lanes (providers of their own, marked `stop_of` in the catalog). OpenCode moves a session between them itself when
 one refuses, and a continuing turn keeps the stop the session is on; the
 result's `engine` names it. Do not pass `model=` to move a session back: name
 a model only to choose a different one, and after a limit on every stop use

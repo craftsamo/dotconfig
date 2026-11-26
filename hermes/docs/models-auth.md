@@ -66,8 +66,9 @@ last-resort chat tier ahead of the OpenRouter tail (see "Codex" below).
   subscription before the ChatGPT one. `default` stays off it (neutral chain,
   below).
 - The coding model inside OpenCode is a separate layer: its roles use OpenCode's
-  own per-agent defaults (OpenCode's own Anthropic account, nothing from the
-  Hermes weekly pool), optionally overridden by `model` on a role in
+  own per-agent defaults (OpenCode's own Claude login; on the same account it
+  draws on the same weekly pool as Hermes), optionally overridden by `model`
+  on a role in
   `opencode.roles`; see [`opencode.md`](./opencode.md) "Models". A GPT-family
   alternate draws on the ChatGPT allowance below.
 
@@ -167,14 +168,13 @@ These facts govern the paired Claude tiers:
    that carries a reset or retry signal becomes a model-scoped cooldown on the
    row, so the same account's other models stay available and the T2 step
    works. A `usage_limit_reached` 429 with no such signal is classified as
-   billing and benches the whole row for an hour; the pool then rotates to the
-   next account's row, and only with no other row does the walk skip every
-   later tier on that provider (`_candidate_pool_exhausted`) and degrade to
-   the next provider. The second account in the pool is therefore what keeps
-   the Claude tiers alive once one account's week is spent. The first 429 on a
-   row is retried once after its Retry-After (capped at 600 s) before the pool
-   rotates, so a turn can stall up to ten minutes even with a healthy second
-   row. A model-scoped cooldown lasts until the reset time the 429 carried,
+   billing and benches the whole row for an hour; the pool would rotate to
+   another account's row, but the subscription is one row, so the walk skips
+   every later tier on that provider (`_candidate_pool_exhausted`) and
+   degrades to the next provider: a spent week ends the subscription tiers
+   until the row's bench or the week runs out. The first 429 on a row is
+   retried once after its Retry-After (capped at 600 s) before that, so a turn
+   can stall up to ten minutes. A model-scoped cooldown lasts until the reset time the 429 carried,
    uncapped, which can be days ahead even when the account recovers sooner;
    nothing probes it early. `hermes auth reset anthropic-oauth` clears it on
    disk, but a running gateway honours a reset only for rows whose status is
@@ -245,11 +245,9 @@ machine's account layout and lives in the private overlay, not here.
   env-sourced entries (`source: env:<VAR>`, no secret on disk, re-hydrated on
   every load; there is no CLI for one, the row is written into the root
   `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0), then
-  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (1) and `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY`
-  (2). The names are opaque labels. A key whose grant expires on someone
-  else's schedule goes first, so it is spent while it lasts. OpenCode walks
-  the own orgs the other way round, so the two start on different orgs and one
-  org's rate limit is not hit by both at once.
+  `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` (1). The names are opaque labels. A key
+  whose grant expires on someone else's schedule goes first, so it is spent
+  while it lasts. OpenCode walks the lanes in the same order.
 - **Failure.** An empty balance is a plain 400 ("credit balance is too low")
   that the classifier treats as billing, so the turn moves on at once: a billing
   400 benches that key for an hour and rotates to the next pool entry, a 429 is
@@ -400,15 +398,15 @@ falls back **read-only** to the default profile's `~/.hermes/auth.json`.
   the profile inherits default again. Prefer editing the file over
   `hermes auth logout`, which may revoke upstream and take the shared credential
   down with it.
-- **Anthropic subscription = PKCE rows in the `anthropic-oauth` pool.** Each
+- **Anthropic subscription = one PKCE row in the `anthropic-oauth` pool.**
   `hermes auth add anthropic-oauth --label <name>` (from `default`, in a
-  browser signed into that account) adds one row with its own refresh token;
+  browser signed into that account) adds the row with its own refresh token;
   the pool refreshes it before expiry and, on a 429 usage limit, a billing
-  error or a 401, benches it and rotates to the next row. Several Claude
-  accounts therefore sit in one pool and take over from each other inside a
-  turn; a `fallback_providers` tier cannot name an account (same provider +
-  same model counts as the same deployment and is skipped), so the pool is the
-  only place account order lives. **Order is `priority` among the manual rows
+  error or a 401, benches it and rotates to the next row. The pool could hold
+  several Claude accounts that take over from each other inside a turn; this
+  setup keeps one. A `fallback_providers` tier cannot name an account (same
+  provider + same model counts as the same deployment and is skipped), so the
+  pool is the only place account order would live. **Order is `priority` among the manual rows
   (`hermes auth priority anthropic-oauth <label> 0` + gateway restart to lead
   with another one)**; manual rows always sort ahead of the seeded ones
   (`ANTHROPIC_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, then the Claude Code Keychain
@@ -435,14 +433,11 @@ add`, copying `auth.json` or re-adding a root row while a profile still holds
   rows: `hermes -p <name> auth logout anthropic-oauth` deletes that copy (no
   upstream revoke) and restores inheritance. The `claude_code` row cannot fork:
   it is a secret-free reference re-read from the Keychain on every load.
-- **OpenCode's Claude logins are separate.** They live in OpenCode's own
-  database and never read or write the Claude Code Keychain entry. One is
-  active; a second is reached through alias models, as a session's last stop
-  after the credit lanes and for a specialist launch once the active one is
-  spent, not a pool that rotates
-  ([`opencode/README.md`](../../opencode/README.md) "Claude accounts").
-  Hermes and OpenCode may share an account; what they share is that account's
-  weekly pool.
+- **OpenCode's Claude login is separate.** It lives in OpenCode's own
+  database and never reads or writes the Claude Code Keychain entry
+  ([`opencode/README.md`](../../opencode/README.md) "Accounts"). Hermes and
+  OpenCode may share an account; what they share is that account's weekly
+  pool.
 - **Parallel OAuth refresh.** Several workers refreshing the same rotating
   refresh token at once can race to `invalid_grant`; move high-parallelism
   workers' T1 to an API-key provider if it bites.

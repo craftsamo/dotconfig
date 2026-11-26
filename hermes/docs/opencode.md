@@ -392,7 +392,8 @@ agent switch leaves it as it is, so the model the plugin sends each turn is
 what moves a session from a plan on one model to a build on its own.
 
 The defaults are OpenCode's own: a role pins no `model` unless a maintainer has a
-reason (OpenCode uses its own subscription account, not the Hermes weekly pool).
+reason (OpenCode uses its own Claude login; on the same account it draws on the
+same weekly pool as Hermes).
 The caller's own model (the configured `model.default` and the model it last
 answered with; a `post_api_request` hook records it, so a fallback counts too)
 is refused by default, so a role does not review or build for the model it
@@ -409,12 +410,11 @@ itself: after a turn fails with a `limit` provider error the Assistant reruns on
 it. A read-only role simply reruns; for a write role the diff is read first.
 
 **Stops of one model.** The person's OpenCode serves a Claude model from several
-places: the active subscription login, another saved login through an alias
-model (`claude-<model>-main`), and the Console credit lanes
+places: the subscription login and the Console credit lanes
 (`anthropic-credit-*`, providers of their own); on a window limit the
 preflight plugin moves a session between them itself, same model and variant
 (`opencode/README.md` "Console credit lanes"). The service names the identity
-behind each: an alias carries `modelID`, a lane provider `canonical`
+behind each: an alias model carries `modelID`, a lane provider `canonical`
 (`models.identity`). The plugin keeps to that: a continuing turn that does not
 name a model keeps the stop the session is on when it is another stop of the
 wanted model (`models.keep_stop`), since re-sending the configured spelling

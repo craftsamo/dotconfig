@@ -87,9 +87,9 @@ def catalog(directory):
 
 
 def identity(entry):
-    """The real provider and model behind a catalog entry. An alias model names its
-    real one as `modelID` and a provider that is a stop of another (a Console credit
-    lane) names it as `canonical`, so every stop of one model shares an identity."""
+    """The real provider and model behind a catalog entry. Catalog models name their
+    underlying model as `modelID` and credit-lane providers name their provider as
+    `canonical`, so every stop of one model shares an identity."""
     return (entry.get("canonical") or entry.get("providerID"), entry.get("modelID") or entry.get("id"))
 
 
@@ -158,7 +158,7 @@ def engine(role, chosen, info, directory, caller=frozenset()):
         time.sleep(CATALOG_RETRY)
     if entry is None:
         raise ValueError(f"OpenCode does not offer {provider}/{model}; no run launched")
-    # An alias (another login's spelling of the same model) is the caller's own too.
+    # A catalog model's underlying model identity is the caller's own too.
     if model_key(identity(entry)[1]) in caller and role.get("caller_model") != "allow":
         raise ValueError(refused)
     if (entry.get("capabilities") or {}).get("tools") is not True or entry.get("enabled") is False:
@@ -205,7 +205,7 @@ def listing(settings, roles, caller):
             "allow_yours": allowing, "models": sorted(out, key=lambda m: m["model"]),
             "note": "Pass model= (and optionally variant= from its variants) to an opencode_run_<role> tool. "
                     "Models marked yours are your own and are refused, except for the roles in allow_yours. "
-                    "A model with stop_of is the same model served from another login or a credit lane; "
+                    "A model with stop_of is the same model served from a credit lane; "
                     "OpenCode moves a session between such stops itself on a limit, and a continuing turn "
                     "keeps the stop it is on. After a limit error on every stop, rerun on that role's "
                     "alternate (pass it as model= and variant=)."}

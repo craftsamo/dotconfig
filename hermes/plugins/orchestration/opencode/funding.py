@@ -19,7 +19,7 @@ import re
 FRESH_SECONDS = 360
 EXPORT_LIMIT = 1 << 20
 WINDOWS = ("5h", "Weekly")
-# Quota 5 (export version 2): `[Claude Sub OAuth] (active) 5h`, `[OpenAI] (Plus) Weekly`:
+# Quota 5 (export version 2): `[Claude Work] (active) 5h`, `[OpenAI] (Plus) Weekly`:
 # the label, whether this is the active login, the plan, then the window.
 ENTRY_NAME = re.compile(r"\[(?P<label>[^\]]+)\]\s*(?P<active>\(active\))?\s*(?:\((?P<plan>[^)]+)\))?\s*(?P<rest>.*)\Z")
 # Quota 6 (export version 3) names a row `<provider>.<key>` and its login by `account` (the
