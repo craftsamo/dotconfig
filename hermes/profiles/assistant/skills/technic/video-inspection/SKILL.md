@@ -258,8 +258,8 @@ conversation (`plan-research`).
    starts `status: open`; lower `certainty` to `confirm`
    when you could not reproduce it exactly or it rests on taste or listening.
 7. **Build the inspection spreadsheet.** The user answers in a Google
-   Sheet, one per round, made and read with the `google_sheets` tool under
-   `skill_view(name="google-access:sheets")` (plan the payload in a
+   Sheet, one per round, made and read with the google-tools Sheets tools
+   (`google_sheets_*`) under `skill_view(name="google-tools:sheets")` (plan the payload in a
    script file, one guarded write, read back). The user does not judge on
    the sheet; they answer each row YES, NO or "can't tell", and the status
    follows from the answer. So first word every `confirm` finding as a
@@ -299,7 +299,7 @@ conversation (`plan-research`).
    its rows, so an episode reads as one stripe and the user sees where it
    ends. No conditional colour on any cell, and none on the dropdowns: the
    API cannot colour a chip, and a coloured cell behind a grey chip reads
-   as a mistake. Enter values as typed (`USER_ENTERED`): the time and title
+   as a mistake. Enter values as typed (the default; no `raw`): the time and title
    cells are formulas, and `export` already quotes text that starts like
    one. Read the findings tab back and compare ids, answers and link
    targets with `export.json` before telling the user the sheet is ready;
