@@ -1,7 +1,9 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: google/antigravity-gemini-4-hydrogen-medium
+# Antigravity serves each Gemini effort as a model of its own, so no
+# #variant. Keep in sync with the first step of its route in opencode.jsonc.
+model: google/antigravity-gemini-4-hydrogen-high
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

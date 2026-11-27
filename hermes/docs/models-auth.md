@@ -94,9 +94,9 @@ Provider facts:
 - **Codex** — **images, plus one last-resort chat tier**: GPT-6.1 Sol sits ahead
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
-  ChatGPT subscription is sized for OpenCode (`debugger`, `reviewer`,
-  `reviewer-deep`, `explore-max`, a backup step behind Gemini 4 Hydrogen or Grok
-  for the other explore tiers, the worker and the searchers, plus the
+  ChatGPT subscription is sized for OpenCode (the lead of its `reviewer`, a
+  backup step behind Claude or Gemini 4 Hydrogen for each of its other
+  specialist subagents except the two searchers, plus the
   `alternate` of the Assistant's OpenCode roles) and shares one Plus allowance
   with Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a
   `video-creator` job reads tens of millions of tokens, so a long spell on it

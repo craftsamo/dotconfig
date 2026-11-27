@@ -1,7 +1,7 @@
 ---
 description: "Runs verification chores on a cheaper model: configured formatting, tests, typechecks, lint, builds, and failure-log summarization. Use after edits or when the user asks to verify. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: openai/gpt-6-luna#low
+model: anthropic/claude-haiku-5-5#low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

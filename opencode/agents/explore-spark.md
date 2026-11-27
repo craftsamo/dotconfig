@@ -1,10 +1,10 @@
 ---
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
-# Gemini 4 Hydrogen at low effort: a short lookup the parent waits for. Keep in
-# sync with the first step of its route in opencode.jsonc. An options block
-# would be ignored by OpenCode 2 (anomalyco/opencode#49550).
-model: google/antigravity-gemini-4-hydrogen-low
+# Haiku at low effort: a short lookup the parent waits for. Keep in sync with
+# the first step of its route in opencode.jsonc. An options block would be
+# ignored by OpenCode 2 (anomalyco/opencode#49550).
+model: anthropic/claude-haiku-5-5#low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

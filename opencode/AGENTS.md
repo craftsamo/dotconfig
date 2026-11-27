@@ -263,8 +263,9 @@ For read-only codebase exploration, prefer the built-in `subagent` tool with
 - `explore-max` — only for difficult, high-stakes, or previously failed
   exploration.
 
-These agents have their own default models (Gemini 4 Hydrogen on Antigravity
-below explore-max, then the ChatGPT window, then Claude) so normal
+These agents have their own default models (Haiku for the two lookup tiers,
+Gemini 4 Hydrogen on Antigravity for explore-medium, Sonnet for explore-high,
+Opus for explore-max, each with another login behind it) so normal
 exploration does not inherit the primary's model. Use the default `explore`
 subagent only when the primary model is specifically needed for the
 exploration.
@@ -285,7 +286,7 @@ For web research — external docs, library/API behavior, versions, changelogs,
 advisories, best practices, current events — prefer the built-in `subagent` tool
 with `agent: searcher` (fast sweeps, fact checks) or `agent: searcher-deep`
 (settling one topic: conflicting sources, primary-source verification). These
-agents run on Gemini 4 Hydrogen, Grok and the ChatGPT window ahead of Claude and
+agents run on Gemini 4 Hydrogen and Grok ahead of Claude and
 absorb bulky web-page tokens; avoid running `websearch`/`webfetch` in the
 primary session except for a single user-provided URL. Codebase questions stay with the explore-* agents;
 never put secrets, private code, or internal identifiers into delegated
@@ -305,7 +306,7 @@ the primary session:
   rote refactors.
 - `agent: worker-deep` when the shape is fixed but the logic inside is hard:
   algorithms, state and concurrency, error paths, edge cases spread across
-  files. It runs on a stronger, costlier model; do not use it for routine
+  files. It runs at a higher effort and costs more; do not use it for routine
   work.
 
 Edit directly only for a change of a few lines in one file, whose spec would
