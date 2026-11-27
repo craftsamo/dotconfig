@@ -150,9 +150,7 @@ def test_the_example_assistant_receives_files_into_the_inbox():
     yaml = pytest.importorskip("hermes_yaml")     # the runtime's loader, as test_example_configs uses
     example = HERE.parents[2] / "profiles" / "assistant" / "config.example.yaml"
     config = yaml.safe_load(example.read_text(encoding="utf-8"))
-    sources = {"google_access": "google", "youtube_access": "youtube"}
-    for key, folder in sources.items():
-        assert config[key]["download_dir"] == f"~/Workspaces/.inbox/{folder}", key
+    assert config["youtube_access"]["download_dir"] == "~/Workspaces/.inbox/youtube"
     signal_tools = config["plugins"]["entries"]["signal-tools"]["settings"]
     assert signal_tools["download_dir"] == "~/Workspaces/.inbox/signal"
     telegram_tools = config["plugins"]["entries"]["telegram-tools"]["settings"]
@@ -163,6 +161,8 @@ def test_the_example_assistant_receives_files_into_the_inbox():
     assert whatsapp_tools["download_dir"] == "~/Workspaces/.inbox/whatsapp"
     x_tools = config["plugins"]["entries"]["x-tools"]["settings"]
     assert x_tools["download_dir"] == "~/Workspaces/.inbox/x"
+    google_tools = config["plugins"]["entries"]["google-tools"]["settings"]
+    assert google_tools["download_dir"] == "~/Workspaces/.inbox/google"
     assert config["screen_listen"]["record_dir"] == "~/Workspaces/.inbox/recordings"
 
 
