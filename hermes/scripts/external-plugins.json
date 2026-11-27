@@ -70,5 +70,14 @@
     "skills": ["account", "posts", "users", "lists", "communities", "trends", "media"],
     "requires": ["x-tools-guard"],
     "requires_setting": "require_plugins"
+  },
+  "google-tools": {
+    "repo": "craft-agent/google-tools",
+    "version": "0.1.1",
+    "commit": "4af7d994e30ed49d6cb41d72bf69864650a220b5",
+    "npm": "@craftsamo/google-tools",
+    "skills": ["account", "sheets", "gmail", "drive", "comments", "run"],
+    "requires": ["google-tools-guard"],
+    "requires_setting": "require_plugins"
   }
 }
