@@ -124,114 +124,108 @@
         // without a variant stands for every variant, and a move keeps the session's.
         // The first step's model is the one the agent file names.
         //
-        // Gemini 4 Hydrogen on Antigravity leads the explore tiers below max, the
-        // worker, the refactorer and the searcher, and backs up the deep
-        // searcher; Claude closes every route: Claude on Antigravity first
-        // (its own quota group, Sonnet or Opus; it has no Haiku and no xhigh),
-        // then the active Claude login, then the paid credit lanes as the very
-        // last stops. worker-deep keeps its Sonnet-first policy for hard implementation:
-        // the active Claude login on Sonnet comes first, then Claude on Antigravity,
-        // then Sol, then Hydrogen, then the lanes.
+        // The active Claude login leads the work that is long or hard, and
+        // takes most of the volume: Sonnet for the workers, the refactorer and
+        // explore-high, Opus for the debugger, the deep reviewer and
+        // explore-max, Haiku for the short lookups and the verifier. Each other
+        // login leads the one kind of work that fits it. Gemini 4 Hydrogen on
+        // Antigravity reads: it leads explore-medium and the searcher and backs
+        // up explore-high, the roles that write and the deep searcher, at high
+        // effort (medium for the searcher), since below that it took more
+        // steps and tokens for the same work.
+        // The ChatGPT window leads the reviewer, a second model family reading
+        // what Claude wrote, and backs up the rest but the searchers: Sol
+        // behind the work Sonnet or Opus leads, Luna behind the lookups. Grok
+        // leads the deep searcher and backs up the searcher. Claude on
+        // Antigravity is no step: the login's model list has no Claude 5.5.
+        // The paid credit lanes close every route as the very last stops; the
+        // searchers have none.
         "routes": {
           "explore-max": [
-            "openai/gpt-6.1-sol#xhigh",
-            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#xhigh",
+            "openai/gpt-6.2-sol#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
             "anthropic-credit-main/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
-            "google/antigravity-gemini-4-hydrogen-high",
-            "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-sonnet-5-5-high",
             "anthropic/claude-sonnet-5-5#high",
+            "openai/gpt-6.2-sol#high",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
-            "google/antigravity-gemini-4-hydrogen-medium",
-            "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic/claude-sonnet-5-5#medium",
+            "openai/gpt-6.2-sol#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "reviewer": [
-            "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
+            "openai/gpt-6.2-sol#medium",
             "anthropic/claude-sonnet-5-5#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker": [
-            "google/antigravity-gemini-4-hydrogen-medium",
-            "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
+            "openai/gpt-6.2-sol#medium",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "refactorer": [
-            "google/antigravity-gemini-4-hydrogen-medium",
-            "openai/gpt-6.1-sol#medium",
-            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium",
+            "openai/gpt-6.2-sol#medium",
+            "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
             "anthropic-credit-main/claude-sonnet-5-5#medium"
           ],
           "worker-deep": [
             "anthropic/claude-sonnet-5-5#high",
-            "google/antigravity-claude-sonnet-5-5-high",
-            "openai/gpt-6.1-sol#high",
+            "openai/gpt-6.2-sol#high",
             "google/antigravity-gemini-4-hydrogen-high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high"
           ],
           "explore-spark": [
-            "google/antigravity-gemini-4-hydrogen-low",
-            "openai/gpt-6-luna-fast#low",
             "anthropic/claude-haiku-5-5#low",
+            "openai/gpt-6-luna-fast#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "explore-small": [
-            "google/antigravity-gemini-4-hydrogen-low",
-            "openai/gpt-6-luna#low",
             "anthropic/claude-haiku-5-5#low",
+            "openai/gpt-6-luna#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "verifier": [
-            "openai/gpt-6-luna#low",
             "anthropic/claude-haiku-5-5#low",
+            "openai/gpt-6-luna#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low"
           ],
           "debugger": [
-            "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#high",
+            "openai/gpt-6.2-sol#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high"
           ],
           "reviewer-deep": [
-            "openai/gpt-6.1-sol#high",
-            "google/antigravity-claude-opus-5-5-high",
             "anthropic/claude-opus-5-5#high",
+            "openai/gpt-6.2-sol#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high"
           ],
           "searcher-deep": [
             "xai/grok-4.7#medium",
-            "openai/gpt-6.1-sol#medium",
             "google/antigravity-gemini-4-hydrogen-high",
-            "google/antigravity-claude-sonnet-5-5-medium",
             "anthropic/claude-sonnet-5-5#medium"
           ],
           "searcher": [
-            "google/antigravity-gemini-4-hydrogen-low",
+            "google/antigravity-gemini-4-hydrogen-medium",
             "xai/grok-4.7#low",
-            "openai/gpt-6.1-sol#low",
             "anthropic/claude-haiku-5-5#low"
           ],
           // The primary agents, all on Opus: a session that hits a limit

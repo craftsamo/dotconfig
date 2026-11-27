@@ -3,7 +3,7 @@ description: "Deep read-only review subagent for high-risk hunks: system assumpt
 mode: subagent
 # A #variant, not options: OpenCode 2 keeps agent options but never sends them
 # (anomalyco/opencode#49550). This variant sets the same reasoningEffort.
-model: openai/gpt-6.1-sol#high
+model: anthropic/claude-opus-5-5#high
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

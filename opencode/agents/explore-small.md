@@ -1,9 +1,8 @@
 ---
 description: "Fast/cheap read-only codebase lookups: find files, simple keyword search."
 mode: subagent
-# Antigravity serves each Gemini effort as a model of its own, so no
-# #variant. Keep in sync with the first step of its route in opencode.jsonc.
-model: google/antigravity-gemini-4-hydrogen-low
+# Keep in sync with the first step of its route in opencode.jsonc.
+model: anthropic/claude-haiku-5-5#low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

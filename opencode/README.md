@@ -287,9 +287,8 @@ name them:
 
 ```jsonc
 "explore-small": [
-  "google/antigravity-gemini-4-hydrogen-low",
-  "openai/gpt-6-luna#low",
   "anthropic/claude-haiku-5-5#low",
+  "openai/gpt-6-luna#low",
   "anthropic-credit-team/claude-haiku-5-5#low",
   "anthropic-credit-main/claude-haiku-5-5#low"
 ]
@@ -366,51 +365,52 @@ Missing, stale or unreadable data keeps a step, not a quota error. No
 independent balance/entitlement check is performed. Variants and permissions
 are unchanged.
 
-| Role                               | Steps, in order                                                                                     |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| explore-max                        | gpt-6.1-sol xhigh → agy opus high → claude-opus-5-5 xhigh                                           |
-| explore-high                       | hydrogen high → gpt-6.1-sol high → agy sonnet high → claude-sonnet-5-5 high                         |
-| explore-medium                     | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| reviewer                           | gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                                   |
-| worker                             | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| refactorer                         | hydrogen medium → gpt-6.1-sol medium → agy sonnet medium → claude-sonnet-5-5 medium                 |
-| worker-deep                        | claude-sonnet-5-5 high → agy sonnet high → gpt-6.1-sol high → hydrogen high                         |
-| explore-spark                      | hydrogen low → gpt-6-luna-fast low → claude-haiku-5-5 low                                           |
-| explore-small                      | hydrogen low → gpt-6-luna low → claude-haiku-5-5 low                                                |
-| verifier                           | gpt-6-luna low → claude-haiku-5-5 low                                                               |
-| debugger, reviewer-deep            | gpt-6.1-sol high → agy opus high → claude-opus-5-5 high                                             |
-| searcher-deep                      | grok-4.7 medium → gpt-6.1-sol medium → hydrogen high → agy sonnet medium → claude-sonnet-5-5 medium |
-| searcher                           | hydrogen low → grok-4.7 low → gpt-6.1-sol low → claude-haiku-5-5 low                                |
-| build, plan, debug, design, review | claude-opus-5-5 (active login) → the lanes; no variant, so a session keeps its own                  |
+| Role                               | Steps, in order                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| explore-max                        | claude-opus-5-5 xhigh → gpt-6.2-sol xhigh                                          |
+| explore-high                       | claude-sonnet-5-5 high → gpt-6.2-sol high → hydrogen high                          |
+| explore-medium                     | hydrogen high → claude-sonnet-5-5 medium → gpt-6.2-sol medium                      |
+| reviewer                           | gpt-6.2-sol medium → claude-sonnet-5-5 medium                                      |
+| worker, refactorer                 | claude-sonnet-5-5 medium → gpt-6.2-sol medium → hydrogen high                      |
+| worker-deep                        | claude-sonnet-5-5 high → gpt-6.2-sol high → hydrogen high                          |
+| explore-spark                      | claude-haiku-5-5 low → gpt-6-luna-fast low                                         |
+| explore-small, verifier            | claude-haiku-5-5 low → gpt-6-luna low                                              |
+| debugger, reviewer-deep            | claude-opus-5-5 high → gpt-6.2-sol high                                            |
+| searcher-deep                      | grok-4.7 medium → hydrogen high → claude-sonnet-5-5 medium                         |
+| searcher                           | hydrogen medium → grok-4.7 low → claude-haiku-5-5 low                              |
+| build, plan, debug, design, review | claude-opus-5-5 (active login) → the lanes; no variant, so a session keeps its own |
 
 "hydrogen" is Gemini 4 Hydrogen on Antigravity, whose efforts are models of their
 own (`antigravity-gemini-4-hydrogen-low`, `-medium`, `-high`); the pinned
 Antigravity plugin routes it through the Gemini Pro quota group, not Gemini
-Flash. "agy sonnet" and
-"agy opus" are Claude on Antigravity the same way
-(`antigravity-claude-sonnet-5-5-medium`, `antigravity-claude-opus-5-5-high`,
-…), drawing on the Antigravity Claude group that Sonnet and Opus share. It
-has no Haiku and no xhigh, so the Haiku routes go without it and explore-max
-takes Opus high there. Claude closes every route: Claude on Antigravity first,
-an included pool whose group resets every five hours, then the active Claude
-login, then the paid lanes (Team, Main) as the very last
-stops; the searchers have no lane. Native model IDs are
-explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
-`claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini 4 Hydrogen leads
-the explore tiers below max, the worker, the refactorer and the searcher:
-it keeps the ChatGPT window and the Claude login for the work behind it.
-worker-deep retains its Sonnet-first policy for hard implementation: the
-active Claude login on Sonnet comes first, then Claude on Antigravity, then
-Sol, then Hydrogen, and the paid lanes still close it. Claude on Antigravity
-follows the login there rather than leading, so the first step (the model its
-agent file names) stays on the Claude login. (Antigravity steps are
-commented out of the routes since 2026-11-15, after an upstream 429 followed
-by a misleading 403; restore them in place once the fix is verified.)
-explore-max stays on Sol
-since its xhigh runs are long and rare. ChatGPT's fast mode (the `-fast` models, priority processing
-of the same model at 2.5x the included usage) is kept for explore-spark alone,
-a short lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
-subscription's weekly pool, which `x_search` draws on too. There is no
+Flash. Native model IDs are explicit: `gpt-6.2-sol`, `gpt-6-luna`,
+`gpt-6-luna-fast`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`
+and `grok-4.7`. The paid lanes (Team, Main) close every route in the table as
+the very last stops, on the route's Claude model; the searchers have no lane.
+
+Each login leads the work that fits it:
+
+- **The active Claude login** leads what is long or hard and takes most of
+  the volume: Sonnet for the worker, the refactorer, worker-deep and
+  explore-high, Opus for the debugger, the deep reviewer and explore-max,
+  Haiku for the short lookups and the verifier. worker and worker-deep run the
+  same model at different efforts.
+- **Gemini 4 Hydrogen** reads: it leads explore-medium and the searcher, and
+  backs up explore-high, the workers, the refactorer and the deep searcher.
+  It runs at high effort (medium for the searcher): at low and medium it took
+  more steps and several times the tokens of Sonnet or Sol in the same roles.
+- **The ChatGPT window** leads the reviewer, so that a second model family
+  reads what Claude wrote, and backs up the rest but the searchers: Sol behind
+  the work Sonnet or Opus leads, Luna behind the lookups. Its fast mode (the
+  `-fast` models, priority processing of the same model at 2.5x the included
+  usage) is kept for explore-spark's backup step alone, a short lookup the
+  parent waits for.
+- **Grok** leads the deep searcher, the work that fits the xAI subscription's
+  weekly pool, which `x_search` draws on too, and backs up the searcher.
+
+Claude on Antigravity (`antigravity-claude-*`) is no step: the login's model
+list has no Claude 5.5, and a step OpenCode does not list is never usable.
+There is no
 free-tier, API-key or environment-variable escalation; a subscription step
 must run on an approved native OAuth account (Claude Max, a ChatGPT login,
 the xAI device login, or the Antigravity login). Neither plugin buys
@@ -478,7 +478,7 @@ task fits its remaining quota.
 - There are no last-resort credits: when every step is refused, the launch
   goes ahead on the agent's own model, as OpenCode would. Missing Quota data
   still launches, so this is not a global prohibition on credit charges.
-- Any routed session moves on a limit, not only Claude ones: a Sol worker
+- Any routed session moves on a limit, not only Claude ones: a Sol reviewer
   moves to Claude, and a primary agent moves through its route too. The
   `pinModels`, `primaryRoute`, `creditsLastResort`, `creditCooldownMs` and
   `primaryFallback` options are gone.
