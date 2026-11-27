@@ -2565,6 +2565,10 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                          "x_grant_revoke"):
                 assert policy.decide(rules, tool, "*") == "deny", (kind, tool)
             assert policy.decide(rules, "x_search", "*") != "deny", kind
+            for tool in ("google_account_read", "google_sheets_read", "google_gmail_read", "google_drive_read",
+                         "google_comments_read", "google_run_read", "google_sheets_edit", "google_gmail_send",
+                         "google_drive_upload", "google_run_service_deploy", "google_grant_create"):
+                assert policy.decide(rules, tool, "*") == "deny", (kind, tool)
             for tool in ("github_issue_create", "github_issue_edit", "github_issue_close",
                          "github_pr_merge", "github_pr_review", "github_project_item_edit", "github_repo_edit",
                          "github_workflow_run", "github_future_write", "github_notification_mark_read"):

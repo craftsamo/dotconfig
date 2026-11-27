@@ -1,7 +1,9 @@
 # gcloud commands without a card only inside a project mandate
 
-Status: in force
-Owner doc: docs/google-access.md "gcloud mandates"
+Superseded by [google-tools-plugin.md](google-tools-plugin.md).
+
+Status: superseded by decisions/google-tools-plugin.md
+Owner doc: [Google tools](../google-tools.md)
 
 ## Decision
 

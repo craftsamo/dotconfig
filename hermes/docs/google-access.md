@@ -1,5 +1,9 @@
 # Google access
 
+> [!NOTE]
+> Replaced by the third-party package ([google-tools.md](google-tools.md)). No
+> profile enables this plugin; it stays in the repository until it is removed.
+
 The Assistant's access to the user's own Google account — Sheets, Gmail and
 Drive — and to the `gcloud` CLI, with every change held for the user's
 approval (a gcloud command inside a [project mandate](#gcloud-mandates) the user

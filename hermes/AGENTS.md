@@ -608,7 +608,8 @@ Commands: [README "Commands"](README.md#commands).
   (`guards/signal-tools-guard`, `guards/telegram-tools-guard`,
   `guards/discord-tools-guard`, `guards/whatsapp-tools-guard`,
   `guards/github-tools-guard`, `guards/git-tools-guard`,
-  `guards/cloudflare-tools-guard`, `guards/x-tools-guard`;
+  `guards/cloudflare-tools-guard`, `guards/x-tools-guard`,
+  `guards/google-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
   [Telegram](docs/decisions/telegram-tools-plugin.md),
   [Discord](docs/decisions/discord-tools-plugin.md),
@@ -616,14 +617,14 @@ Commands: [README "Commands"](README.md#commands).
   [GitHub](docs/decisions/github-tools-plugin.md),
   [Git](docs/decisions/git-tools-plugin.md),
   [Cloudflare](docs/decisions/cloudflare-tools-plugin.md),
-  [X](docs/decisions/x-tools-plugin.md)).
+  [X](docs/decisions/x-tools-plugin.md),
+  [Google](docs/decisions/google-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
-  orders, gcloud commands): it
+  orders): it
   runs with no card, so the mandate's own bounds, re-checked and counted at the write,
   are the control — never let anything but such a card widen them
-  ([Hyperliquid](docs/decisions/hyperliquid-mandates.md),
-  [gcloud](docs/decisions/gcloud-mandates.md)).
+  ([Hyperliquid](docs/decisions/hyperliquid-mandates.md)).
 
 ## Commits
 

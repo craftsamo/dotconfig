@@ -21,7 +21,7 @@ import sys
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"sheets": set(PROFILES), "run-apps-script": set(PROFILES)}
+SKILLS = {"sheets": set(PROFILES)}
 TOOLSET = "google_access"
 MANDATE_TOOL = "gcloud_mandate"
 LIMIT = 60000

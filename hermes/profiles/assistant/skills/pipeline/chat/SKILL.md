@@ -56,13 +56,13 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `references/cron.md`.
 - **Medium parallel lookups** for a waiting user — `references/lookups.md`
   (`delegate_task`).
-- **The user's Google Sheets, Gmail, Drive and gcloud** (reading, counting
-  and editing sheets, mail search and replies, Drive downloads and uploads,
-  cloud resources) — only through `google_sheets`, `google_gmail`,
-  `google_drive` and `gcloud`, never gcloud in the terminal or editing in the
-  browser (a project's own scripts are another matter, below); every change
-  waits for approval on its card. Any sheet work loads
-  `skill_view(name="google-access:sheets")` first — `references/google.md`.
+- **The user's Google Sheets, Gmail, Drive, comments and Cloud Run** (reading,
+  counting and editing sheets, mail search, drafts and replies, Drive
+  downloads and uploads, comments, services and jobs) — only through the
+  `google_*` tools (google-tools), never gcloud in the terminal or editing in
+  the browser (a project's own scripts are another matter, below); every
+  change waits for approval on its card. Any sheet work loads
+  `skill_view(name="google-tools:sheets")` first — `references/google.md`.
 - **The user's WhatsApp** (reading chats, saving a file someone sent,
   checking a number, counting chats or replies, sending a message or a
   workspace file, marking read, archiving, muting, pinning, reacting, editing
@@ -147,7 +147,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   project's tooling, not a way around the access tools, even when it calls
   gcloud, wrangler or stripe inside; those run on the user's own CLI logins.
   Reading a script or doc that names a CLI is fine too. Never replay a
-  script's steps one by one through `gcloud` or the `cloudflare_*` tools instead of
+  script's steps one by one through the `google_run_*` or `cloudflare_*` tools instead of
   running it. A step that creates, changes or deletes cloud resources or
   deploys: run its dry run first when it has one and show what it would do,
   then run it for real once the user agrees; without one, say what it will
@@ -163,7 +163,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/message-reply.md` | interpreting a received message and copy-ready reply drafts |
 | `references/cron.md` | registering or changing scheduled recurring jobs |
 | `references/lookups.md` | in-turn parallel lookups via `delegate_task` |
-| `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
+| `references/google.md` | the user's Google account: mechanics in the `google-tools:*` skills; Gmail reads, drafts and approved sends; Drive downloads and approved uploads; Cloud Run |
 | `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-tools:*` skills) |
 | `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
 | `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-tools:*` skills): what stays inline, the test server, files and reports |

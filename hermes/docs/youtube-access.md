@@ -39,7 +39,7 @@ yt-dlp is unofficial and breaks when YouTube changes; bump the pin when it does.
 ## Channels, tokens and state
 
 Each channel is authorized once in the browser (`yaccess auth`) with one Desktop
-OAuth client — google-access's works once the YouTube Data API v3 and the
+OAuth client — the one google-tools logs in with works once the YouTube Data API v3 and the
 YouTube Analytics API are enabled in its project. One consent covers one
 channel, so `auth` is repeated per channel (a brand account's channel is picked
 on Google's chooser). The OAuth app must be published "In production": a

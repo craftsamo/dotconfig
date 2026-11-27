@@ -91,6 +91,14 @@
     // to local disk and asks; grants stays off (default toolsets). Hermes pins
     // the same release (hermes/scripts/external-plugins.json).
     { "package": "@craftsamo/x-tools@0.3.0", "options": { "language": "ja" } },
+    // Google Sheets, Gmail, Drive, comments and Cloud Run
+    // (craft-agent/google-tools) on the person's own Google account, through
+    // the credential `login` stores in its state directory. Reads never ask;
+    // every write asserts its tool ID, so the google_* rule below asks. Every
+    // toolset but grants (no unattended writes); uploads and mail attachments
+    // stay off (no `upload_dirs`). Hermes pins the same release
+    // (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/google-tools@0.1.1", "options": { "toolsets": ["account", "sheets", "gmail", "drive", "comments", "run"], "language": "ja" } },
     // Judges the model fallback's steps for this setup (lib/fallback-steps):
     // a step is unusable while its login has no approved OAuth login, Quota
     // reports its window spent, its credit lane is known empty or its
@@ -522,6 +530,17 @@
           "resource": "*",
           "effect": "allow"
         },
+        // Google: reads only.
+        {
+          "action": "google_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "google_*_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         {
           "action": "subagent",
           "resource": "*",
@@ -573,6 +592,7 @@
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
         { "action": "skill", "resource": "x-*", "effect": "allow" },
+        { "action": "skill", "resource": "google-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -605,6 +625,7 @@
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
         { "action": "skill", "resource": "x-*", "effect": "allow" },
+        { "action": "skill", "resource": "google-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -2508,6 +2529,13 @@
       "resource": "x-*",
       "effect": "allow"
     },
+    // google-tools' skills (google-sheets, google-gmail, …): how to use its
+    // tools; the writes still ask on their own.
+    {
+      "action": "skill",
+      "resource": "google-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2679,6 +2707,15 @@
     },
     {
       "action": "x_grant_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // Google tools (@craftsamo/google-tools): reads never ask; every write
+    // asserts its tool ID, so it asks here. Read-only agents deny the writes,
+    // and Hermes' run rulesets deny the whole action. The google_search deny
+    // below stays last so it still wins.
+    {
+      "action": "google_*",
       "resource": "*",
       "effect": "ask"
     },

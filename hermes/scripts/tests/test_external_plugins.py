@@ -94,6 +94,7 @@ def test_a_plugin_is_enabled_only_with_the_guard_it_requires(tmp_path):
     assert ("whatsapp-tools", "whatsapp-tools-guard") in required
     assert ("cloudflare-tools", "cloudflare-tools-guard") in required
     assert ("x-tools", "x-tools-guard") in required
+    assert ("google-tools", "google-tools-guard") in required
     config = tmp_path / "config.yaml"
     base = "skills:\n  create_dir: skills/learned\nplugins:\n  enabled:\n  - skill-topology\n"
     named = "  entries:\n    github-tools:\n      settings:\n        require_plugins:\n        - github-tools-guard\n"
@@ -116,6 +117,7 @@ def test_a_plugin_names_its_guard_in_the_setting_that_requires_it(tmp_path):
     assert MANIFEST["whatsapp-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["cloudflare-tools"]["requires_setting"] == "require_plugins"
     assert MANIFEST["x-tools"]["requires_setting"] == "require_plugins"
+    assert MANIFEST["google-tools"]["requires_setting"] == "require_plugins"
     config = tmp_path / "config.yaml"
     base = ("skills:\n  create_dir: skills/learned\nplugins:\n  enabled:\n  - skill-topology\n"
             "  - telegram-tools\n  - telegram-tools-guard\n")
@@ -140,4 +142,4 @@ def test_the_skills_a_pin_lists_are_known_to_the_validator():
     validator.validate_plugin_skills(errors)
     assert not [e for e in errors if any(f"{name}:" in e for name in ("signal-tools", "telegram-tools", "discord-tools",
                                                                          "whatsapp-tools", "cloudflare-tools",
-                                                                         "x-tools"))]
+                                                                         "x-tools", "google-tools"))]

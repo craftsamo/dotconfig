@@ -1083,8 +1083,6 @@ video_gen:
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
-google_access:
-  download_dir: ~/Workspaces/.inbox/google
 youtube_access:
   download_dir: ~/Workspaces/.inbox/youtube
 screen_listen:
@@ -1238,6 +1236,23 @@ plugins:
         download_dir: ~/Workspaces/.inbox/x
         require_plugins:
           - x-tools-guard
+        language: ja
+    google-tools:
+      settings:
+        toolsets:
+          - account
+          - sheets
+          - gmail
+          - drive
+          - comments
+          - run
+        download_dir: ~/Workspaces/.inbox/google
+        upload_dirs:
+          - ~/Workspaces
+        encrypt_dirs: []
+        age_recipients: []
+        require_plugins:
+          - google-tools-guard
         language: ja
     web/cascade:
       settings:

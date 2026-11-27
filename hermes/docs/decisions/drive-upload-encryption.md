@@ -1,16 +1,20 @@
 # Sensitive files go to Drive encrypted with an age key pair
 
-Status: in force
-Owner doc: docs/google-access.md "Sensitive files"
+Status: in force; decryption by Hermes superseded by
+[google-tools-plugin.md](google-tools-plugin.md)
+Owner doc: [Google tools](../google-tools.md#sensitive-files-and-encryption)
 
 ## Decision
 
-`google_drive` `upload` encrypts a file in a sensitive area of the Workspaces
-layout with age, to every public key in a recipients file, before anything
-reaches Google. The secret key is one Keychain item for every profile, with a
-copy the person keeps outside the Mac. Whether a file is sensitive comes from
-the layout's `sensitive` flag, never from area names in the plugin or from a
-per-call option.
+A file in a sensitive area of the Workspaces layout goes to Drive only
+encrypted with age, to the public keys the profile's google-tools
+`age_recipients` names, before anything reaches Google: google-tools encrypts
+every upload under its `encrypt_dirs`, and google-tools-guard refuses an upload
+from a sensitive area those settings do not cover, and any mail attachment from
+one. Whether a file is sensitive comes from the layout's `sensitive` flag, never
+from area names in the guard or from a per-call option. The secret key is the
+person's, with a copy kept outside the Mac; Hermes never reads it and never
+decrypts.
 
 ## Why
 
@@ -19,22 +23,24 @@ per-call option.
   mistake. A Mac that is taken over already holds the clear files, so a
   secret key in its Keychain weakens nothing that encryption could protect.
 - **A key pair, not a passphrase.** An upload needs only the public keys, so
-  the secret key is read only to decrypt. A passphrase would be read on every
+  no secret is ever handed to the agent. A passphrase would be read on every
   upload, and the gateway can never prompt for one.
+- **Hermes never decrypts.** Decrypting would put the secret key within the
+  agent's reach; the person opens a file with `age -d` when they need it.
 - **age.** It is already in the Brewfile, its files open with the plain `age`
   command anywhere, and it encrypts to several keys at once, so a backup key
   kept elsewhere opens every file without the Mac. A format of the plugin's
   own would need the plugin to read its own files.
-- **The Keychain, not the Secure Enclave.** An enclave key (`age-plugin-se`)
-  cannot be copied out, so the copy outside the Mac would have to be a second
-  key, and it adds a dependency. The Keychain item is the same kind of store
-  the OAuth token already uses.
-- **Its kind and `--no-env`.** The web3 wallet reads every Keychain item of
-  kind `MNEMONIC` or `PRIVATE KEY` as a wallet, and `secret env` injects every
-  item not marked `--no-env`; a kind of its own and that flag keep the key out
-  of both.
+- **Not the Secure Enclave.** An enclave key (`age-plugin-se`) cannot be
+  copied out, so the copy outside the Mac would have to be a second key, and
+  it adds a dependency.
+- **If the secret key sits in the Keychain, its kind and `--no-env`.** The
+  web3 wallet reads every Keychain item of kind `MNEMONIC` or `PRIVATE KEY` as
+  a wallet, and `secret env` injects every item not marked `--no-env`; a kind
+  of its own and that flag keep the key out of both.
 - **No switch.** A per-call option would let a model send a sensitive file in
-  the clear; refusing when no key is set up is the only way around encryption.
+  the clear; refusing when the settings do not cover the area is the only way
+  around encryption.
 - **The `.age` name.** Drive search keeps working, at the cost of the name
   hinting at the content; a random name would need a local index to find
   anything again.
