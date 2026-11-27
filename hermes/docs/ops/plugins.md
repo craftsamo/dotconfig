@@ -41,8 +41,8 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   [`../models-auth.md`](../models-auth.md) "Google Antigravity"). A
   model-provider plugin needs no `plugins.enabled` entry: Hermes' provider
   discovery imports every one under `model-providers/` in every profile, and it
-  is used only where a config or a session selects its provider. `google-access` (replaced, not enabled) and `hermes-achievements` (upstream writes
-  its data to a fixed path; per-machine, ignored) stay at the top level. A
+  is used only where a config or a session selects its provider. `hermes-achievements` (upstream writes
+  its data to a fixed path; per-machine, ignored) stays at the top level. A
   directory with no `plugin.yaml` (`_shared/`) is code, not a plugin.
 - **Third-party plugins.** A plugin maintained elsewhere is not linked: the
   runtime installs it at a pinned commit as a real directory beside the links

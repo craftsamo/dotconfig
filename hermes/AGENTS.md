@@ -343,7 +343,7 @@ skills.
   make Hermes load it as a plugin — never add one. `mandate_store.py` is the
   one place mandates are stored and authenticated (the MAC'd files, the head
   that alone decides what is in force, the Keychain key read on every check,
-  the day ceiling each store sets: 30 by default, and 7 for gcloud); a consumer passes its own `Store` and never writes those
+  the day ceiling each store sets, 30 by default); a consumer passes its own `Store` and never writes those
   files itself, and the on-disk format stays as it is, or every mandate in force
   stops verifying; `mandate_ledger.py` is likewise the one place a mandate's
   uses are counted (the `uses.jsonl` rows, their MAC and the fail-closed reads),

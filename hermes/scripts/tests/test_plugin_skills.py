@@ -49,7 +49,6 @@ EXPECTED = {
         "read": ALL_READERS,
         "manage": {"assistant"},
     },
-    "google-access": {"sheets": {"assistant"}},
     "stripe-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
     "workspace/workspace-drafts": {"inventory": {"assistant"}},
     "workspace/workspace-registry": {"manage": {"assistant"}},

@@ -3,7 +3,7 @@
 When a plugin's ``pre_tool_call`` hook returns an ``approve`` directive, Hermes stores "session"
 or "always" decisions under the returned ``rule_key``. Most calls hash their exact arguments so an
 approval never covers a different call. Standing rules coalesce similar calls to the same target
-(for example, edits to one Google Sheet or one YouTube video), so the human approves the target
+(for example, edits to one YouTube video), so the human approves the target
 once.
 
 Shared by plugins that build approval keys (each loads this file by path; it is not a plugin and
@@ -61,19 +61,14 @@ class Rule:
             raise ValueError("DANGER cannot be in rule levels")
 
 
-# These two coalesced keys predate the tiers (the user chose them; the spreadsheet's version
-# history and the video's edit history undo them) and are the only standing rules allowed at CAUTION.
+# The video edit key predates the tiers (the user chose it; the video's edit history undoes it)
+# and is the only standing rule allowed at CAUTION.
 GRANDFATHERED = frozenset({SAFE, CAUTION})
 
 # A standing rule's name never equals an action's, so its key (name + target) cannot be read as an
 # exact key (action + digest). The rest of the table applies at SAFE only: the card's own level is
 # read on each call, so a call that reaches others or cannot be undone keeps its exact key.
 TIERS: dict[str, dict[str, Rule]] = {
-    "google-access": {
-        **{action: Rule(STANDING, "sheets-edit", "spreadsheet", GRANDFATHERED)
-           for action in ("add_sheet", "append", "batch_update", "chart", "layout", "pivot", "update")},
-        "upload": Rule(STANDING, "my-drive-upload", "profile"),
-    },
     "youtube-access": {
         "update": Rule(STANDING, "edit", "video", GRANDFATHERED),
         "thumbnail": Rule(STANDING, "edit", "video", GRANDFATHERED),

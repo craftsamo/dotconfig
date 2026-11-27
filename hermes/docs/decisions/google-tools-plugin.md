@@ -6,8 +6,8 @@ Owner doc: docs/google-tools.md
 ## Decision
 
 The Assistant reaches the user's Google account through the third-party package
-craft-agent/google-tools, pinned to a release commit, instead of the dotconfig
-plugin google-access. The person's OpenCode loads the same release from npm.
+craft-agent/google-tools, pinned to a release commit, instead of the retired
+dotconfig plugin google-access. The person's OpenCode loads the same release from npm.
 
 - **Its card is the package's, not `card.py`.** The package draws the card
   from what each write says the call will do and pins what it showed into the
