@@ -698,6 +698,30 @@
             },
           ],
         },
+        // The Sol the specialist routes name. Its long-context prices apply
+        // above 272k input tokens.
+        "gpt-6.2-sol": {
+          "cost": [
+            {
+              "input": 2,
+              "output": 10,
+              "cache": {
+                "read": 0.1
+              }
+            },
+            {
+              "tier": {
+                "type": "context",
+                "size": 272000
+              },
+              "input": 4,
+              "output": 15,
+              "cache": {
+                "read": 0.2
+              },
+            },
+          ],
+        },
         // Codex raised the default window to 500k (model max 1M). Since 2.1.0
         // compaction starts at the input limit minus a 15% reserve (at least
         // 16k), so a 588235 input starts it at 500000. context = input +
