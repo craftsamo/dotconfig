@@ -1,19 +1,21 @@
 ---
-name: run-apps-script
-description: "Use only when no google_sheets op can make a change the user wants in their sheet (an image inside a cell, say) and they agreed to a script for it: a bound Apps Script, written, authorized, run and cleaned up."
+name: sheets-apps-script
+description: "Use only when no google-tools Sheets write (`google_sheets_*`) can make a change the user wants in their sheet (an image inside a cell, say) and they agreed to a script for it: a bound Apps Script, written, authorized, run and cleaned up."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [google-sheets, apps-script, browser, consent, exception]
+    category: technic
 ---
 
 # Apps Script exception
 
-Use only when no `google_sheets` op can make the change (for example an image
-inside a cell) and the user has agreed for this sheet. Tell the user first
-what the tool lacks, and report it afterwards as a missing op.
+Use only when no google-tools Sheets write (`google_sheets_*`) can make the
+change (for example an image inside a cell) and the user has agreed for this
+sheet. Tell the user first what the tool lacks, and report it afterwards as a
+missing op.
 
 1. **Write the data with the tool first** and settle tab names and columns.
    The script addresses columns by position, so a later column change means
@@ -31,8 +33,9 @@ what the tool lacks, and report it afterwards as a missing op.
    broader scopes mean the header is missing, so fix it and run again. Never
    type a password or code into the consent flow; if a login page appears,
    relaunch the browser (`hermes-browser-relaunch`) instead.
-5. **Verify** with the tool: `get_format` for what was set, `snapshot` for
-   how it looks, `get` for values.
+5. **Verify** with `google_sheets_read`: the `format` method for what was
+   set, `snapshot` for how it looks, `values` for values. Load
+   `skill_view(name="google-tools:sheets")` for the mechanics.
 6. **Clean up.** Close the editor and consent tabs. Tell the user that a
    script project stays bound to the sheet and which scope it holds. Delete
    it (script.google.com → the project whose "open spreadsheet" link has the
