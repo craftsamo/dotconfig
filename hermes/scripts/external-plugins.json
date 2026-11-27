@@ -64,8 +64,8 @@
   },
   "x-tools": {
     "repo": "craft-agent/x-tools",
-    "version": "0.2.0",
-    "commit": "5864c75b2c0bfcbfeb7385a829a9366747457da8",
+    "version": "0.3.0",
+    "commit": "50084f656f14359475618854585c7cbabd2e79df",
     "npm": "@craftsamo/x-tools",
     "skills": ["account", "posts", "users", "lists", "communities", "trends", "media"],
     "requires": ["x-tools-guard"],

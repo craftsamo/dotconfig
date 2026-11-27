@@ -90,7 +90,7 @@
     // engine are shared with Hermes. Reads never ask; `x_media_download` saves
     // to local disk and asks; grants stays off (default toolsets). Hermes pins
     // the same release (hermes/scripts/external-plugins.json).
-    { "package": "@craftsamo/x-tools@0.2.0", "options": { "language": "ja" } },
+    { "package": "@craftsamo/x-tools@0.3.0", "options": { "language": "ja" } },
     // Judges the model fallback's steps for this setup (lib/fallback-steps):
     // a step is unusable while its login has no approved OAuth login, Quota
     // reports its window spent, its credit lane is known empty or its
