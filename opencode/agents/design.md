@@ -48,6 +48,8 @@ permissions:
   - { action: "x_media_download", resource: "*", effect: deny }
   - { action: "x_grant_*", resource: "*", effect: deny }
   - { action: "x_*_read", resource: "*", effect: allow }
+  - { action: "google_*", resource: "*", effect: deny }
+  - { action: "google_*_read", resource: "*", effect: allow }
   # The repository is read-only; the mocks go to a job's drafts directory
   # (under Hermes, the session ruleset opens exactly the run's output directory).
   - { action: edit, resource: "*", effect: deny }

@@ -10,7 +10,7 @@ type Rule = { action: string; resource: string; effect: "allow" | "ask" | "deny"
 const config = Bun.JSONC.parse(await Bun.file(join(import.meta.dir, "../../opencode.jsonc")).text()) as {
   permissions: Rule[]
   agents: Record<string, { permissions?: Rule[] }>
-  plugins: (string | { package: string; options?: { worktree_root?: string } })[]
+  plugins: (string | { package: string; options?: { worktree_root?: string; toolsets?: string[] } })[]
 }
 // What the built-in build agent resolves before the global rules.
 const builtIn: Rule[] = [
@@ -522,6 +522,47 @@ describe("agent rules over a project's catch-all", () => {
       for (const tool of ["x_media_download", "x_grant_create", "x_grant_revoke"])
         expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
       expect([agent, "x_search", effect("x_search")]).toEqual([agent, "x_search", "ask"])
+    }
+  })
+
+  const googleWrites = ["google_sheets_edit", "google_gmail_send", "google_drive_upload", "google_run_service_deploy", "google_grant_create"]
+
+  test("google-tools 0.1.1 is loaded with every toolset but grants", () => {
+    const plugin = config.plugins.find((plugin) => typeof plugin !== "string" && plugin.package.startsWith("@craftsamo/google-tools@"))
+    expect(typeof plugin === "object" && plugin.package).toBe("@craftsamo/google-tools@0.1.1")
+    expect(typeof plugin === "object" && plugin.options?.toolsets).toEqual(["account", "sheets", "gmail", "drive", "comments", "run"])
+  })
+
+  test("a Google write asks in build and is denied in plan, where reads stay open", () => {
+    for (const tool of googleWrites) {
+      expect([tool, decide("build", tool, "*")]).toEqual([tool, "ask"])
+      expect([tool, decide("plan", tool, "*")]).toEqual([tool, "deny"])
+    }
+    for (const tool of ["google_sheets_read", "google_gmail_read", "google_run_read"])
+      expect([tool, decide("plan", tool, "*")]).toEqual([tool, "allow"])
+    expect(decide("build", "skill", "google-sheets")).toBe("allow")
+    expect(decide("plan", "skill", "google-sheets")).toBe("allow")
+  })
+
+  test("google_search stays denied for build and plan, whatever the google_* rules do", () => {
+    expect(decide("build", "google_search", "*")).toBe("deny")
+    expect(decide("plan", "google_search", "*")).toBe("deny")
+  })
+
+  test("read-only primaries read Google but never change it, and google_search stays denied", async () => {
+    for (const agent of ["design", "review", "debug"]) {
+      const text = await Bun.file(join(import.meta.dir, `../../agents/${agent}.md`)).text()
+      const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+      const effect = (tool: string) => {
+        let result = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, tool, false) && matches(r.resource, "*", false)) result = r.effect
+        return result
+      }
+      for (const tool of ["google_sheets_read", "google_gmail_read", "google_run_read", "google_grant_read"])
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "allow"])
+      for (const tool of googleWrites)
+        expect([agent, tool, effect(tool)]).toEqual([agent, tool, "deny"])
+      expect([agent, "google_search", effect("google_search")]).toEqual([agent, "google_search", "deny"])
     }
   })
 
