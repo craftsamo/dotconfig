@@ -10,9 +10,7 @@ that plugin does not do:
 - a ``google_*`` write is refused where nobody can answer a card (``human_gate``) and to an inbound A2A
   request; the reads stay open to both (a profile's ``platform_toolsets`` decide whether a specialist serves
   them over A2A). The reads are named one by one, never by a ``_read`` suffix, and a ``google_*`` tool that is
-  not a named read counts as a write, so a tool the plugin adds later fails closed. The retired
-  ``google-access`` plugin's ``google_sheets``, ``google_gmail`` and ``google_drive`` are not from
-  ``google-tools``: they gate their own writes and this guard leaves them alone (``OTHER_TOOLS``).
+  not a named read counts as a write, so a tool the plugin adds later fails closed.
 - a file of a sensitive Workspaces area never leaves in the clear. ``google_drive_upload`` encrypts a file
   with age only when it lies under an ``encrypt_dirs`` directory of the profile's settings and sends anything
   else as it is; the Gmail tools carry ``attachments`` that are never encrypted. So an upload of a file in a
@@ -27,10 +25,10 @@ that plugin does not do:
   login and remove are the user's), the Google Cloud CLIs (``gcloud``, ``gsutil``, ``bq``; a project's own
   entry points through ``project_place`` stay allowed), the package's install and state (the accounts'
   refresh tokens and OAuth client secret, the grants), its variables, the OAuth token shapes as text and the
-  Keychain. The retired ``google-access`` plugin's secrets stay guarded until it is removed: its CLI
-  (``gaccess``), its state, the upstream Google scripts and its variables (``RETIRED_CLIS``,
-  ``_RETIRED_PATHS``, ``_RETIRED_VARIABLES``). The terminal keeps its directory between calls, so a terminal call is also judged by
-  where it runs (its ``workdir``, else the session's recorded directory) and every word of the command is
+  Keychain; and the other Google credentials on the machine: the user's own gcloud login, the age identity
+  Drive files are encrypted to, and the runtime's Google Workspace skill scripts with their token files
+  (``_GOOGLE_PATHS``, ``_GOOGLE_SECRETS``). The terminal keeps its directory between calls, so a terminal
+  call is also judged by where it runs (its ``workdir``, else the session's recorded directory) and every word of the command is
   resolved against that directory. The file tools resolve a relative path against that same recorded
   directory (the runtime's ``tools/file_tools_paths.py``), not the gateway's own, so each path argument is
   resolved against the session's recorded directory, ``$TERMINAL_CWD`` and the process directory, and is
@@ -158,22 +156,16 @@ _PACKAGE_CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".
 # `state/./google-tools`, a quoted component, a bare `google-tools` after a `cd`).
 _PATHS = re.compile(r"state/google-tools(?![\w-])|\.hermes/plugins/google-tools(?![\w-])|@craftsamo/google-tools"
                     r"|(?<![\w-])google-tools/dist/", re.IGNORECASE)
-# The retired google-access plugin, until it is removed: remove everything down to `_RETIRED_VARIABLES`, their
-# checks in `_is_write`, `_runs_cli` and `bypass`, and the mention of `gaccess` in BYPASS_MESSAGE, together
-# with the plugin, which stays installed (disabled) until then.
-# Its tools gate their own writes, so `_is_write` leaves them alone: `google_` tools that are not google-tools'.
-OTHER_TOOLS = frozenset({"google_sheets", "google_gmail", "google_drive"})
-# Its setup CLI, read like the others but never allowed, not even in a project repository.
-RETIRED_CLIS = ("gaccess",)
-_RETIRED_CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:" + "|".join(map(re.escape, RETIRED_CLIS))
-                          + r")(?=$|[\s;&|()`'\"])")
-# The secrets that plugin keeps: its state directory (with its gcloud configuration, mandates and age identity),
-# the user's own gcloud configuration, the upstream Google scripts and the token files they write. Its source
-# under plugins/ stays readable.
-_RETIRED_PATHS = re.compile(r"(?<!plugins/)google-access|\.config/gcloud|google-workspace/scripts|google_api\.py"
-                            r"|google_token\.json|google_client_secret\.json", re.IGNORECASE)
-# Its variables and secrets: names, so case-sensitive like the shell's (`google_oauth.py` is a file name).
-_RETIRED_VARIABLES = re.compile(r"CLOUDSDK_|GOOGLE_OAUTH|GOOGLE_ACCESS_AGE|GCLOUD_MANDATE_KEY|AGE-SECRET-KEY")
+# Google credentials on the machine that are not this package's, in a call's text, for the terminal and the
+# file tools. They stay guarded for their own sake: the user's gcloud login (`.config/gcloud`) stays on the
+# machine while gcloud itself is blocked; the runtime's upstream Google Workspace skill scripts and the token
+# and client-secret files they write are a route around the tools of their own.
+_GOOGLE_PATHS = re.compile(r"\.config/gcloud|google-workspace/scripts|google_api\.py|google_token\.json"
+                           r"|google_client_secret\.json", re.IGNORECASE)
+# The names of those secrets: the gcloud configuration variables, and the age identity Drive files are
+# encrypted to, which stays in the Keychain under the name `GOOGLE_ACCESS_AGE_*` (the person decrypts by hand,
+# the agent never). Names, so case-sensitive like the shell's (`cloudsdk_setup.py` is a file name).
+_GOOGLE_SECRETS = re.compile(r"CLOUDSDK_|GOOGLE_ACCESS_AGE|AGE-SECRET-KEY")
 # The OAuth token shapes (an access token, a client secret) and the Keychain's own reads, in a terminal call's
 # text only: a file tool may write a note that names one of them, and runs nothing.
 _TERMINAL = re.compile(
@@ -201,8 +193,9 @@ NESTED_DEPTH = 4            # how many scripts held in a word (`bash -c '…'`) 
 BYPASS_MESSAGE = (
     "Google (Sheets, Gmail, Drive, comments, Cloud Run) is reached only through the google_* tools "
     "(google_sheets_read, google_gmail_send, …), never through the terminal or file tools: not "
-    "google-tools-cli, gcloud, gsutil, bq or gaccess, the package's state or install (the accounts' credentials, the "
-    "grants), its variables or the Keychain. Use the google_* tools; logging in is the user's job. A project's "
+    "google-tools-cli, gcloud, gsutil or bq, the package's state or install (the accounts' credentials, the "
+    "grants), its variables, other Google credentials (gcloud's login, the age identity, the Google Workspace "
+    "skill scripts) or the Keychain. Use the google_* tools; logging in is the user's job. A project's "
     "own tooling runs from the terminal in its repository (workdir, or a leading `cd <absolute path> &&`): "
     "`pnpm run deploy`, `./scripts/deploy.sh`."
 )
@@ -266,9 +259,8 @@ def _inbound_peer() -> bool:
 
 
 def _is_write(tool: str) -> bool:
-    """A google-tools tool that is not a named read: any ``google_*`` tool bar the named reads and the
-    retired plugin's own tools (``OTHER_TOOLS``)."""
-    return tool.startswith(PREFIX) and tool not in READS and tool not in OTHER_TOOLS
+    """A google-tools tool that is not a named read: any ``google_*`` tool bar the named reads."""
+    return tool.startswith(PREFIX) and tool not in READS
 
 
 def _strings(value):
@@ -530,8 +522,7 @@ def _runs_cli(command: str, args: dict) -> bool:
     """Whether the command runs a Google CLI or this plugin's own, bar a project's own entry points."""
     place = project_place.project_dir(args)
     return (shell_commands.runs(command, CLIS, _CLI, project=place is not None)
-            or shell_commands.runs(command, PACKAGE_CLIS, _PACKAGE_CLI)
-            or shell_commands.runs(command, RETIRED_CLIS, _RETIRED_CLI))
+            or shell_commands.runs(command, PACKAGE_CLIS, _PACKAGE_CLI))
 
 
 def bypass(tool: str, args, cwd: str | None = None) -> str | None:
@@ -544,7 +535,7 @@ def bypass(tool: str, args, cwd: str | None = None) -> str | None:
         return None
     texts = list(_strings(args))
     paths = []
-    patterns = (_PATHS, _RETIRED_PATHS, _RETIRED_VARIABLES)
+    patterns = (_PATHS, _GOOGLE_PATHS, _GOOGLE_SECRETS)
     bases = [cwd]
     if tool == "terminal":
         patterns += (_TERMINAL, _VARIABLES)

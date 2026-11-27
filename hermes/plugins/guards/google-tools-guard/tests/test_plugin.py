@@ -133,29 +133,15 @@ def test_a_tool_added_later_fails_closed(monkeypatch):
     assert blocked(gate("google_"))
 
 
-def test_the_retired_plugin_s_own_tools_are_left_alone_entirely(monkeypatch):
-    others = ("google_sheets", "google_gmail", "google_drive")
-    assert plugin.OTHER_TOOLS == set(others)
-    for tool in others:
-        assert not plugin._is_write(tool)
-        assert gate(tool, action="send", to=["a@example.com"]) is None
+@pytest.mark.parametrize("tool", ("google_sheets", "google_gmail", "google_drive"))
+def test_a_bare_google_tool_name_counts_as_a_write(monkeypatch, tool):
+    assert plugin._is_write(tool)
+    assert gate(tool, action="send", to=["a@example.com"]) is None          # with a person there
     no_human(monkeypatch)
-    for tool in others:
-        assert gate(tool, action="send", to=["a@example.com"]) is None
+    assert gate(tool, action="send", to=["a@example.com"]) == block_with(
+        plugin.human_gate.refusal(tool, "yolo mode is on"))
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
-    for tool in others:
-        assert gate(tool, action="send", to=["a@example.com"]) is None
-    assert blocked(gate("google_sheets_edit", spreadsheet="abc"))      # a name that merely starts alike is a write
-
-
-def test_the_retired_plugin_s_tools_pass_when_the_check_fails(monkeypatch):
-    def boom(*args, **kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(plugin.human_gate, "no_human", boom)
-    monkeypatch.setattr(plugin, "_inbound_peer", boom)
-    assert gate("google_gmail", action="send") is None
-    assert gate("google_drive", action="upload", path="/x") is None
+    assert gate(tool, action="send") == block_with(f"{tool} is not available to inbound A2A requests")
 
 
 def test_the_writes_listed_are_exactly_the_labelled_ones():
@@ -210,13 +196,10 @@ def test_the_guard_blocks_the_google_tools_variables_with_any_label(command):
 
 @pytest.mark.parametrize("command", [
     "cat ~/.config/gcloud/credentials.db", "ls ~/.config/gcloud", "CLOUDSDK_CONFIG=/tmp/x foo",
-    "cat ~/.hermes/profiles/assistant/google-access/token.json",
-    "ls ~/.hermes/profiles/assistant/google-access/gcloud", "cat ~/.hermes/plugin-data/google-access/x",
-    "secret get GOOGLE_OAUTH_ASSISTANT -p hermes --scope google-access", "echo $GOOGLE_OAUTH_ASSISTANT",
-    "secret get GOOGLE_ACCESS_AGE_IDENTITY -p hermes", "age -d -i <(echo AGE-SECRET-KEY-1QQQ) f.age",
-    "echo $GCLOUD_MANDATE_KEY", "cat google_token.json", "cat ~/google_client_secret.json",
+    "echo $GOOGLE_ACCESS_AGE_IDENTITY", "age -d -i <(echo AGE-SECRET-KEY-1QQQ) f.age",
+    "cat google_token.json", "cat ~/google_client_secret.json",
 ])
-def test_the_retired_plugin_s_secrets_stay_guarded(command):
+def test_the_machines_other_google_credentials_stay_guarded(command):
     assert gate("terminal", command=command) == block_with(plugin.BYPASS_MESSAGE), command
 
 
@@ -234,7 +217,6 @@ def test_the_retired_plugin_s_secrets_stay_guarded(command):
     "ls ~/.local/state", "ls ~/.local/state/*", "ls ~/.local/state*", "ls ~/.local/st*",
     "ls ~/.local/state/google-b*", "cd ~/.local/state && ls",
     "ls ~/.hermes/profiles/assistant/skills", "ls ~/Downloads",
-    "cat ~/.hermes/plugins/google-access/access.py", "ls ~/.config/hermes/plugins/google-access",
 ])
 def test_the_guard_leaves_ordinary_commands_alone(command):
     assert gate("terminal", command=command) is None, command
@@ -330,14 +312,10 @@ def test_a_link_to_an_existing_package_directory_is_followed(isolated):
     assert blocked(gate("terminal", command=f"cat {isolated}/shortcut/package.json"))
 
 
-def test_the_retired_plugin_s_source_stays_readable():
-    source = ROOT.parents[1] / "google-access" / "access.py"
-    assert gate("read_file", path=str(source)) is None
-    assert gate("search_files", pattern="x", path=str(source.parent)) is None
-    assert gate("terminal", command=f"cat {source}") is None
-    assert gate("terminal", command="cat hermes/plugins/google-access/access.py") is None
-    assert blocked(gate("read_file", path="~/.hermes/profiles/assistant/google-access/token.json"))
+def test_file_tools_cannot_read_the_machines_other_google_credentials():
     assert blocked(gate("read_file", path="~/.config/gcloud/credentials.db"))
+    assert blocked(gate("search_files", pattern="x", path="/Users/me/.config/gcloud"))
+    assert blocked(gate("read_file", path="~/google_token.json"))
 
 
 def test_the_terminal_directory_kept_between_calls_is_judged(monkeypatch, isolated):
@@ -490,41 +468,28 @@ def test_a_project_is_never_hermes_own_configuration(isolated, monkeypatch):
 
 
 @pytest.mark.parametrize("command", [
-    "gaccess revoke", "gaccess check", "bin/gaccess check", "/opt/homebrew/bin/gaccess auth client.json",
-    "bash -c 'gaccess check'", "sudo gaccess check", "env CI=1 gaccess check", "cd app && gaccess check",
-    "gaccess check 'x",
     "python ~/.hermes/hermes-agent/skills/google-workspace/scripts/google_api.py gmail send",
     "python3 skills/productivity/google-workspace/scripts/setup.py", "cat google_api.py",
 ])
-def test_the_retired_plugin_s_cli_and_upstream_scripts_are_blocked(command):
+def test_the_runtime_s_google_workspace_scripts_are_blocked(command):
     assert gate("terminal", command=command) == block_with(plugin.BYPASS_MESSAGE), command
 
 
-def test_the_retired_plugin_s_cli_is_never_allowed_in_a_project(isolated, monkeypatch):
+def test_file_tools_cannot_reach_the_runtime_s_google_workspace_scripts():
+    for path in ("~/.hermes/hermes-agent/skills/google-workspace/scripts/google_api.py", "scripts/google_api.py"):
+        assert gate("read_file", path=path) == block_with(plugin.BYPASS_MESSAGE), path
+    assert gate("write_file", path="/repo/notes.md", content="google_api.py") == block_with(plugin.BYPASS_MESSAGE)
+
+
+def test_the_secret_names_are_case_sensitive_the_file_names_are_not(isolated, monkeypatch):
     project = make_project(isolated, monkeypatch)
-    for command in ("gaccess check", "./bin/gaccess check", "pnpm exec gaccess check", "npx gaccess check"):
-        assert blocked(gate("terminal", command=command, workdir=str(project))), command
-    assert gate("terminal", command="make deploy", workdir=str(project)) is None
-
-
-@pytest.mark.parametrize("command", [
-    "grep gaccess notes.md", "echo \"run gaccess auth\"", "which gaccess", "git log --grep gaccess",
-    "echo gaccessory",
-])
-def test_a_mention_of_the_retired_cli_runs_nothing(command):
-    assert gate("terminal", command=command) is None, command
-
-
-def test_the_retired_plugin_s_variables_are_case_sensitive_names(isolated, monkeypatch):
-    project = make_project(isolated, monkeypatch)
-    for command in ("python scripts/google_oauth.py", "python scripts/cloudsdk_setup.py", "echo age-secret-key",
-                    "echo gcloud_mandate_key"):
+    for command in ("python scripts/cloudsdk_setup.py", "echo age-secret-key", "echo google_access_age"):
         assert gate("terminal", command=command, workdir=str(project)) is None, command
-    for command in ("echo $GOOGLE_OAUTH_X", "CLOUDSDK_CONFIG=/tmp/x make", "echo $GOOGLE_ACCESS_AGE_IDENTITY",
-                    "echo $GCLOUD_MANDATE_KEY", "echo AGE-SECRET-KEY-1QQQ"):
+    for command in ("CLOUDSDK_CONFIG=/tmp/x make", "echo $GOOGLE_ACCESS_AGE_IDENTITY", "echo AGE-SECRET-KEY-1QQQ",
+                    "cat GOOGLE_API.PY", "cat ~/.Config/gCloud/x"):
         assert blocked(gate("terminal", command=command, workdir=str(project))), command
-    assert gate("write_file", path="/repo/google_oauth.py", content="x") is None
-    assert blocked(gate("write_file", path="/repo/x.py", content="os.environ['GOOGLE_OAUTH_TOKEN']"))
+    assert blocked(gate("write_file", path="/repo/x.py", content="AGE-SECRET-KEY-1QQQ"))
+    assert gate("write_file", path="/repo/cloudsdk_setup.py", content="x") is None
 
 
 def test_file_tools_may_read_the_plugin_source_but_not_the_state():
@@ -1098,7 +1063,6 @@ def test_every_declared_label_and_method_has_a_progress_line(monkeypatch):
 def test_the_labels_and_methods_cover_known_tools_only():
     assert all(tool.startswith(plugin.PREFIX) for tool in (*plugin.LABELS, *plugin.METHODS))
     assert not set(plugin.LABELS) & set(plugin.METHODS)
-    assert not (set(plugin.LABELS) | set(plugin.METHODS)) & plugin.OTHER_TOOLS
     assert set(plugin.METHODS) | {"google_comments_read"} == plugin.READS     # every read but comments has a method
     assert set(plugin.LABELS) == {"google_comments_read", *KNOWN_WRITES}
 

@@ -8,6 +8,7 @@ description: >-
   and any mail attachment from such an area, and blocks the terminal and file
   tools from reaching Google around its tools (the package's CLI, install,
   state and variables, gcloud, gsutil and bq outside a project's own tooling,
-  OAuth tokens, the Keychain). Keeps the retired google-access plugin's secrets
-  guarded until it is removed.
+  OAuth tokens, the Keychain) and from reaching the machine's other Google
+  credentials (gcloud's login, the age identity, the Google Workspace skill
+  scripts and their token files).
 kind: standalone
