@@ -1,0 +1,13 @@
+name: google-tools-guard
+version: 1.0.0
+description: >-
+  Guard for the third-party google-tools plugin. Blocks its writes (Sheets,
+  Gmail, Drive, comments, Cloud Run, grants) where no person can answer an
+  approval card and for inbound A2A requests, refuses an upload of a file in a
+  sensitive Workspaces area that the profile's encryption settings do not cover
+  and any mail attachment from such an area, and blocks the terminal and file
+  tools from reaching Google around its tools (the package's CLI, install,
+  state and variables, gcloud, gsutil and bq outside a project's own tooling,
+  OAuth tokens, the Keychain). Keeps the retired google-access plugin's secrets
+  guarded until it is removed.
+kind: standalone
