@@ -20,9 +20,9 @@ spec.loader.exec_module(approval_tier)
 def test_broad_key_shape_and_exact_key_shape():
     # Standing rule with matching level returns broad coalesced key
     broad = approval_tier.rule_key(
-        "google-access", "update", approval_tier.CAUTION, "digest1234567890", scope=("SID123",)
+        "youtube-access", "update", approval_tier.CAUTION, "digest1234567890", scope=("VID123",)
     )
-    assert broad == "google-access:sheets-edit:SID123"
+    assert broad == "youtube-access:edit:VID123"
 
     # Default/EACH rule returns exact payload key
     exact = approval_tier.rule_key(
@@ -33,9 +33,9 @@ def test_broad_key_shape_and_exact_key_shape():
 
 def test_danger_level_returns_exact_key():
     key = approval_tier.rule_key(
-        "google-access", "update", approval_tier.DANGER, "digest1234567890", scope=("SID123",)
+        "youtube-access", "update", approval_tier.DANGER, "digest1234567890", scope=("VID123",)
     )
-    assert key == "google-access:update:digest1234567890"
+    assert key == "youtube-access:update:digest1234567890"
 
 
 def test_caution_level_on_rule_with_safe_only_returns_exact_key(monkeypatch):
@@ -58,35 +58,35 @@ def test_caution_level_on_rule_with_safe_only_returns_exact_key(monkeypatch):
 
 def test_eligible_false_returns_exact_key():
     key = approval_tier.rule_key(
-        "google-access", "update", approval_tier.CAUTION, "digest1234567890",
-        scope=("SID123",), eligible=False,
+        "youtube-access", "update", approval_tier.CAUTION, "digest1234567890",
+        scope=("VID123",), eligible=False,
     )
-    assert key == "google-access:update:digest1234567890"
+    assert key == "youtube-access:update:digest1234567890"
 
 
-@pytest.mark.parametrize("bad_scope", [(), ("",), ("SID123", ""), (None,), ("SID123", None)])
+@pytest.mark.parametrize("bad_scope", [(), ("",), ("VID123", ""), (None,), ("VID123", None)])
 def test_empty_scope_or_empty_scope_part_returns_exact_key(bad_scope):
     key = approval_tier.rule_key(
-        "google-access", "update", approval_tier.CAUTION, "digest1234567890", scope=bad_scope
+        "youtube-access", "update", approval_tier.CAUTION, "digest1234567890", scope=bad_scope
     )
-    assert key == "google-access:update:digest1234567890"
+    assert key == "youtube-access:update:digest1234567890"
 
 
 def test_unknown_plugin_or_action_returns_exact_key():
     key1 = approval_tier.rule_key("unknown-plugin", "action", approval_tier.SAFE, "digest123")
     assert key1 == "unknown-plugin:action:digest123"
 
-    key2 = approval_tier.rule_key("google-access", "unknown_action", approval_tier.SAFE, "digest123")
-    assert key2 == "google-access:unknown_action:digest123"
+    key2 = approval_tier.rule_key("youtube-access", "unknown_action", approval_tier.SAFE, "digest123")
+    assert key2 == "youtube-access:unknown_action:digest123"
 
 
 def test_exact_overrides_action_segment_of_exact_key():
     # When falling through, exact= overrides the action segment
     key = approval_tier.rule_key(
-        "google-access", "clear", approval_tier.CAUTION, "digest1234567890",
-        scope=("SID123",), exact="google_sheets",
+        "youtube-access", "clear", approval_tier.CAUTION, "digest1234567890",
+        scope=("VID123",), exact="youtube_video",
     )
-    assert key == "google-access:google_sheets:digest1234567890"
+    assert key == "youtube-access:youtube_video:digest1234567890"
 
 
 def test_each_key():

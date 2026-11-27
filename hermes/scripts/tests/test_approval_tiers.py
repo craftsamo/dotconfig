@@ -1,6 +1,6 @@
 """Approval tiers decide what allowlist key an approval card gets.
 
-Standing rules coalesce approvals to a target (such as a spreadsheet or video) instead of
+Standing rules coalesce approvals to a target (such as a video or a publication) instead of
 requiring human review on every individual payload. This table is the review point: any change
 to a tier or rule scope must be updated here on purpose.
 """
@@ -27,16 +27,6 @@ AT_CAUTION_TOO = ("caution", "safe")
 # plugin -> action -> (tier, the name its key carries, the card levels it applies at). The target
 # each key binds is the rule's ``scope`` (account, channel, ...), checked below.
 EXPECTED = {
-    "google-access": {
-        "add_sheet": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "append": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "batch_update": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "chart": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "layout": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "pivot": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "update": ("standing", "sheets-edit", AT_CAUTION_TOO),
-        "upload": ("standing", "my-drive-upload", SAFE_ONLY),
-    },
     "youtube-access": {
         "thumbnail": ("standing", "edit", AT_CAUTION_TOO),
         "update": ("standing", "edit", AT_CAUTION_TOO),
@@ -71,13 +61,6 @@ EXPECTED = {
 }
 
 GRANDFATHERED_AT_CAUTION = {
-    ("google-access", "add_sheet"),
-    ("google-access", "append"),
-    ("google-access", "batch_update"),
-    ("google-access", "chart"),
-    ("google-access", "layout"),
-    ("google-access", "pivot"),
-    ("google-access", "update"),
     ("youtube-access", "thumbnail"),
     ("youtube-access", "update"),
 }

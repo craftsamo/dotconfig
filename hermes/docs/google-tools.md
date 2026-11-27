@@ -91,9 +91,8 @@ the call will do and fitted to the surface; what the card showed is pinned into
 the call. A "session" or "always" answer covers that tool on the same target (a
 tab, a recipient, a folder); a call whose target the package cannot tell asks
 once, and a Gmail send asks every time. There are no grants: a write needs a
-person who can answer the card. The old per-spreadsheet standing rule and the
-My Drive upload rule (`plugins/_shared/approval_tier.py`) no longer apply to
-these tools; they stay there until google-access is removed.
+person who can answer the card. `plugins/_shared/approval_tier.py` holds no
+rule for these tools.
 
 ## Sensitive files and encryption
 
@@ -125,16 +124,15 @@ are not covered ([decision](decisions/drive-upload-encryption.md)).
   they run `google-tools-cli`, `gcloud`, `gsutil` or `bq` directly (a
   project's own scripts still run in their repository), name the package's
   state or install, a `GOOGLE_TOOLS_*` variable, an OAuth token's shape, a
-  Keychain read, or, until google-access is removed, that plugin's secrets;
-  paths are matched by real path and by the terminal's working directory
+  Keychain read, the user's own gcloud login, the age identity, or the
+  runtime's upstream Google Workspace scripts and their token files; paths are
+  matched by real path and by the terminal's working directory
   ([bypass guard](access-common.md#bypass-guard-ways-around-the-tool)).
 - **Progress lines** that name the operation only.
 
-The guard leaves the old plugin's own three tools alone.
+## What the retired google-access plugin had that is gone
 
-## What changed from google-access
-
-Gone:
+The in-house plugin it replaced is removed. Gone:
 
 - The general `gcloud` tool and the gcloud mandates. Cloud Run goes through
   `google_run_*`; other Google Cloud work is the user's own or an OpenCode
@@ -146,9 +144,6 @@ Gone:
 
 New: Gmail drafts, labels and trash; Drive copy, move, rename, trash and
 folders; comments as their own toolset; Cloud Run.
-
-A private plugin that called the old engine in-process is paused at cutover;
-no tracked code depends on google-access's engine.
 
 ## Install and update
 

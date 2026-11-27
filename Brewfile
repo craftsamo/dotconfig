@@ -52,7 +52,7 @@ brew "openclaw/tap/wacli" # WhatsApp linked-device CLI whatsapp-tools runs
 brew "signal-cli"  # Signal linked-device CLI (native build) the package's sync service drives
 
 # --- Hermes Agent: Assistant tools ---
-cask "gcloud-cli"              # gcloud — google-access plugin + bin/gaccess
+cask "gcloud-cli"              # gcloud — Google Cloud CLI for own projects
 brew "deno"                    # youtube-access plugin: yt-dlp's YouTube challenge solver
 brew "steipete/tap/remindctl"  # apple-reminders skill (hermes-agent skills/apple)
 cask "xdevplatform/tap/xurl"   # xurl skill (hermes-agent skills/social-media)
