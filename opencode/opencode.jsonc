@@ -85,6 +85,12 @@
     // the cloudflare_* rule below asks. Every toolset but grants (no unattended
     // writes). Hermes pins the same release (hermes/scripts/external-plugins.json).
     { "package": "@craftsamo/cloudflare-tools@0.12.1", "options": { "toolsets": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"], "language": "ja" } },
+    // Read-only X (craft-agent/x-tools) through FxTwitter first and a reading
+    // account's cookies as fallback; the reading account's state, caps and
+    // engine are shared with Hermes. Reads never ask; `x_media_download` saves
+    // to local disk and asks; grants stays off (default toolsets). Hermes pins
+    // the same release (hermes/scripts/external-plugins.json).
+    { "package": "@craftsamo/x-tools@0.2.0", "options": { "language": "ja" } },
     // Judges the model fallback's steps for this setup (lib/fallback-steps):
     // a step is unusable while its login has no approved OAuth login, Quota
     // reports its window spent, its credit lane is known empty or its
@@ -506,6 +512,22 @@
           "resource": "*",
           "effect": "allow"
         },
+        // X: reads only (grants is off by default; x_media_download writes to disk).
+        {
+          "action": "x_media_download",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "x_grant_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "x_*_read",
+          "resource": "*",
+          "effect": "allow"
+        },
         {
           "action": "subagent",
           "resource": "*",
@@ -556,6 +578,7 @@
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
+        { "action": "skill", "resource": "x-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
@@ -587,6 +610,7 @@
         { "action": "skill", "resource": "github-*", "effect": "allow" },
         { "action": "skill", "resource": "git-*", "effect": "allow" },
         { "action": "skill", "resource": "cloudflare-*", "effect": "allow" },
+        { "action": "skill", "resource": "x-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
         // nps tasks, package scripts and `pnpm exec` (which never downloads).
@@ -2459,6 +2483,13 @@
       "resource": "cloudflare-*",
       "effect": "allow"
     },
+    // x-tools' skills (x-account, x-posts, …): how to use its read-only tools;
+    // `x_media_download` still asks on its own.
+    {
+      "action": "skill",
+      "resource": "x-*",
+      "effect": "allow"
+    },
     // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
     // which OpenCode reads as a compatibility source. These need tools only
     // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
@@ -2616,6 +2647,20 @@
     // writes, and Hermes' run rulesets deny the whole action.
     {
       "action": "cloudflare_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    // X tools (@craftsamo/x-tools): reads never ask; `x_media_download` saves
+    // to local disk and `x_grant_*` stays off by default, so both ask here
+    // instead of `x_*` (which would match the custom `x_search` tool above).
+    // Read-only agents deny both.
+    {
+      "action": "x_media_download",
+      "resource": "*",
+      "effect": "ask"
+    },
+    {
+      "action": "x_grant_*",
       "resource": "*",
       "effect": "ask"
     },

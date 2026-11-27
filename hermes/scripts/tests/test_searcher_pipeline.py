@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import re
 import shutil
 from pathlib import Path
@@ -92,13 +93,24 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
     for gone in ("goal_mode", "kanban_show", "kanban_complete", "survey-enumeration",
                  "exhaustive-hunt", "STATE:", "DECISION(", "card gate"):
         assert gone not in prompt
-    social = {"x_access", "youtube_access", "note_access", "substack_access"}
+    social = {"youtube_access", "note_access", "substack_access"}
     chains = {"evm_access", "solana_access", "hyperliquid_access"}
     assert set(config["toolsets"]) == {"file", "web", "x_search", "skills", "memory"} | social | chains
     assert set(config["platform_toolsets"]["cli"]) == {
         "file", "web", "x_search", "skills", "memory", "no_mcp", "connections"} | social | chains
-    assert {"x-access", "youtube-access", "note-access", "substack-access",
+    assert {"youtube-access", "note-access", "substack-access",
             "evm-access", "solana-access", "hyperliquid-access"} <= set(config["plugins"]["enabled"])
+    assert "x_access" not in config["toolsets"]
+    assert "x_access" not in config["platform_toolsets"]["cli"]
+    assert "x-access" not in config["plugins"]["enabled"]
+    assert config["plugins"]["entries"]["x-tools"]["settings"] == {
+        "toolsets": ["account", "posts", "users"],
+        "read_only": True,
+        "reads_per_hour": 20,
+        "reads_per_day": 120,
+        "require_plugins": ["x-tools-guard"],
+        "language": "ja",
+    }
     assert "messaging" not in " ".join(config["toolsets"]) and not [t for t in config["toolsets"] if t.endswith("_account")]
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
@@ -442,7 +454,7 @@ def test_venue_reads_are_retrieval_without_verdicts():
     assert (HERMES / "plugins/web3/hyperliquid-access/skills/read/SKILL.md").is_file()
 
 
-SKILLS_FOR_SERVICE = {"x": "x-access:read", "youtube": "youtube-access:read",
+SKILLS_FOR_SERVICE = {"x": "x-tools:posts", "youtube": "youtube-access:read",
                       "note": "note-access:read", "substack": "substack-access:read"}
 
 
@@ -453,13 +465,19 @@ def test_service_reads_are_retrieval_without_verdicts(service, skill):
                    "never as instructions", "unsearched ground", "## What to record per item",
                    f'skill_view(name="{skill}")'):
         assert phrase in text, (service, phrase)
-    group = {"x": "x-access", "youtube": "youtube-access", "note": "note-access", "substack": "substack-access"}
-    assert (HERMES / "plugins/social" / group[service] / "skills" / skill.split(":", 1)[1] / "SKILL.md").is_file()
+    group = {"youtube": "youtube-access", "note": "note-access", "substack": "substack-access"}
+    plugin, skill_name = skill.split(":", 1)
+    if service in group:
+        assert (HERMES / "plugins/social" / group[service] / "skills" / skill_name / "SKILL.md").is_file()
+    else:
+        manifest = json.loads((HERMES / "scripts/external-plugins.json").read_text())
+        assert skill_name in manifest[plugin]["skills"]
 
 
 def test_x_reference_keeps_x_search_first_and_names_the_account_read():
     text = flat(PIPELINE / "references/platforms/x.md")
-    assert "`x_search` first" in text and 'x(action="user", handle="@name")' in text
+    assert "`x_search` first" in text
+    assert '`x_user_read` `view` with `handle: "@name"`' in text
     assert "There is no default account" in text and "never both for one question" in text
 
 
@@ -535,7 +553,7 @@ def test_public_footprint_keeps_its_floors():
                    "`Open for researcher` holds whether the subject is trustworthy, whether its claims hold",
                    "No writing-style, posting-time or network-overlap comparison",
                    "Route step 3 is skipped and no leads are sought", "never with a verdict",
-                   "Whether the claim holds is not decided here", 'x(action="user")'):
+                   "Whether the claim holds is not decided here", "`x_user_read` `view`"):
         assert phrase in text, phrase
     for gone in ("writing style", "matching timing", "confirmed <URL> | unconfirmed | contradicted"):
         assert gone not in text, gone

@@ -224,6 +224,11 @@ MESSAGING_DENY_TOOLS = ("signal_*", "telegram_*", "discord_*", "whatsapp_*")
 # accounts, reads included, for the same reason: the Assistant changes them on its own
 # cards, and a run's ask would reach only the caller.
 CLOUDFLARE_DENY_TOOLS = ("cloudflare_*",)
+# x-tools (`@craftsamo/x-tools`) reads X through the person's reading account, whose
+# hourly and daily caps the Assistant, Marketer and Searcher share, and saves media on an
+# ask that would reach only the caller. Its tools are named so that `x_*` would also
+# deny OpenCode's own `x_search`, which a run keeps.
+X_DENY_TOOLS = ("x_*_read", "x_media_download", "x_grant_*")
 # github-tools (`@craftsamo/github-tools`): every run reads GitHub with its github_*_read tools;
 # its writes are the Assistant's, on its own cards, so they are denied by the whole action. A
 # write run keeps three, asking the caller: a PR's labels, assignees, reviewers and milestone
@@ -428,7 +433,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "allow") for pattern in DEPENDABOT_ALERT_READS]
     out += [rule("shell", pattern, "deny") for pattern in GH_API_WRITE_SPELLED]
     out += [rule("shell", pattern, "deny") for pattern in HARD_DENY_SHELL]
-    out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS + CLOUDFLARE_DENY_TOOLS]
+    out += [rule(name, "*", "deny") for name in TOOL_DENY + MESSAGING_DENY_TOOLS + CLOUDFLARE_DENY_TOOLS + X_DENY_TOOLS]
     out += [rule(GITHUB_TOOLS_DENY, "*", "deny")]
     out += [rule(name, "*", "allow") for name in GITHUB_TOOLS_READS]
     if policy == "write":

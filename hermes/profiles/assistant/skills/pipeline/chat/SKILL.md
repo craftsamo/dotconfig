@@ -89,10 +89,12 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   first — `references/telegram.md`.
 - **X (Twitter)** (the user's posts and mentions, a post or thread, a
   profile, a post's media, checking posts' real authors and counts) —
-  read-only, only through the `x` tool, never the terminal or x.com in the
+  read-only toward X, only through the x-tools read tools (and
+  `x_media_download` for saving media), never the terminal or x.com in the
   browser, except saving a post draft or finishing an X Article draft the
   user asked for (saved draft only, never published). Any X work loads
-  `skill_view(name="x-access:read")` first — `references/x.md`.
+  `skill_view(name="x-tools:posts")` (and the matching `x-tools:*` skill as
+  needed) first — `references/x.md`.
 - **note (note.com)** (articles, creators, comments, the user's drafts and
   stats, checking a draft body's format, saving an agreed unpublished draft
   with images) — only through the `note` tool, never the terminal or the note
@@ -166,7 +168,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-tools:*` skills): replies, files to send, the inbox folder |
 | `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-tools:*` skills): what stays inline, the test server, files and reports |
 | `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-tools:*` skills): what stays inline, choosing the chat, files and reports |
-| `references/x.md` | reading X as the sub-account, verifying posts, downloading a post's media, and when an X Article draft may be finished in the browser |
+| `references/x.md` | reading X through the x-tools tools, checking posts, saving a post's media, and when a post or X Article draft may be saved in the browser |
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |
 | `references/youtube.md` | reading YouTube, transcripts and downloads, the user's channels' videos, analytics and settings; approved edits, replies, moderation, uploads, captions, playlist and channel changes; Studio-only channel settings |

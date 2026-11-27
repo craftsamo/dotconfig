@@ -41,8 +41,8 @@ class NoteRouting(unittest.TestCase):
 
     def test_marketing_saves_every_destination_itself(self):
         execute = " ".join((ROOT / "marketing/execute/SKILL.md").read_text().split())
-        for route in ('skill_view(name="x-access:draft-post")',
-                      'skill_view(name="x-access:draft-article")',
+        for route in ('skill_view(name="x-draft-post")',
+                      'skill_view(name="x-draft-article")',
                       'skill_view(name="substack-access:manage")',
                       'skill_view(name="note-access:draft")', 'skill_view(name="zenn-dev")'):
             self.assertIn(route, execute)
@@ -53,7 +53,8 @@ class NoteRouting(unittest.TestCase):
         self.assertIn("Marketer is the strategy advisor", plan)
         self.assertIn("You own the execution plan", plan)
         self.assertNotIn("Marketer operates its existing browser profile", plan)
-        self.assertTrue((public_root() / "hermes/plugins/social/x-access/skills/draft-post/SKILL.md").is_file())
+        self.assertTrue((public_root() / "hermes/profiles/assistant/skills/technic/x-draft-post/SKILL.md").is_file())
+        self.assertTrue((public_root() / "hermes/profiles/assistant/skills/technic/x-draft-article/SKILL.md").is_file())
         self.assertTrue((public_root() / "hermes/profiles/assistant/skills/technic/zenn-dev/SKILL.md").is_file())
 
 

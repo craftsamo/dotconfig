@@ -61,5 +61,14 @@
     "skills": ["account", "zones", "dns", "rules", "analytics", "workers", "pages", "storage", "tunnels", "email", "queues", "hyperdrive", "vectorize", "turnstile", "access", "registrar"],
     "requires": ["cloudflare-tools-guard"],
     "requires_setting": "require_plugins"
+  },
+  "x-tools": {
+    "repo": "craft-agent/x-tools",
+    "version": "0.2.0",
+    "commit": "5864c75b2c0bfcbfeb7385a829a9366747457da8",
+    "npm": "@craftsamo/x-tools",
+    "skills": ["account", "posts", "users", "lists", "communities", "trends", "media"],
+    "requires": ["x-tools-guard"],
+    "requires_setting": "require_plugins"
   }
 }

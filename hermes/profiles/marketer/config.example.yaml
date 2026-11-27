@@ -25,7 +25,6 @@ toolsets:
   - web
   - browser
   - x_search
-  - x_access
   - vision
   - skills
   - memory
@@ -72,7 +71,7 @@ agent:
     is inquiry-only: no browser, terminal or resident children; ask the caller
     to reissue work that needs them as a resident specialist session.
 
-    Read-only toward every service, even before skill loading. The x, x_search,
+    Read-only toward every service, even before skill loading. The x_*_read tools, x_search,
     substack, youtube, stripe, cloudflare_* and note tools only read (note also checks a body
     offline); none of them saves for you. Never post, reply, quote, like,
     follow, DM, comment, enter an editor or composer, create or save a draft,
@@ -707,7 +706,6 @@ platform_toolsets:
     - terminal
     - vision
     - web
-    - x_access
     - x_search
     - youtube_access
   telegram: []
@@ -727,18 +725,14 @@ platform_toolsets:
     - substack_access
     - vision
     - web
-    - x_access
     - x_search
     - youtube_access
-x_access:
-  main_handle: '@craftsamo'
 plugins:
   enabled:
     - skill-topology
     - clarify-context
     - specialist-call
     - note-access
-    - x-access
     - substack-access
     - youtube-access
     - evm-access
@@ -769,6 +763,19 @@ plugins:
         read_only: true
         require_plugins:
           - cloudflare-tools-guard
+        language: ja
+    x-tools:
+      settings:
+        toolsets:
+          - account
+          - posts
+          - users
+          - lists
+          - communities
+          - trends
+        read_only: true
+        require_plugins:
+          - x-tools-guard
         language: ja
     web/cascade:
       settings:

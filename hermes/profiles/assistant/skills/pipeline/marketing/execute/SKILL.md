@@ -71,8 +71,8 @@ no Writer, Creator or service work; its briefs are inputs you release.
    last gate.
 5. **Save** through the destination's route and the rules in
    [service drafts](references/publish-ops.md):
-   - X post or thread: `skill_view(name="x-access:draft-post")`;
-   - X Article: `skill_view(name="x-access:draft-article")`,
+   - X post or thread: `skill_view(name="x-draft-post")`;
+   - X Article: `skill_view(name="x-draft-article")`,
      into an Article draft the user created and named by its edit URL;
    - Substack: the `substack` tool's `create_draft` / `update_draft`, per
      `skill_view(name="substack-access:manage")` (Write);

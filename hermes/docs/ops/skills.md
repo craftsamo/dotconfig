@@ -38,8 +38,8 @@ the `learned/` Hermes writes); every other skill lives under its profile's
 - **A plugin ships the skill for its own tool** under
   `plugins/<group>/<name>/skills/<skill>/` (`SKILL.md` and `references/`),
   registered as `<plugin>:<skill>` for the profiles in its `SKILLS` table (for
-  example `x-access:read` for every profile with the `x` tool and
-  `x-access:draft-post` for the Assistant alone). These are not part of
+  example `youtube-access:read` for every profile with the `youtube` tool and
+  `youtube-access:configure-studio` for the Assistant alone). These are not part of
   any profile's `skills/`, so the validator checks them separately (`plugin
 skills=` in its summary) and `skills list` does not show them;
   `skill_view(name="<plugin>:<skill>")` does. Tool mechanics for the Assistant's

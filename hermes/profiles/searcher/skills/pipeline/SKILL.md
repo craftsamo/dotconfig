@@ -263,7 +263,7 @@ never supplies the caller's release or resets coverage/frontier/budget.
   `Open for researcher`. This does not prohibit Plan's retrieval-method proposal.
 - **No write-actions on social platforms**: no post/reply/like/follow/DM.
   Reading is not a write-action: x_search is allowed, and so are the public
-  reads of the x, youtube, note and substack tools and the chain reads of the
+  reads of the x-tools, youtube, note and substack tools and the chain reads of the
   evm and solana tools, which never sign or send, and the venue reads of the
   hyperliquid tool, which never trades. "Read-only" is why those
   reads are safe, never a reason to skip a platform the question touches.

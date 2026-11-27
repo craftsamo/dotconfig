@@ -1,5 +1,5 @@
 ---
-name: draft-post
+name: x-draft-post
 description: "Use only when the user asked, in this conversation, for an X post or thread to be saved as a draft in the browser. Nothing is ever published."
 version: 1.0.0
 author: CraftSamo
@@ -7,21 +7,24 @@ license: MIT
 metadata:
   hermes:
     tags: [x, twitter, post-draft, browser]
+    category: technic
 ---
 
 # Saving an X post draft in the browser
 
-One of the two exceptions to `x-access:read`'s rule that the browser
-stays off x.com, beside the Article editor (`x-access:draft-article`). It
-writes into the user's main account, so the conditions are strict.
+One of the two exceptions to the rule that the browser stays off x.com (the
+X reads go through the x-tools tools), beside the Article editor
+(`skill_view(name="x-draft-article")`). It writes into the user's main
+account, so the conditions are strict.
 
-- Read first, write second. Load `x-access:read` for the `x` tool's
-  mechanics: reading the user's own posts before drafting in their voice, and
-  proving after the save that nothing went out.
+- Read first, write second. Load `skill_view(name="x-tools:posts")` for the
+  mechanics of the x-tools read tools (`x_post_read`, …): reading the user's
+  own posts before drafting in their voice, and proving after the save that
+  nothing went out.
 - Publishing, scheduling, posting, replying, liking, following, DMs and
   account pages stay the user's, whatever the page offers.
-- A browser step is not a way around a tool limit. Anything the `x` tool can
-  read goes through the tool.
+- A browser step is not a way around a tool limit. Anything the x-tools read
+  tools (`x_post_read`, …) can read goes through those tools.
 
 ## When
 
@@ -71,8 +74,9 @@ writes into the user's main account, so the conditions are strict.
 1. Reload, open the account's draft list (not browser history) and open the
    same draft. Compare the whole text and every attachment with the approved
    version.
-2. Check nothing went out: `x(action="posts")` for the user's own account
-   shows no new post with this text. One that did is the incident below.
+2. Check nothing went out: `x_post_read` with `method: "timeline"` and the
+   user's handle `@craftsamo` shows no new post with this text. One that did
+   is the incident below.
 3. A local composer cache is not a server-side draft, and drafts may not
    follow the user to other devices or the app: say so. If server persistence
    cannot be told apart, report `save-uncertain`, not success.

@@ -17,19 +17,24 @@ changes rather than promising compliance.
 
 ## Reading
 
-Use the `x` tool for X: `posts`, `thread`, `search` and `user` through the
-sub-account (paced and capped, shared with the Assistant), `verify` for public
-counts of up to 50 posts, `snapshot` / `insights` for the client's own posts.
-The mechanics (budgets, verifying posts, media, failures) are
-`skill_view(name="x-access:read")`.
+Use the x-tools read tools for X: `x_post_read` (`view` for public counts of up
+to 50 posts, `timeline` with `@craftsamo` for the client's own posts,
+`conversation`, `thread`, `search`, `quotes`, `mentions`), `x_user_read` (`view`
+for a profile), `x_list_read`, `x_community_read`, `x_trend_read`, and
+`x_account_read`. Reads try FxTwitter first and fall back to the reading
+account (paced and capped, shared with the Assistant and Searcher); there is no
+stored history of past counts, so record `read_at` with each observation. The
+mechanics (methods, budgets, failures) live in `skill_view(name="x-tools:posts")`
+(and `x-tools:users`, `x-tools:account`, `x-tools:lists`, `x-tools:communities`,
+`x-tools:trends` as needed).
 The browser on x.com is logged in to the user's account, and scripted
-activity there risks it under the rules above. Open it only for what the tool
+activity there risks it under the rules above. Open it only for what the tools
 cannot show (the account's own analytics), when the user has decided to
 accept that risk for this reading, following [browsing](../browsing.md):
 analytics pages only, never the timeline, composer, notifications or messages.
 
 Published content is read-only for result collection. Record only metrics the
-tool actually exposes; likes and views do not establish unique readers, link
+tools actually expose; likes and views do not establish unique readers, link
 clicks or revenue attribution.
 
 ## Sources and status

@@ -80,9 +80,11 @@ capacity through [discovery](../plan/references/discovery.md). Respect their pri
 products/services, paid content, relationships and enjoyable work. Do not create
 sales promises or stronger public claims from this analysis.
 
-For X, start from the `x` tool's `insights` over the snapshot ledger, compare
-posts at equal age and read the limits in [X ranking](../references/x-ranking.md):
-public counts are not the ranking score, and a format or hour difference over
+For X, there is no stored history: read public counts at the read time with
+`x_post_read` (`timeline` for `@craftsamo`, or `view`), record `read_at`,
+compare posts read at a similar age, and read the limits in
+[X ranking](../references/x-ranking.md): public counts are not the ranking
+score, small samples stay inconclusive, and a format or hour difference over
 a few posts is a hypothesis for the next experiment, not a rule.
 
 A requested weekly review can follow these steps, but no cron or automatic

@@ -290,14 +290,14 @@ skills.
   by the plugin's `register_skills` from its `SKILLS` table (skill → profiles)
   as `<plugin>:<skill>`; a bare name does not resolve. The plugin is the
   subject, so the skill's name is `<how>` or `<how>-<object>`
-  (`stripe-access:manage`, `x-access:draft-post`) and never repeats it;
+  (`stripe-access:manage`, `youtube-access:configure-studio`) and never repeats it;
   `read` is the read-only skill, `manage` the one that writes, and a step with
   a procedure of its own gets its verb (`collect-history`). It is read-only to
   Hermes (`skill_manage` cannot find it) and the `skill-topology` guard
   protects the path only because a path element is literally `skills` — never
   rename the directory. A profile gets a skill only if its tool can do what the
   skill describes, so a read-only profile never sees write procedures: split a
-  skill by capability (`read` / `draft-post`), never by
+  skill by capability (`read` / `configure-studio`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
   it). A procedure the model follows through a step (`collect-history`,
   `configure-studio`) is a skill of its own, not a `references/` file: after a
@@ -608,14 +608,15 @@ Commands: [README "Commands"](README.md#commands).
   (`guards/signal-tools-guard`, `guards/telegram-tools-guard`,
   `guards/discord-tools-guard`, `guards/whatsapp-tools-guard`,
   `guards/github-tools-guard`, `guards/git-tools-guard`,
-  `guards/cloudflare-tools-guard`;
+  `guards/cloudflare-tools-guard`, `guards/x-tools-guard`;
   decisions: [Signal](docs/decisions/signal-tools-plugin.md),
   [Telegram](docs/decisions/telegram-tools-plugin.md),
   [Discord](docs/decisions/discord-tools-plugin.md),
   [WhatsApp](docs/decisions/whatsapp-tools-plugin.md),
   [GitHub](docs/decisions/github-tools-plugin.md),
   [Git](docs/decisions/git-tools-plugin.md),
-  [Cloudflare](docs/decisions/cloudflare-tools-plugin.md)).
+  [Cloudflare](docs/decisions/cloudflare-tools-plugin.md),
+  [X](docs/decisions/x-tools-plugin.md)).
   The one exception to a card is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
   orders, gcloud commands): it

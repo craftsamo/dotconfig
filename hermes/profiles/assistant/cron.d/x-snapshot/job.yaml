@@ -1,3 +1,0 @@
-schedule: "0 */6 * * *"
-mode: no_agent
-deliver: telegram

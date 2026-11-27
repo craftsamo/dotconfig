@@ -1,0 +1,10 @@
+name: x-tools-guard
+version: 1.0.0
+description: >-
+  Guard for the third-party x-tools plugin. Blocks its writes (local disk only:
+  media downloads and grants) where no person can answer an approval card and
+  for inbound A2A requests, and blocks the terminal and file tools from reaching
+  X around its tools (twscrape, FxTwitter and its mirrors, the reading account's
+  cookies, engine and grants, the Keychain item that holds the cookies, the
+  package's CLI and install). Leaves Hermes' own x_search alone.
+kind: standalone

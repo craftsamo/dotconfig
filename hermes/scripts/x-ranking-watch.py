@@ -2,9 +2,9 @@
 """The wake gate of the Assistant's weekly X-ranking watch.
 
 Compares the published defaults of github.com/xai-org/x-algorithm with the baseline
-recorded beside it, ranking_baseline.json, which is refreshed in the same change
+recorded beside it, x-ranking-baseline.json, which is refreshed in the same change
 that updates Marketer's profiles/marketer/skills/pipeline/references/x-ranking.md.
-Contract: docs/x-access.md "Ranking watch".
+Contract: docs/x-tools.md "Ranking watch".
 """
 
 import argparse
@@ -20,7 +20,7 @@ import urllib.request
 
 REPO = "xai-org/x-algorithm"
 REF = "main"
-BASELINE = Path(__file__).resolve().parent / "ranking_baseline.json"
+BASELINE = Path(__file__).resolve().parent / "x-ranking-baseline.json"
 TIMEOUT = 30
 USER_AGENT = "hermes-x-ranking-watch"
 
@@ -226,8 +226,8 @@ def report(base: dict, cur: dict, lines: list[str]) -> str:
         f"Baseline: {base_short} ({base_date}) — current: {cur_short} ({cur_date})\n\n"
         f"https://github.com/{REPO}/compare/{base_sha}...{cur_sha}\n\n"
         f"{bullets}\n\n"
-        f"The baseline is hermes/plugins/social/x-access/ranking_baseline.json; "
-        f'refresh it with "ranking_watch.py refresh" in the same change that updates '
+        f"The baseline is hermes/scripts/x-ranking-baseline.json; "
+        f'refresh it with "x-ranking-watch.py refresh" in the same change that updates '
         f"profiles/marketer/skills/pipeline/references/x-ranking.md."
     )
 
@@ -235,7 +235,7 @@ def report(base: dict, cur: dict, lines: list[str]) -> str:
 def _default_state() -> Path:
     """Return default path to the ranking watch state JSON file."""
     root = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
-    return root / "x-access" / "ranking_watch.json"
+    return root / "x-ranking-watch" / "state.json"
 
 
 def _read_reported_lines(state_path: Path) -> list[str] | None:
@@ -283,7 +283,7 @@ def _run(argv: list[str]) -> None:
     else:
         args_to_parse = argv
 
-    parser = argparse.ArgumentParser(prog="ranking_watch.py", description="X ranking defaults watch")
+    parser = argparse.ArgumentParser(prog="x-ranking-watch.py", description="X ranking defaults watch")
     subparsers = parser.add_subparsers(dest="command")
 
     p_check = subparsers.add_parser("check", help="Compare current ranking defaults against baseline")
