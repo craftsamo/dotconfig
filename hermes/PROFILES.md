@@ -43,7 +43,7 @@ Shared contract first: [Access plugins — common contract](./docs/access-common
 (risk acceptance, secret scoping, approval gate, bypass guard, shared setup).
 Each doc then holds only its own deltas.
 
-[Google](./docs/google-access.md) · [GitHub](./docs/github-tools.md) ·
+[Google](./docs/google-tools.md) · [GitHub](./docs/github-tools.md) ·
 [Git](./docs/git-tools.md) ·
 [WhatsApp](./docs/whatsapp-tools.md) ·
 [Signal](./docs/signal-tools.md) · [Discord](./docs/discord-tools.md) ·
@@ -86,4 +86,4 @@ look arbitrary:
 [WhatsApp tools](./docs/decisions/whatsapp-tools-plugin.md) ·
 [Cloudflare tools](./docs/decisions/cloudflare-tools-plugin.md) ·
 [X tools](./docs/decisions/x-tools-plugin.md) ·
-[gcloud mandates](./docs/decisions/gcloud-mandates.md).
+[Google tools](./docs/decisions/google-tools-plugin.md).

@@ -89,18 +89,18 @@ follows.
 
 ## Who reads it
 
-| Reader                                        | Uses                                                                                     |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Draft scanner (`workspace-drafts`)            | the root, and every area's Groups for their `.agent/`                                    |
-| Repository scanner (`workspace-repos`)        | the root, and every area's Groups for their `github/`                                    |
-| Workspace registry (`workspace-registry`)     | the root (unless `WSREG_ROOT`), and the projects area for project Groups                 |
-| Signal, Telegram, WhatsApp senders            | the root, as the only place files are sent from                                          |
-| note, Substack, YouTube                       | the root, as the attach root when the profile sets no `attach_roots`                     |
-| Google Drive upload (`google-access`)         | the root, as the only place files are uploaded from, and `sensitive` to encrypt them     |
-| screen-listen                                 | `.inbox/recordings` under the root, when the profile sets no `record_dir`                |
-| Gateway launcher (`hermes-gateway-multiplex`) | the root as the working directory (`~/Workspaces`, then `$HOME`, when unreadable)        |
-| OpenCode `web_ui`                             | the root, as the only place an approved screenshot baseline is read from                 |
-| zsh `fzf_change_directory`                    | the root, every area's Groups, the projects area's `github/` links (`ws-layout --lines`) |
+| Reader                                        | Uses                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Draft scanner (`workspace-drafts`)            | the root, and every area's Groups for their `.agent/`                                                                    |
+| Repository scanner (`workspace-repos`)        | the root, and every area's Groups for their `github/`                                                                    |
+| Workspace registry (`workspace-registry`)     | the root (unless `WSREG_ROOT`), and the projects area for project Groups                                                 |
+| Signal, Telegram, WhatsApp senders            | the root, as the only place files are sent from                                                                          |
+| note, Substack, YouTube                       | the root, as the attach root when the profile sets no `attach_roots`                                                     |
+| Google tools (`google-tools`)                 | the root, as the only place files are uploaded from; `sensitive` areas must be in `encrypt_dirs`, which its guard checks |
+| screen-listen                                 | `.inbox/recordings` under the root, when the profile sets no `record_dir`                                                |
+| Gateway launcher (`hermes-gateway-multiplex`) | the root as the working directory (`~/Workspaces`, then `$HOME`, when unreadable)                                        |
+| OpenCode `web_ui`                             | the root, as the only place an approved screenshot baseline is read from                                                 |
+| zsh `fzf_change_directory`                    | the root, every area's Groups, the projects area's `github/` links (`ws-layout --lines`)                                 |
 
 Where the root bounds what may be sent or attached, it is read at each send,
 and an invalid layout refuses the send instead of falling back.

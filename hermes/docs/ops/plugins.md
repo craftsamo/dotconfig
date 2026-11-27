@@ -41,7 +41,7 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   [`../models-auth.md`](../models-auth.md) "Google Antigravity"). A
   model-provider plugin needs no `plugins.enabled` entry: Hermes' provider
   discovery imports every one under `model-providers/` in every profile, and it
-  is used only where a config or a session selects its provider. `google-access` and `hermes-achievements` (upstream writes
+  is used only where a config or a session selects its provider. `google-access` (replaced, not enabled) and `hermes-achievements` (upstream writes
   its data to a fixed path; per-machine, ignored) stay at the top level. A
   directory with no `plugin.yaml` (`_shared/`) is code, not a plugin.
 - **Third-party plugins.** A plugin maintained elsewhere is not linked: the
@@ -57,8 +57,9 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `telegram-tools` ([telegram-tools.md](../telegram-tools.md)),
   `discord-tools` ([discord-tools.md](../discord-tools.md)),
   `whatsapp-tools` ([whatsapp-tools.md](../whatsapp-tools.md)),
-  `cloudflare-tools` ([cloudflare-tools.md](../cloudflare-tools.md)) and
-  `x-tools` ([x-tools.md](../x-tools.md)).
+  `cloudflare-tools` ([cloudflare-tools.md](../cloudflare-tools.md)),
+  `x-tools` ([x-tools.md](../x-tools.md)) and
+  `google-tools` ([google-tools.md](../google-tools.md)).
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the
   first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,
   `code` or `goal` in the chat's progress line (a message body or a local path

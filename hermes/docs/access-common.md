@@ -5,10 +5,9 @@ Google, GitHub, Git, X, note, Substack, YouTube, Stripe and Cloudflare. Each
 `*-access` doc inherits this one and records only its own differences; read it
 first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Two kinds of write skip their card only inside a
+doc ([web3.md](web3.md)). One kind of write skips its card, and only inside a
 mandate the user approved on a card of its own: a Hyperliquid order
-([hyperliquid.md](hyperliquid.md)) and a
-gcloud command ([google-access.md](google-access.md#gcloud-mandates)).
+([hyperliquid.md](hyperliquid.md)).
 Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
@@ -53,9 +52,9 @@ messaging plugins keep their mirror and outbox under
 - **Bridge process.** The code that holds a credential runs as a child process
   with a minimal environment (`HOME`, `PATH`, `LANG`, none of the gateway's
   keys), so the gateway's own Python does not hold the key or import the
-  client. Google's and YouTube's API calls are the exception: they use Google's
-  client libraries in Hermes' own Python, and keep access tokens in memory (their
-  docs say how). Where there is a venv it is hash-locked under `~/.hermes/local/<name>/venv`
+  client. YouTube's API calls are the exception: they use Google's
+  client libraries in Hermes' own Python, and keep access tokens in memory (its
+  doc says how). Where there is a venv it is hash-locked under `~/.hermes/local/<name>/venv`
   and never Hermes' interpreter; note's and Stripe's bridges are
   stdlib only and run under Hermes' interpreter in isolated mode (`-I`).
 
@@ -81,24 +80,24 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. Google, note and Stripe use the shared check
+  exists. Note and Stripe use the shared check
   `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
   Hermes' approval context cannot be read, and so does the guard of the
-  third-party Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare and X packages
+  third-party Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare, X and Google packages
   ([signal-tools.md](signal-tools.md), [telegram-tools.md](telegram-tools.md),
   [discord-tools.md](discord-tools.md), [whatsapp-tools.md](whatsapp-tools.md),
   [github-tools.md](github-tools.md),
   [git-tools.md](git-tools.md), [cloudflare-tools.md](cloudflare-tools.md),
-  [x-tools.md](x-tools.md)); Substack and YouTube refuse through
+  [x-tools.md](x-tools.md), [google-tools.md](google-tools.md)); Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
-  inside a mandate (Hyperliquid, a gcloud command) has no card to answer and runs also unattended; the mandate's bounds, checked at the
+  inside a mandate (Hyperliquid) has no card to answer and runs also unattended; the mandate's bounds, checked at the
   write, take the card's place. A mandate is stored by the one shared store
   (`plugins/_shared/mandate_store.py`) and its MAC key is a Keychain item under a
   scope of the plugin's own, which no profile receives.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
-  Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare and X are the exceptions: their package handlers
+  Signal, Telegram, Discord, WhatsApp, GitHub, Git, Cloudflare, X and Google are the exceptions: their package handlers
   are not ours, so only the guards' hooks refuse, and the profile validator refuses a
   config that enables a package without its guard.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
@@ -164,10 +163,8 @@ cut with the rest counted (on Discord's shorter card the facts keep their room
 first, so less of the text shows); a card whose facts still do not fit is
 refused, never shown cut. `plugins/_shared/card.py` builds this shape for the
 access plugins, and the Hyperliquid trader builds its own cards in it
-([hyperliquid.md](hyperliquid.md)). Two cards keep a shape of their own: a
-wallet transfer on EVM or Solana, built and signed in the web3 engine
-([web3.md](web3.md)), and a Sheets edit, cell by cell
-([google-access.md](google-access.md)).
+([hyperliquid.md](hyperliquid.md)). A wallet transfer on EVM or Solana keeps
+a shape of its own, built and signed in the web3 engine ([web3.md](web3.md)).
 
 ## Chat files and archives
 
