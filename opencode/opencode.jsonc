@@ -889,10 +889,10 @@
       },
     },
     // A local model served by llama-server (bin/llama-serve), picked by hand
-    // in /models; no route names it. It answers only while llama-serve runs.
-    // modelID is llama-serve's --alias, and the context limit is its
-    // --ctx-size. llama-server streams thinking in reasoning_content and takes
-    // the output limit as max_tokens.
+    // in /models; no route names it. The server's LaunchAgent loads the model
+    // on the first request. modelID is the name of llama-serve's model preset,
+    // and the context limit is its ctx-size. llama-server streams thinking in
+    // reasoning_content and takes the output limit as max_tokens.
     "llama-cpp": {
       "name": "llama.cpp (local)",
       "package": "@opencode/ai/providers/openai-compatible",
