@@ -35,6 +35,9 @@ brew "anomalyco/tap/opencode-v2" # OpenCode 2; conflicts with the 1.x formula "o
 brew "foundry"  # forge/anvil/cast — Solidity LSP (forge_fmt) + Foundry toolchain
 brew "solidity" # solc — Solidity compiler CLI (ad-hoc compile; Nomic LSP resolves solc via Hardhat)
 
+# --- Local models for OpenCode (see opencode/README.md "Local model") ---
+brew "llama.cpp" # llama-server (Metal) that bin/llama-serve starts
+
 # --- Hermes Agent: audio / voice deps (CLI voice, TTS, Discord voice) ---
 brew "ffmpeg"    # audio conversion for TTS / voice (all platforms)
 brew "portaudio" # CLI voice mode: microphone input + playback (sounddevice)
