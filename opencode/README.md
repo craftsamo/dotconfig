@@ -695,6 +695,11 @@ it, and a session picked onto it is off its route.
   33k tokens. The first request after a load or a wake reads them in 50 to
   100 s (about 650 tokens/s at best); later requests reuse the cached prefix
   and read only what is new. Output runs at about 60 tokens/s at that depth.
+- **Thinking.** The model thinks before each answer. The `#none` variant
+  (`llama-cpp/qwen3.6-35b-a3b-aggressive#none`, or the variant picker in the
+  TUI) turns that off through the chat template's `enable_thinking`, for quick
+  questions and small edits: a one-line answer took 4 output tokens instead of
+  42, and a one-file fix finished in 3 s. Both share the prompt cache.
 - **Tools.** The chat template's tool calls come back as OpenAI `tool_calls`
   and thinking as `reasoning_content`, which the provider reads. A 3B-active
   model chooses among OpenCode's many tools less reliably than the hosted

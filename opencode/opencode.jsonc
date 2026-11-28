@@ -929,6 +929,18 @@
               "output": 0,
             },
           ],
+          // #none answers without thinking, for quick questions and small
+          // edits: the chat template's enable_thinking switch, which the
+          // request body passes to it. It shares the prompt cache with the
+          // default.
+          "variants": [
+            {
+              "id": "none",
+              "body": {
+                "chat_template_kwargs": { "enable_thinking": false },
+              },
+            },
+          ],
         },
       },
     },
