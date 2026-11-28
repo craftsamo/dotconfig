@@ -363,8 +363,10 @@ CONFIG_UNLINKED=(agents)
 # The HOME directory is a REAL machine-local one and each tracked entry of
 # <repo>/<rel> is linked into it, so the tool's files land beside the links,
 # outside the repository. A nested path listed here gets the same treatment
-# inside its parent. The Hermes roots are appended in "[hermes]".
-ENTRY_ROOTS=(opencode opencode/skills)
+# inside its parent. The Hermes roots are appended in "[hermes]". opencode's
+# agents and skills roots are real too, so machine-local agents and skills
+# (the private overlay's) sit beside the tracked ones.
+ENTRY_ROOTS=(opencode opencode/agents opencode/skills)
 # Seeded, not linked: the tool rewrites the file by temp file + rename, which
 # would replace a link with a real file on the first change (same as grok's
 # config.toml). Copied from the repo once; the tool owns it after.

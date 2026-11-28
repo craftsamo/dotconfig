@@ -5,9 +5,10 @@ machine-local one holding a link per tracked entry of this directory
 (`install.sh` "[config]", `CONFIG_ENTRY_ROOTS`), because OpenCode writes its
 own files beside the config (`service.json`, with the background-service
 password) and `hyperframes skills` mirrors its store into `skills/` — both
-land next to the links, never in this repo. `skills/` is itself such a root:
-`~/.config/opencode/skills/<category>` links here, installer droppings and
-the private overlay's skills sit beside them. `cli.json` is seeded once, not
+land next to the links, never in this repo. `skills/` and `agents/` are
+themselves such roots: `~/.config/opencode/skills/<category>` and
+`~/.config/opencode/agents/<name>.md` link here, and installer droppings and
+the private overlay's skills and agents sit beside them. `cli.json` is seeded once, not
 linked: OpenCode rewrites it by temp file + rename, which would replace a
 link. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 [`Brewfile`](../Brewfile)).
