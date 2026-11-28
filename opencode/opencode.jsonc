@@ -893,11 +893,16 @@
     // on the first request. modelID is the name of llama-serve's model preset,
     // and the context limit is its ctx-size. llama-server streams thinking in
     // reasoning_content and takes the output limit as max_tokens.
+    // After a load or a wake it reads the whole prompt again before it
+    // answers, at 300 to 650 tokens/s: past about 100k tokens that outlasts
+    // the default five-minute wait for response headers, and a timeout
+    // retries the same read up to three times. headerTimeout allows fifteen.
     "llama-cpp": {
       "name": "llama.cpp (local)",
       "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "http://127.0.0.1:18080/v1",
+        "headerTimeout": 900000,
       },
       "models": {
         "qwen3.6-35b-a3b-aggressive": {
