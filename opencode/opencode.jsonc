@@ -682,14 +682,12 @@
     "debug": {
       "color": "#06B6D4",
     },
-    "compaction": {
-      // Trial: revert to claude-sonnet-5-5 (medium) if summaries drop key facts.
-      "model": "anthropic/claude-haiku-5-5#medium",
-    },
-    // Session titles (V1 small_model).
-    "title": {
-      "model": "openai/gpt-6-luna",
-    },
+    // No model for the hidden compaction and title agents, on purpose: a
+    // summary is then written by the session's own model (reusing its prompt
+    // cache), and a title by a small model of the session's provider, or the
+    // session's model when that provider has none. A session on the local
+    // model keeps both on this machine; a model named here would send its
+    // first message and its history to another provider.
   },
   "providers": {
     "openai": {
