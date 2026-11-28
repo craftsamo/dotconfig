@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# llama-serve — serve the local Qwen3.6 model to OpenCode with llama-server
+# (Metal) on loopback, until stopped (Ctrl-C). Run it only while the model is
+# in use: it holds the model and its context in memory. The first run
+# downloads the GGUF into the Hugging Face cache (~/.cache/huggingface/hub).
+#
+#   llama-serve            serve the default quant on 127.0.0.1:18080
+#   llama-serve ARGS...    extra llama-server arguments, passed through
+#
+# OpenCode's `llama-cpp` provider (opencode/opencode.jsonc) points at it; its
+# context limit there matches LLAMA_SERVE_CTX's default.
+# Override: LLAMA_SERVE_QUANT (Q4_K_P), LLAMA_SERVE_CTX (131072),
+# LLAMA_SERVE_PORT (18080).
+set -euo pipefail
+
+repo=HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive
+quant="${LLAMA_SERVE_QUANT:-Q4_K_P}"
+
+# Sampling: Qwen's settings for coding in thinking mode. The vision
+# projector stays off: OpenCode sends this model text only.
+exec llama-server \
+  --hf-repo "$repo" \
+  --hf-file "${repo#*/}-$quant.gguf" \
+  --no-mmproj \
+  --alias qwen3.6-35b-a3b-aggressive \
+  --host 127.0.0.1 \
+  --port "${LLAMA_SERVE_PORT:-18080}" \
+  --ctx-size "${LLAMA_SERVE_CTX:-131072}" \
+  --parallel 1 \
+  --jinja \
+  --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --presence-penalty 0 \
+  "$@"
