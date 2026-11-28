@@ -1,32 +1,233 @@
 #!/usr/bin/env bash
 # llama-serve — serve the local Qwen3.6 model to OpenCode with llama-server
-# (Metal) on loopback, until stopped (Ctrl-C). Run it only while the model is
-# in use: it holds the model and its context in memory. The first run
-# downloads the GGUF into the Hugging Face cache (~/.cache/huggingface/hub).
+# (Metal) on 127.0.0.1, in the background from login (a LaunchAgent).
 #
-#   llama-serve            serve the default quant on 127.0.0.1:18080
-#   llama-serve ARGS...    extra llama-server arguments, passed through
+# llama-server runs as a router: it starts with no model in memory, loads the
+# model on the first request, and puts it to sleep again after
+# LLAMA_SERVE_IDLE seconds without one, so an idle server holds only a few
+# hundred MB. The first load downloads the GGUF into ~/.cache/huggingface/hub.
+#
+#   llama-serve install     write the LaunchAgent with the current settings and start it
+#   llama-serve uninstall   stop it and remove the LaunchAgent
+#   llama-serve restart     restart it (a changed setting needs install)
+#   llama-serve status      the agent, the server and whether the model is loaded
+#   llama-serve log         follow the server log
+#   llama-serve run [ARGS]  run in the foreground instead; ARGS go to llama-server
 #
 # OpenCode's `llama-cpp` provider (opencode/opencode.jsonc) points at it; its
 # context limit there matches LLAMA_SERVE_CTX's default.
-# Override: LLAMA_SERVE_QUANT (Q4_K_P), LLAMA_SERVE_CTX (131072),
-# LLAMA_SERVE_PORT (18080).
+# Settings, read by install and run: LLAMA_SERVE_QUANT (Q4_K_P),
+# LLAMA_SERVE_CTX (131072), LLAMA_SERVE_PORT (18080), LLAMA_SERVE_IDLE (1800).
 set -euo pipefail
 
-repo=HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive
-quant="${LLAMA_SERVE_QUANT:-Q4_K_P}"
+LABEL=local.llama-serve
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+LOG="$HOME/Library/Logs/llama-serve.log"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/llama-serve"
+# The agent's preset, and the one a foreground run writes, so a run with
+# other settings never changes what the agent starts with.
+PRESET="$STATE/models.ini"
+RUN_PRESET="$STATE/run.ini"
+# The port install gave the agent, which status and restart probe.
+AGENT_PORT_FILE="$STATE/agent-port"
 
-# Sampling: Qwen's settings for coding in thinking mode. The vision
-# projector stays off: OpenCode sends this model text only.
-exec llama-server \
-  --hf-repo "$repo" \
-  --hf-file "${repo#*/}-$quant.gguf" \
-  --no-mmproj \
-  --alias qwen3.6-35b-a3b-aggressive \
-  --host 127.0.0.1 \
-  --port "${LLAMA_SERVE_PORT:-18080}" \
-  --ctx-size "${LLAMA_SERVE_CTX:-131072}" \
-  --parallel 1 \
-  --jinja \
-  --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --presence-penalty 0 \
-  "$@"
+REPO=HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive
+MODEL=qwen3.6-35b-a3b-aggressive
+QUANT="${LLAMA_SERVE_QUANT:-Q4_K_P}"
+CTX="${LLAMA_SERVE_CTX:-131072}"
+PORT="${LLAMA_SERVE_PORT:-18080}"
+IDLE="${LLAMA_SERVE_IDLE:-1800}"
+URL="http://127.0.0.1:$PORT"
+
+die() { echo "llama-serve: $*" >&2; exit 1; }
+
+check_settings() {
+  [[ $QUANT =~ ^[A-Za-z0-9_]+$ ]] || die "LLAMA_SERVE_QUANT is not a quant name: $QUANT"
+  local name
+  for name in CTX PORT IDLE; do
+    [[ ${!name} =~ ^[0-9]+$ ]] || die "LLAMA_SERVE_$name is not a number: ${!name}"
+  done
+}
+
+server_bin() {
+  command -v llama-server 2>/dev/null || die "llama-server is not installed (brew install llama.cpp)"
+}
+
+# The model the router serves, named by OpenCode's modelID. Sampling is
+# Qwen's for coding in thinking mode. The vision projector stays off: OpenCode
+# sends this model text only.
+write_preset() {
+  mkdir -p "$STATE"
+  cat > "$1" <<EOF
+; Written by llama-serve; edit its settings instead.
+[$MODEL]
+hf-repo = $REPO
+hf-file = ${REPO#*/}-$QUANT.gguf
+no-mmproj = true
+jinja = true
+ctx-size = $CTX
+parallel = 1
+temp = 0.6
+top-p = 0.95
+top-k = 20
+min-p = 0
+presence-penalty = 0
+sleep-idle-seconds = $IDLE
+EOF
+}
+
+# The router keeps one model loaded at a time: it also lists the other GGUFs
+# in the Hugging Face cache, and a request naming one must not load a second
+# model beside this one.
+router_args() {
+  printf '%s\n' --models-preset "$1" --models-max 1 --host 127.0.0.1 --port "$PORT"
+}
+
+# status and restart probe the installed agent, whatever the current shell sets.
+use_agent_port() {
+  if [ -f "$AGENT_PORT_FILE" ]; then
+    PORT="$(cat "$AGENT_PORT_FILE")"
+    URL="http://127.0.0.1:$PORT"
+  fi
+}
+
+xml_escape() {
+  local s="$1"
+  s="${s//&/&amp;}"
+  s="${s//</&lt;}"
+  s="${s//>/&gt;}"
+  printf '%s' "$s"
+}
+
+# Both print nothing when there is none: no listener, or no loaded agent.
+port_holder() {
+  { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true; } | head -n 1
+}
+
+agent_pid() {
+  { launchctl print "gui/$UID/$LABEL" 2>/dev/null || true; } | awk '$1 == "pid" { print $3; exit }'
+}
+
+render_plist() {
+  local bin log arg args=""
+  bin="$(xml_escape "$(server_bin)")"
+  log="$(xml_escape "$LOG")"
+  while IFS= read -r arg; do
+    args+="    <string>$(xml_escape "$arg")</string>"$'\n'
+  done < <(router_args "$PRESET")
+  mkdir -p "$(dirname "$PLIST")" "$(dirname "$LOG")"
+  cat > "$PLIST.partial" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Written by llama-serve install; edit its settings instead. -->
+  <key>Label</key>
+  <string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$bin</string>
+$args  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>$log</string>
+  <key>StandardErrorPath</key>
+  <string>$log</string>
+</dict>
+</plist>
+EOF
+  plutil -lint "$PLIST.partial" >/dev/null || { rm -f "$PLIST.partial"; die "the rendered plist is invalid"; }
+  mv "$PLIST.partial" "$PLIST"
+}
+
+unload_agent() {
+  launchctl bootout "gui/$UID/$LABEL" 2>/dev/null || true
+  # bootout returns before the job is gone, and a bootstrap in that window
+  # fails, so wait for the label to leave the domain.
+  local i
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$LABEL" >/dev/null 2>&1 || return 0
+    sleep 0.2
+  done
+  echo "llama-serve: $LABEL is still loaded after bootout" >&2
+  return 1
+}
+
+wait_up() {
+  local i
+  for i in $(seq 1 30); do
+    if curl -fsS -m 2 "$URL/health" >/dev/null 2>&1; then
+      echo "listening on $URL; the model loads on the first request"
+      return 0
+    fi
+    sleep 1
+  done
+  die "the server did not answer on $URL within 30 s; see $LOG"
+}
+
+model_state() {
+  curl -fsS -m 3 "$URL/v1/models" 2>/dev/null \
+    | jq -r --arg id "$MODEL" '.data[] | select(.id == $id) | .status.value // "unknown"' 2>/dev/null
+}
+
+case "${1:-}" in
+  install)
+    check_settings
+    holder="$(port_holder)"
+    if [ -n "$holder" ] && [ "$holder" != "$(agent_pid)" ]; then
+      die "port $PORT is held by pid $holder (a foreground llama-serve run?); stop it first"
+    fi
+    write_preset "$PRESET"
+    render_plist
+    unload_agent || exit 1
+    printf '%s\n' "$PORT" > "$AGENT_PORT_FILE"
+    launchctl bootstrap "gui/$UID" "$PLIST" || die "launchctl bootstrap failed for $PLIST"
+    wait_up
+    ;;
+  uninstall)
+    unload_agent || die "not removed: $PLIST stays until the job stops"
+    rm -f "$PLIST" "$AGENT_PORT_FILE"
+    echo "stopped and removed $PLIST"
+    ;;
+  restart)
+    [ -f "$PLIST" ] || die "not installed; run: llama-serve install"
+    use_agent_port
+    launchctl kickstart -k "gui/$UID/$LABEL"
+    wait_up
+    ;;
+  status)
+    use_agent_port
+    if [ -f "$PLIST" ]; then echo "agent  : $PLIST"; else echo "agent  : not installed"; fi
+    pid="$(agent_pid)"
+    echo "pid    : ${pid:-not running}"
+    if curl -fsS -m 2 "$URL/health" >/dev/null 2>&1; then
+      echo "server : $URL"
+      echo "model  : $MODEL ($(model_state || echo unknown))"
+    else
+      echo "server : not answering on $URL"
+    fi
+    echo "log    : $LOG"
+    ;;
+  log)
+    exec tail -n 50 -F "$LOG"
+    ;;
+  run)
+    shift
+    check_settings
+    write_preset "$RUN_PRESET"
+    args=()
+    while IFS= read -r arg; do args+=("$arg"); done < <(router_args "$RUN_PRESET")
+    exec "$(server_bin)" "${args[@]}" "$@"
+    ;;
+  *)
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    [ -z "${1:-}" ] || exit 2
+    ;;
+esac

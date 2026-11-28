@@ -663,37 +663,48 @@ A move to a credit lane (see above) therefore pays one full write.
 `llama-cpp/qwen3.6-35b-a3b-aggressive` is
 [HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive)
 (Qwen3.6-35B-A3B with its refusals removed, GGUF only), served on this
-machine by `llama-server` (Homebrew `llama.cpp`, Metal). It runs only while
-it is in use, so it holds no memory otherwise:
+machine by `llama-server` (Homebrew `llama.cpp`, Metal) on
+`127.0.0.1:18080`. A LaunchAgent keeps the server running from login, set up
+once with:
 
 ```sh
-llama-serve        # bin/llama-serve; 127.0.0.1:18080, Ctrl-C stops it
+llama-serve install   # bin/llama-serve; also status, log, restart, uninstall
 ```
 
-then pick it in `/models`, or `opencode run --model
+Then pick the model in `/models`, or `opencode run --model
 llama-cpp/qwen3.6-35b-a3b-aggressive …`. No route of the model fallback names
-it, and a session picked onto it is off its route. The first run downloads
-the quant (Q4_K_P, 23.4 GB) into `~/.cache/huggingface/hub`.
+it, and a session picked onto it is off its route.
 
-- **Settings.** `LLAMA_SERVE_QUANT` picks another file of the repository
-  (`Q5_K_P` is 28 GB, about the most that leaves room for the rest of a 48 GB
-  machine), `LLAMA_SERVE_CTX` the context (131072, the `limit.context` of the
-  `llama-cpp` provider: change both together) and `LLAMA_SERVE_PORT` the port.
-  Sampling is Qwen's for coding in thinking mode; extra arguments go to
-  `llama-server` as they are.
+- **Memory.** `llama-server` runs as a router with one model preset
+  (`~/.local/state/llama-serve/models.ini`): it starts with no model loaded,
+  loads it on the first request, and puts it to sleep after 30 minutes
+  without one, which frees the model's 23 GB (the sleeping server keeps under
+  100 MB). The next request wakes it in a few seconds. The first load downloads
+  the quant (Q4_K_P, 23.4 GB) into `~/.cache/huggingface/hub`.
+- **Settings.** `install` writes the preset and the agent from
+  `LLAMA_SERVE_QUANT` (another file of the repository; `Q5_K_P` is 28 GB, about
+  the most that leaves room for the rest of a 48 GB machine), `LLAMA_SERVE_CTX`
+  (131072, the `limit.context` of the `llama-cpp` provider: change both
+  together), `LLAMA_SERVE_PORT` (also the provider's `baseURL`) and
+  `LLAMA_SERVE_IDLE` (seconds before the model sleeps), so a change takes
+  effect when `install` runs again with it. Sampling is Qwen's for coding in
+  thinking mode. `llama-serve run [ARGS]` serves in the foreground instead,
+  from a preset of its own (`run.ini`, so the agent's stays as it is), and
+  passes ARGS to the router; stop the agent first or give it another port.
 - **Speed (M4 Max, Q4_K_P).** OpenCode's system prompt and tools are about
-  33k tokens. The first request of a server reads them at about 650 tokens/s
-  (about 50 s); later requests reuse the cached prefix and read only what is
-  new. Output runs at about 60 tokens/s at that depth.
+  33k tokens. The first request after a load or a wake reads them in 50 to
+  100 s (about 650 tokens/s at best); later requests reuse the cached prefix
+  and read only what is new. Output runs at about 60 tokens/s at that depth.
 - **Tools.** The chat template's tool calls come back as OpenAI `tool_calls`
   and thinking as `reasoning_content`, which the provider reads. A 3B-active
   model chooses among OpenCode's many tools less reliably than the hosted
   models: give it small, concrete tasks.
 - **Warming** reaches this provider too: a keep-alive costs nothing but runs
-  on the GPU.
+  on the GPU, and it keeps the model awake for the twenty minutes it lasts.
 - **Uncensored.** The author publishes no measurement of what removing the
   refusals cost; if results look worse than expected, compare with the base
-  model (`unsloth/Qwen3.6-35B-A3B-GGUF`) through `--hf-repo`/`--hf-file`.
+  model (`unsloth/Qwen3.6-35B-A3B-GGUF`), for instance by changing `hf-repo`
+  and `hf-file` in the preset and running `llama-serve restart`.
 
 ## Accounts
 
