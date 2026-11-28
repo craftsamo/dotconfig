@@ -888,6 +888,45 @@
         "claude-haiku-5-5": {},
       },
     },
+    // A local model served by llama-server (bin/llama-serve), picked by hand
+    // in /models; no route names it. It answers only while llama-serve runs.
+    // modelID is llama-serve's --alias, and the context limit is its
+    // --ctx-size. llama-server streams thinking in reasoning_content and takes
+    // the output limit as max_tokens.
+    "llama-cpp": {
+      "name": "llama.cpp (local)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:18080/v1",
+      },
+      "models": {
+        "qwen3.6-35b-a3b-aggressive": {
+          "name": "Qwen3.6 35B-A3B Uncensored Aggressive (local)",
+          "modelID": "qwen3.6-35b-a3b-aggressive",
+          "family": "qwen",
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"],
+            "reasoning": { "supported": true },
+          },
+          "compatibility": {
+            "reasoningField": "reasoning_content",
+            "maxTokensField": "max_tokens",
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768,
+          },
+          "cost": [
+            {
+              "input": 0,
+              "output": 0,
+            },
+          ],
+        },
+      },
+    },
   },
   "permissions": [
     {
